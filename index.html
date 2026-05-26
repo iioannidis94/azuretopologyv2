@@ -3,241 +3,84 @@
 <head>
 <meta charset="UTF-8">    
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Azure Hub & Spoke Designer</title>
+<title>Advanced Azure Architecture Builder</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --azure-blue: #0078D4;
-    --azure-light: #50E6FF;
-    --azure-dark: #003A5C;
-    --accent: #FFB900;
-    --danger: #FF4444;
-    --success: #00C851;
-    --bg: #060D18;
-    --bg2: #0A1628;
-    --bg3: #0F1F3A;
-    --border: rgba(0,120,212,0.3);
-    --text: #E8F4FD;
-    --muted: #7BA3C0;
+    --azure-blue: #0078D4; --azure-light: #50E6FF; --azure-dark: #003A5C;
+    --accent: #FFB900; --danger: #FF4444; --success: #00C851;
+    --bg: #060D18; --bg2: #0A1628; --bg3: #0F1F3A;
+    --border: rgba(0,120,212,0.3); --text: #E8F4FD; --muted: #7BA3C0;
     --card-bg: rgba(10,22,40,0.95);
-    --hub-color: #0078D4;
-    --spoke1: #00BCF2;
-    --spoke2: #00B294;
-    --spoke3: #FF8C00;
-    --spoke4: #8764B8;
-    --spoke5: #E81123;
-    --spoke6: #107C10;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    font-family: 'JetBrains Mono', monospace;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* ========== GRID BACKGROUND ========== */
+  body { font-family: 'JetBrains Mono', monospace; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
   body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(0,120,212,0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,120,212,0.04) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-    z-index: 0;
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: linear-gradient(rgba(0,120,212,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,120,212,0.04) 1px, transparent 1px); background-size: 40px 40px;
   }
 
-  /* ========== HEADER ========== */
-  header {
-    position: relative;
-    z-index: 10;
-    padding: 24px 40px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--border);
-    background: rgba(6,13,24,0.9);
-    backdrop-filter: blur(20px);
-  }
-
+  /* HEADER */
+  header { position: relative; z-index: 10; padding: 16px 30px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); background: rgba(6,13,24,0.9); backdrop-filter: blur(20px); }
   .logo { display: flex; align-items: center; gap: 14px; }
-  .logo-icon {
-    width: 42px; height: 42px;
-    background: linear-gradient(135deg, var(--azure-blue), var(--azure-light));
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 20px;
-    box-shadow: 0 0 20px rgba(0,120,212,0.5);
-  }
-  .logo h1 { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--azure-blue), var(--azure-light)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 0 15px rgba(0,120,212,0.5); }
+  .logo h1 { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; }
   .logo span { color: var(--azure-light); }
-  .header-meta { display: flex; gap: 20px; align-items: center; }
+  .badge { font-size: 10px; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--success); color: var(--success); text-transform: uppercase; }
 
-  .badge {
-    font-size: 10px; padding: 4px 10px; border-radius: 20px;
-    border: 1px solid var(--border); color: var(--muted);
-    text-transform: uppercase; letter-spacing: 1px;
-  }
-  .badge.live { border-color: var(--success); color: var(--success); animation: pulse-badge 2s infinite; }
-  @keyframes pulse-badge { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
-
-  /* ========== MAIN LAYOUT ========== */
-  .app {
-    position: relative; z-index: 1; display: grid;
-    grid-template-columns: 340px 1fr 340px;
-    height: calc(100vh - 73px);
-  }
-
-  /* ========== SIDEBAR LEFT ========== */
-  .sidebar-left {
-    border-right: 1px solid var(--border); overflow-y: auto;
-    background: var(--card-bg); padding: 20px;
-    display: flex; flex-direction: column; gap: 16px;
-  }
-
-  .section-title {
-    font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
-    color: var(--muted); padding-bottom: 8px;
-    border-bottom: 1px solid var(--border); margin-bottom: 4px;
-  }
-
-  /* ========== SPOKE CONTROLS ========== */
-  .spoke-config {
-    background: var(--bg3); border: 1px solid var(--border);
-    border-radius: 10px; padding: 14px; transition: border-color 0.2s;
-    position: relative; overflow: hidden;
-  }
-  .spoke-config::before {
-    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
-    width: 3px; background: var(--spoke-color, var(--azure-blue));
-  }
-  .spoke-config:hover { border-color: var(--azure-light); }
-
-  .spoke-header { display: flex; align-items: center; margin-bottom: 10px; gap: 10px; }
+  /* LAYOUT */
+  .app { position: relative; z-index: 1; display: grid; grid-template-columns: 360px 1fr 340px; height: calc(100vh - 69px); }
+  .sidebar { border-right: 1px solid var(--border); overflow-y: auto; background: var(--card-bg); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .sidebar.right { border-right: none; border-left: 1px solid var(--border); }
   
-  .spoke-label {
-    font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
-    display: flex; align-items: center; gap: 8px; flex-grow: 1;
-  }
-  .spoke-dot {
-    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-    background: var(--spoke-color, var(--azure-blue));
-    box-shadow: 0 0 6px var(--spoke-color, var(--azure-blue));
-  }
+  .section-title { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--azure-light); padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
 
-  /* CIDR INPUT FIELD */
-  .cidr-input {
-    background: rgba(0,0,0,0.2); border: 1px dashed rgba(80, 230, 255, 0.3);
-    color: var(--azure-light); font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; padding: 3px 6px; border-radius: 4px; outline: none;
-    margin-left: auto; width: 85px; text-align: center; transition: all 0.2s;
-  }
-  .cidr-input:focus { border-color: var(--azure-light); background: rgba(0,120,212,0.1); }
+  /* DYNAMIC CARDS */
+  .vnet-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 12px; position: relative; overflow: visible; }
+  .vnet-header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .vnet-row { display: flex; gap: 8px; align-items: center; }
+  
+  .input-field { background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: white; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 6px; border-radius: 4px; outline: none; width: 100%; transition: 0.2s; }
+  .input-field:focus { border-color: var(--azure-light); background: rgba(0,120,212,0.1); }
+  .input-field.cidr { width: 110px; text-align: center; color: var(--azure-light); }
 
-  .toggle-btn {
-    width: 32px; height: 18px; background: var(--bg); border-radius: 9px;
-    border: 1px solid var(--border); position: relative; cursor: pointer; flex-shrink: 0;
-  }
-  .toggle-btn.on { background: var(--azure-blue); border-color: var(--azure-blue); }
-  .toggle-btn::after {
-    content: ''; position: absolute; top: 2px; left: 2px;
-    width: 12px; height: 12px; background: white; border-radius: 50%; transition: transform 0.2s;
-  }
-  .toggle-btn.on::after { transform: translateX(14px); }
+  .resource-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 10px; padding: 4px 8px; border-radius: 4px; background: rgba(0,120,212,0.2); border: 1px solid var(--azure-blue); color: white; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+  .chip:hover { background: var(--azure-blue); }
+  .chip.hub-chip { background: rgba(255,140,0,0.2); border-color: #FF8C00; }
+  .chip.hub-chip:hover { background: #FF8C00; }
 
-  .resource-chips { display: flex; flex-wrap: wrap; gap: 5px; }
-  .chip {
-    font-size: 9px; padding: 3px 7px; border-radius: 4px;
-    background: rgba(0,120,212,0.15); border: 1px solid rgba(0,120,212,0.3);
-    color: var(--azure-light); cursor: pointer; transition: all 0.2s; user-select: none;
-  }
-  .chip:hover { background: rgba(0,120,212,0.3); }
-  .chip.active { background: var(--azure-blue); border-color: var(--azure-blue); color: white; }
+  /* BUTTONS & DROPDOWNS */
+  .btn { background: transparent; border: 1px dashed var(--muted); color: var(--muted); padding: 6px 12px; font-size: 10px; cursor: pointer; border-radius: 4px; font-family: 'JetBrains Mono'; transition: 0.2s; text-align: center; width: 100%; margin-top: 8px; }
+  .btn:hover { border-color: var(--azure-light); color: var(--azure-light); background: rgba(80,230,255,0.05); }
+  .btn.primary { background: rgba(0,120,212,0.2); border: 1px solid var(--azure-blue); color: white; }
+  .btn.primary:hover { background: var(--azure-blue); }
+  .btn.danger { border-color: var(--danger); color: var(--danger); margin-top: 16px; }
+  .btn.danger:hover { background: var(--danger); color: white; }
 
-  /* ========== MAIN CANVAS ========== */
+  .add-res-container { position: relative; }
+  .res-dropdown { display: none; position: absolute; top: 100%; left: 0; width: 100%; background: var(--bg2); border: 1px solid var(--azure-blue); border-radius: 4px; z-index: 100; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+  .res-dropdown.show { display: block; }
+  .res-option { padding: 8px; font-size: 10px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 8px; }
+  .res-option:hover { background: var(--azure-blue); color: white; }
+
+  /* CANVAS */
   .canvas-area { position: relative; overflow: hidden; background: var(--bg); }
-  .canvas-toolbar {
-    position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 20;
-    display: flex; gap: 8px; background: rgba(6,13,24,0.9); border: 1px solid var(--border);
-    border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(10px);
-  }
-  .tool-btn {
-    font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 6px 14px;
-    border-radius: 6px; border: 1px solid var(--border); background: transparent;
-    color: var(--muted); cursor: pointer; transition: all 0.2s;
-  }
-  .tool-btn:hover, .tool-btn.active { background: var(--azure-blue); border-color: var(--azure-blue); color: white; }
   #diagram-canvas { width: 100%; height: 100%; cursor: grab; }
   #diagram-canvas:active { cursor: grabbing; }
 
-  /* ========== SIDEBAR RIGHT ========== */
-  .sidebar-right {
-    border-left: 1px solid var(--border); overflow-y: auto; background: var(--card-bg);
-    padding: 20px; display: flex; flex-direction: column; gap: 16px;
-  }
+  /* EDITOR (RIGHT SIDEBAR) */
+  .editor-panel { background: var(--bg3); border: 1px solid var(--azure-blue); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .editor-header { display: flex; align-items: center; gap: 10px; font-family: 'Syne'; font-size: 16px; font-weight: 700; color: var(--azure-light); margin-bottom: 8px; }
+  .editor-row { display: flex; flex-direction: column; gap: 4px; }
+  .editor-label { font-size: 9px; color: var(--muted); text-transform: uppercase; }
 
-  .resource-card {
-    background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
-    padding: 14px; transition: all 0.2s;
-  }
-  .resource-card:hover { border-color: rgba(0,120,212,0.5); }
-  .resource-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-  .res-icon {
-    width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center;
-    justify-content: center; font-size: 16px; flex-shrink: 0;
-  }
-  .res-name { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; }
-  .res-type { font-size: 9px; color: var(--muted); margin-top: 2px; }
-  .config-rows { display: flex; flex-direction: column; gap: 6px; }
-  .config-row {
-    display: flex; justify-content: space-between; align-items: center; padding: 5px 0;
-    border-bottom: 1px solid rgba(0,120,212,0.1); font-size: 10px;
-  }
-  .config-key { color: var(--muted); }
-  .config-val { color: var(--azure-light); font-weight: 600; text-align: right; }
-  .config-val.warn { color: var(--accent); }
-  .config-val.ok { color: var(--success); }
-
-  .cost-panel {
-    background: linear-gradient(135deg, rgba(0,120,212,0.1), rgba(0,188,242,0.05));
-    border: 1px solid var(--border); border-radius: 10px; padding: 16px;
-  }
-  .cost-total { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; color: var(--azure-light); margin: 8px 0 4px; }
-  .cost-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-
-  /* TOOLTIP & SCROLLBAR */
-  .tooltip {
-    position: absolute; background: var(--bg2); border: 1px solid var(--azure-blue);
-    border-radius: 8px; padding: 10px 14px; font-size: 11px; pointer-events: none;
-    z-index: 100; display: none; min-width: 160px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-  }
-  .tooltip.show { display: block; }
-  .tooltip-title { font-family: 'Syne', sans-serif; font-weight: 700; margin-bottom: 6px; color: var(--azure-light); }
-  .tooltip-row { display: flex; justify-content: space-between; gap: 16px; margin-top: 3px; color: var(--muted); font-size: 10px; }
-  .tooltip-row span:last-child { color: var(--text); }
-
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); }
-
-  /* EXPORT BTN */
-  .export-btn {
-    font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; padding: 12px;
-    border-radius: 8px; border: none; background: linear-gradient(135deg, var(--azure-blue), #00BCF2);
-    color: white; cursor: pointer; width: 100%; transition: all 0.2s; text-transform: uppercase;
-  }
-  .export-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,120,212,0.4); }
-
-  .selected-info {
-    background: var(--bg3); border: 1px solid var(--azure-blue); border-radius: 10px;
-    padding: 14px; font-size: 10px; color: var(--muted); min-height: 60px;
-  }
-  .info-title { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: var(--azure-light); margin-bottom: 8px; }
+  /* SCROLLBARS */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--azure-blue); }
 </style>
 </head>
 <body>
@@ -245,280 +88,338 @@
 <header>
   <div class="logo">
     <div class="logo-icon">⬡</div>
-    <h1>Azure <span>Hub & Spoke</span> Designer</h1>
+    <h1>Azure <span>Dynamic</span> Builder</h1>
   </div>
-  <div class="header-meta">
-    <span class="badge">v2.5.0</span>
-    <span class="badge live">● Interactive</span>
-  </div>
+  <div class="badge">● Live Design Mode</div>
 </header>
 
 <div class="app">
-
-  <div class="sidebar-left">
-    <div class="section-title">// Hub Configuration</div>
-
-    <div class="spoke-config" style="--spoke-color: var(--hub-color)">
-      <div class="spoke-header">
-        <div class="spoke-label">
-          <div class="spoke-dot"></div> Hub VNet
-          <input type="text" class="cidr-input" value="10.0.0.0/16" oninput="updateCidr('hub', this.value)">
-        </div>
-        <div class="toggle-btn on" onclick="toggleHub(this)"></div>
-      </div>
-      <div class="resource-chips">
-        <div class="chip active" onclick="toggleChip(this,'hub-fw')">🛡️ Firewall</div>
-        <div class="chip active" onclick="toggleChip(this,'hub-gw')">🔀 VPN Gateway</div>
-        <div class="chip active" onclick="toggleChip(this,'hub-er')">⚡ ExpressRoute</div>
-        <div class="chip active" onclick="toggleChip(this,'hub-bas')">🖥️ Bastion</div>
-      </div>
+  <div class="sidebar" id="sidebar-left">
     </div>
-
-    <div class="section-title">// Spoke Networks</div>
-
-    <div class="spoke-config" style="--spoke-color: var(--spoke1)">
-      <div class="spoke-header">
-        <div class="spoke-label">
-          <div class="spoke-dot"></div> Production
-          <input type="text" class="cidr-input" value="10.1.0.0/16" oninput="updateCidr('prod', this.value)">
-        </div>
-        <div class="toggle-btn on" onclick="toggleSpoke(this,'prod')"></div>
-      </div>
-      <div class="resource-chips">
-        <div class="chip active" onclick="toggleChip(this,'prod-vm')">💻 VMs (4x D4s)</div>
-        <div class="chip active" onclick="toggleChip(this,'prod-sql')">🗄️ Azure SQL</div>
-        <div class="chip active" onclick="toggleChip(this,'prod-app')">🌐 App Service</div>
-        <div class="chip active" onclick="toggleChip(this,'prod-kv')">🔑 Key Vault</div>
-      </div>
-    </div>
-
-    <div class="spoke-config" style="--spoke-color: var(--spoke2)">
-      <div class="spoke-header">
-        <div class="spoke-label">
-          <div class="spoke-dot"></div> Dev / Test
-          <input type="text" class="cidr-input" value="10.2.0.0/16" oninput="updateCidr('dev', this.value)">
-        </div>
-        <div class="toggle-btn on" onclick="toggleSpoke(this,'dev')"></div>
-      </div>
-      <div class="resource-chips">
-        <div class="chip active" onclick="toggleChip(this,'dev-vm')">💻 VMs (2x B2s)</div>
-        <div class="chip active" onclick="toggleChip(this,'dev-app')">🌐 App Service</div>
-        <div class="chip active" onclick="toggleChip(this,'dev-st')">📦 Storage Acct</div>
-      </div>
-    </div>
-
-    <div class="spoke-config" style="--spoke-color: var(--spoke3)">
-      <div class="spoke-header">
-        <div class="spoke-label">
-          <div class="spoke-dot"></div> DMZ / Public
-          <input type="text" class="cidr-input" value="10.3.0.0/16" oninput="updateCidr('dmz', this.value)">
-        </div>
-        <div class="toggle-btn on" onclick="toggleSpoke(this,'dmz')"></div>
-      </div>
-      <div class="resource-chips">
-        <div class="chip active" onclick="toggleChip(this,'dmz-agw')">🌐 App Gateway</div>
-        <div class="chip active" onclick="toggleChip(this,'dmz-waf')">🛡️ WAF Policy</div>
-        <div class="chip active" onclick="toggleChip(this,'dmz-apim')">🔌 APIM</div>
-      </div>
-    </div>
-
-    <div class="spoke-config" style="--spoke-color: var(--spoke4)">
-      <div class="spoke-header">
-        <div class="spoke-label">
-          <div class="spoke-dot"></div> Data Platform
-          <input type="text" class="cidr-input" value="10.4.0.0/16" oninput="updateCidr('data', this.value)">
-        </div>
-        <div class="toggle-btn on" onclick="toggleSpoke(this,'data')"></div>
-      </div>
-      <div class="resource-chips">
-        <div class="chip active" onclick="toggleChip(this,'data-syn')">📊 Synapse</div>
-        <div class="chip active" onclick="toggleChip(this,'data-adf')">🔄 Data Factory</div>
-        <div class="chip active" onclick="toggleChip(this,'data-adls')">💾 ADLS Gen2</div>
-      </div>
-    </div>
-  </div>
 
   <div class="canvas-area">
-    <div class="canvas-toolbar">
-      <button class="tool-btn active" id="btn-arch" onclick="setView('arch')">Architecture</button>
-      <button class="tool-btn" id="btn-sec" onclick="setView('sec')">Security Zones</button>
-    </div>
     <canvas id="diagram-canvas"></canvas>
-    <div class="tooltip" id="tooltip"></div>
   </div>
 
-  <div class="sidebar-right">
-    <div class="section-title">// Selected Resource</div>
-    <div class="selected-info" id="selected-panel">
-      <div style="display:flex;align-items:center;justify-content:center;height:40px;">← Click a node to inspect</div>
+  <div class="sidebar right" id="sidebar-right">
+    <div class="section-title">// Properties Editor</div>
+    <div id="editor-container">
+      <div style="text-align:center; color:var(--muted); font-size:11px; margin-top:20px;">
+        ← Click a VNet or Resource to edit its configuration
+      </div>
     </div>
-
-    <div class="section-title">// Cost Estimate</div>
-    <div class="cost-panel">
-      <div class="cost-label">Monthly Estimate</div>
-      <div class="cost-total" id="cost-total">€0</div>
-      <div class="cost-label" id="cost-range">Active resources: 0</div>
-    </div>
-    
-    <button class="export-btn" onclick="exportDiagram()">⬇ Export Diagram</button>
   </div>
-
 </div>
 
 <script>
 // ============================================================
-// STATE
+// RESOURCE DICTIONARY
 // ============================================================
-const state = {
-  view: 'arch',
-  spokes: { prod: true, dev: true, dmz: true, data: true, sec: false, mgmt: false },
-  cidrs: { // Τώρα τα CIDRs κρατούνται δυναμικά στο state!
-    hub: '10.0.0.0/16',
-    prod: '10.1.0.0/16',
-    dev: '10.2.0.0/16',
-    dmz: '10.3.0.0/16',
-    data: '10.4.0.0/16',
-    sec: '10.5.0.0/16',
-    mgmt: '10.6.0.0/16'
-  },
-  hubEnabled: true,
-  activeChips: new Set([
-    'hub-fw','hub-gw','hub-er','hub-bas',
-    'prod-vm','prod-sql','prod-app','prod-kv',
-    'dev-vm','dev-app','dev-st',
-    'dmz-agw','dmz-waf','dmz-apim',
-    'data-syn','data-adf','data-adls'
-  ]),
-  hoveredNode: null, selectedNode: null,
-  offset: { x: 0, y: 0 }, dragging: false, scale: 1
+const RES_TYPES = {
+  vm: { icon: '💻', color: '#00BCF2', label: 'Virtual Machine', config: { size: 'Standard_D2s_v3', os: 'Linux/Windows' } },
+  sql: { icon: '🗄️', color: '#00B294', label: 'Azure SQL', config: { tier: 'General Purpose', vcores: '4' } },
+  app: { icon: '🌐', color: '#00BCF2', label: 'App Service', config: { sku: 'Premium V3', instances: '2' } },
+  kv: { icon: '🔑', color: '#FF8C00', label: 'Key Vault', config: { sku: 'Standard', rbac: 'Enabled' } },
+  sa: { icon: '📦', color: '#00B294', label: 'Storage Account', config: { tier: 'Standard', replication: 'LRS' } },
+  fa: { icon: '⚡', color: '#8764B8', label: 'Function App', config: { plan: 'Consumption', runtime: '.NET' } },
+  aks: { icon: '☸️', color: '#0078D4', label: 'AKS Cluster', config: { nodes: '3', version: '1.27' } },
+  fw: { icon: '🛡️', color: '#E81123', label: 'Azure Firewall', config: { sku: 'Premium', mode: 'Alert & Deny' } },
+  nva: { icon: '🧱', color: '#E81123', label: 'FortiGate NVA', config: { mode: 'Active/Passive', version: '7.2' } },
+  agw: { icon: '🌍', color: '#FF8C00', label: 'App Gateway', config: { sku: 'WAF_v2', capacity: 'Autoscale' } },
+  lb: { icon: '⚖️', color: '#00BCF2', label: 'Load Balancer', config: { sku: 'Standard', type: 'Internal' } },
+  gw: { icon: '🔀', color: '#0078D4', label: 'VPN Gateway', config: { sku: 'VpnGw2AZ', routing: 'BGP Enabled' } }
 };
 
-// Ενημέρωση CIDR από τα inputs
-function updateCidr(key, value) {
-  state.cidrs[key] = value;
+// ============================================================
+// DYNAMIC STATE
+// ============================================================
+let state = {
+  hub: {
+    id: 'hub', name: 'Hub VNet', cidr: '10.0.0.0/16', color: '#0078D4',
+    resources: [
+      { id: 'res-h1', type: 'fw', name: 'Hub Firewall', config: { ...RES_TYPES.fw.config } },
+      { id: 'res-h2', type: 'agw', name: 'Public App GW', config: { ...RES_TYPES.agw.config } }
+    ]
+  },
+  spokes: [
+    {
+      id: 'spoke-1', name: 'Production', cidr: '10.1.0.0/16', color: '#00BCF2',
+      resources: [
+        { id: 'res-s1', type: 'vm', name: 'Prod Web VMs', config: { ...RES_TYPES.vm.config } },
+        { id: 'res-s2', type: 'sql', name: 'Prod DB', config: { ...RES_TYPES.sql.config } }
+      ]
+    },
+    {
+      id: 'spoke-2', name: 'Dev / Test', cidr: '10.2.0.0/16', color: '#00B294',
+      resources: [
+        { id: 'res-s3', type: 'app', name: 'Dev API', config: { ...RES_TYPES.app.config } }
+      ]
+    }
+  ],
+  selectedId: null,
+  offset: { x: 0, y: 0 }, scale: 1, dragging: false, dragStart: {x:0,y:0}, offsetStart: {x:0,y:0}
+};
+
+const getUid = () => 'id-' + Math.random().toString(36).substr(2, 9);
+
+// ============================================================
+// UI RENDERING (LEFT SIDEBAR)
+// ============================================================
+function renderSidebar() {
+  const container = document.getElementById('sidebar-left');
+  let html = `<div class="section-title">// Hub Environment</div>`;
+  
+  // Render Hub
+  html += buildVnetCard(state.hub, true);
+
+  html += `<div class="section-title" style="margin-top:20px;">// Spoke Networks</div>`;
+  
+  // Render Spokes
+  state.spokes.forEach((spoke, idx) => {
+    html += buildVnetCard(spoke, false, idx);
+  });
+
+  html += `<button class="btn primary" onclick="addSpoke()">➕ Add New Spoke</button>`;
+  container.innerHTML = html;
+}
+
+function buildVnetCard(vnet, isHub, idx = null) {
+  const isSelected = state.selectedId === vnet.id;
+  let html = `
+    <div class="vnet-card" style="border-color: ${isSelected ? 'var(--azure-light)' : 'var(--border)'}">
+      <div class="vnet-header">
+        <div class="vnet-row">
+          <input type="text" class="input-field" value="${vnet.name}" onchange="updateVnet('${vnet.id}', 'name', this.value)" onclick="selectNode('${vnet.id}')">
+          <input type="text" class="input-field cidr" value="${vnet.cidr}" onchange="updateVnet('${vnet.id}', 'cidr', this.value)" onclick="selectNode('${vnet.id}')">
+        </div>
+      </div>
+      <div class="resource-chips">
+  `;
+
+  vnet.resources.forEach(res => {
+    const rType = RES_TYPES[res.type];
+    const isResSelected = state.selectedId === res.id;
+    html += `
+      <div class="chip ${isHub ? 'hub-chip' : ''}" style="${isResSelected ? 'border-color:white; box-shadow:0 0 8px '+rType.color : ''}" onclick="selectNode('${res.id}')">
+        ${rType.icon} ${res.name}
+      </div>
+    `;
+  });
+
+  html += `
+      </div>
+      <div class="add-res-container" style="margin-top:12px;">
+        <button class="btn" onclick="toggleDropdown('${vnet.id}')">➕ Add Resource</button>
+        <div class="res-dropdown" id="dropdown-${vnet.id}">
+  `;
+  
+  Object.keys(RES_TYPES).forEach(key => {
+    const t = RES_TYPES[key];
+    html += `<div class="res-option" onclick="addResource('${vnet.id}', '${key}')">${t.icon} ${t.label}</div>`;
+  });
+
+  html += `</div></div></div>`;
+  return html;
+}
+
+// ============================================================
+// UI RENDERING (RIGHT EDITOR)
+// ============================================================
+function renderEditor() {
+  const container = document.getElementById('editor-container');
+  if (!state.selectedId) {
+    container.innerHTML = `<div style="text-align:center; color:var(--muted); font-size:11px; margin-top:20px;">← Click a VNet or Resource to edit</div>`;
+    return;
+  }
+
+  // Find what is selected
+  let selectedObj = null;
+  let parentVnet = null;
+  let isVnet = false;
+
+  if (state.hub.id === state.selectedId) { selectedObj = state.hub; isVnet = true; }
+  else {
+    state.spokes.forEach(s => {
+      if (s.id === state.selectedId) { selectedObj = s; isVnet = true; }
+      const res = s.resources.find(r => r.id === state.selectedId);
+      if (res) { selectedObj = res; parentVnet = s; }
+    });
+    const hubRes = state.hub.resources.find(r => r.id === state.selectedId);
+    if (hubRes) { selectedObj = hubRes; parentVnet = state.hub; }
+  }
+
+  if (!selectedObj) return;
+
+  let html = `<div class="editor-panel">`;
+  
+  if (isVnet) {
+    html += `
+      <div class="editor-header">🌐 ${selectedObj.name}</div>
+      <div class="editor-row"><span class="editor-label">VNet Name</span><input type="text" class="input-field" value="${selectedObj.name}" onchange="updateVnet('${selectedObj.id}', 'name', this.value)"></div>
+      <div class="editor-row"><span class="editor-label">CIDR Block</span><input type="text" class="input-field" value="${selectedObj.cidr}" onchange="updateVnet('${selectedObj.id}', 'cidr', this.value)"></div>
+    `;
+    if (selectedObj.id !== 'hub') {
+      html += `<button class="btn danger" onclick="deleteSpoke('${selectedObj.id}')">🗑️ Delete Spoke</button>`;
+    }
+  } else {
+    const rType = RES_TYPES[selectedObj.type];
+    html += `
+      <div class="editor-header">${rType.icon} ${rType.label}</div>
+      <div class="editor-row"><span class="editor-label">Resource Name</span><input type="text" class="input-field" value="${selectedObj.name}" onchange="updateResource('${parentVnet.id}', '${selectedObj.id}', 'name', this.value)"></div>
+    `;
+    // Render dynamic config inputs
+    Object.keys(selectedObj.config).forEach(key => {
+      html += `
+        <div class="editor-row" style="margin-top:6px;">
+          <span class="editor-label">${key.toUpperCase()}</span>
+          <input type="text" class="input-field" value="${selectedObj.config[key]}" onchange="updateResourceConfig('${parentVnet.id}', '${selectedObj.id}', '${key}', this.value)">
+        </div>
+      `;
+    });
+    html += `<button class="btn danger" onclick="deleteResource('${parentVnet.id}', '${selectedObj.id}')">🗑️ Delete Resource</button>`;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+// ============================================================
+// STATE MUTATIONS
+// ============================================================
+const colors = ['#00BCF2', '#00B294', '#FF8C00', '#8764B8', '#E81123', '#107C10'];
+function addSpoke() {
+  state.spokes.push({
+    id: getUid(),
+    name: `Spoke ${state.spokes.length + 1}`,
+    cidr: `10.${state.spokes.length + 1}.0.0/16`,
+    color: colors[state.spokes.length % colors.length],
+    resources: []
+  });
+  fullUpdate();
+}
+
+function deleteSpoke(id) {
+  state.spokes = state.spokes.filter(s => s.id !== id);
+  state.selectedId = null;
+  fullUpdate();
+}
+
+function updateVnet(id, key, val) {
+  if (state.hub.id === id) state.hub[key] = val;
+  else {
+    const sp = state.spokes.find(s => s.id === id);
+    if (sp) sp[key] = val;
+  }
+  fullUpdate();
+}
+
+function toggleDropdown(id) {
+  document.querySelectorAll('.res-dropdown').forEach(d => d.classList.remove('show'));
+  document.getElementById(`dropdown-${id}`).classList.toggle('show');
+}
+
+function addResource(vnetId, resType) {
+  const vnet = state.hub.id === vnetId ? state.hub : state.spokes.find(s => s.id === vnetId);
+  const rT = RES_TYPES[resType];
+  const newRes = { id: getUid(), type: resType, name: `New ${rT.label}`, config: { ...rT.config } };
+  vnet.resources.push(newRes);
+  document.querySelectorAll('.res-dropdown').forEach(d => d.classList.remove('show'));
+  selectNode(newRes.id);
+}
+
+function deleteResource(vnetId, resId) {
+  const vnet = state.hub.id === vnetId ? state.hub : state.spokes.find(s => s.id === vnetId);
+  vnet.resources = vnet.resources.filter(r => r.id !== resId);
+  state.selectedId = null;
+  fullUpdate();
+}
+
+function updateResource(vnetId, resId, key, val) {
+  const vnet = state.hub.id === vnetId ? state.hub : state.spokes.find(s => s.id === vnetId);
+  const res = vnet.resources.find(r => r.id === resId);
+  res[key] = val;
+  fullUpdate();
+}
+
+function updateResourceConfig(vnetId, resId, configKey, val) {
+  const vnet = state.hub.id === vnetId ? state.hub : state.spokes.find(s => s.id === vnetId);
+  const res = vnet.resources.find(r => r.id === resId);
+  res.config[configKey] = val;
+  // Δεν χρειάζεται full update στον καμβά για απλό config αλλαγή, μόνο editor save
+  renderEditor(); 
+}
+
+function selectNode(id) {
+  state.selectedId = id;
+  fullUpdate();
+}
+
+function fullUpdate() {
+  renderSidebar();
+  renderEditor();
   draw();
 }
 
 // ============================================================
-// CANVAS SETUP
+// CANVAS SETUP & MATH
 // ============================================================
 const canvas = document.getElementById('diagram-canvas');
 const ctx = canvas.getContext('2d');
 
 function resize() {
-  const area = canvas.parentElement;
-  canvas.width = area.clientWidth; canvas.height = area.clientHeight;
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight;
   draw();
 }
 window.addEventListener('resize', resize);
 setTimeout(resize, 100);
 
-// ============================================================
-// NODES DEFINITION
-// ============================================================
-function getNodes() {
+function getRenderNodes() {
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
-  const r = Math.min(canvas.width, canvas.height) * 0.32;
-
-  const spokeAngles = {
-    prod: -Math.PI / 2, dev: -Math.PI / 2 + (Math.PI * 2 / 5),
-    dmz: -Math.PI / 2 + (Math.PI * 4 / 5), data: -Math.PI / 2 + (Math.PI * 6 / 5)
-  };
-  const spokeColors = { prod: '#00BCF2', dev: '#00B294', dmz: '#FF8C00', data: '#8764B8' };
-  const spokeLabels = { prod: 'Production', dev: 'Dev/Test', dmz: 'DMZ/Public', data: 'Data Platform' };
-
+  const r = Math.min(canvas.width, canvas.height) * 0.35;
   const nodes = [];
 
-  // Hub Center
-  nodes.push({
-    id: 'hub', x: cx, y: cy, label: 'Hub VNet', sublabel: state.cidrs.hub,
-    color: '#0078D4', radius: 52, type: 'hub',
-    tooltip: { sku: 'Hub & Spoke', cidr: state.cidrs.hub, region: 'West Europe' }
-  });
-
-  // Spoke VNets
-  Object.entries(spokeAngles).forEach(([key, angle]) => {
-    if (!state.spokes[key]) return;
-    const sx = cx + Math.cos(angle) * r;
-    const sy = cy + Math.sin(angle) * r;
+  // Hub
+  nodes.push({ id: state.hub.id, isVnet: true, x: cx, y: cy, label: state.hub.name, sub: state.hub.cidr, color: state.hub.color, radius: 55 });
+  
+  // Hub Resources (Κυκλικά γύρω από το κέντρο)
+  const hResCount = state.hub.resources.length;
+  state.hub.resources.forEach((res, i) => {
+    const angle = (i / Math.max(hResCount, 1)) * Math.PI * 2 - Math.PI/2;
+    const dist = 110;
     nodes.push({
-      id: `spoke-${key}`, x: sx, y: sy,
-      label: spokeLabels[key], sublabel: state.cidrs[key],
-      color: spokeColors[key], radius: 40, type: 'spoke', spokeKey: key,
-      tooltip: { sku: 'VNet Spoke', cidr: state.cidrs[key], region: 'West Europe' }
+      id: res.id, isVnet: false, parentId: state.hub.id,
+      x: cx + Math.cos(angle)*dist, y: cy + Math.sin(angle)*dist,
+      label: res.name, type: res.type, color: RES_TYPES[res.type].color, width: 70, height: 50
     });
   });
 
-  const resourceDefs = {
-    prod: [
-      { id: 'prod-vm', label: 'VMs', icon: '💻', color: '#00BCF2' },
-      { id: 'prod-sql', label: 'SQL', icon: '🗄️', color: '#00BCF2' },
-      { id: 'prod-app', label: 'App', icon: '🌐', color: '#00BCF2' },
-      { id: 'prod-kv', label: 'KV', icon: '🔑', color: '#00BCF2' }
-    ],
-    dev: [
-      { id: 'dev-vm', label: 'VMs', icon: '💻', color: '#00B294' },
-      { id: 'dev-app', label: 'App', icon: '🌐', color: '#00B294' },
-      { id: 'dev-st', label: 'Storage', icon: '📦', color: '#00B294' }
-    ],
-    dmz: [
-      { id: 'dmz-agw', label: 'App GW', icon: '🌐', color: '#FF8C00' },
-      { id: 'dmz-waf', label: 'WAF', icon: '🛡️', color: '#FF8C00' },
-      { id: 'dmz-apim', label: 'APIM', icon: '🔌', color: '#FF8C00' }
-    ],
-    data: [
-      { id: 'data-syn', label: 'Synapse', icon: '📊', color: '#8764B8' },
-      { id: 'data-adf', label: 'ADF', icon: '🔄', color: '#8764B8' },
-      { id: 'data-adls', label: 'ADLS', icon: '💾', color: '#8764B8' }
-    ]
-  };
-
-  const hubResources = [
-    { id: 'hub-fw', label: 'Firewall', icon: '🛡️', color: '#0078D4', angle: -0.6 },
-    { id: 'hub-gw', label: 'VPN GW', icon: '🔀', color: '#0078D4', angle: 0.6 },
-    { id: 'hub-bas', label: 'Bastion', icon: '🖥️', color: '#0078D4', angle: Math.PI - 0.6 },
-    { id: 'hub-er', label: 'Expr.Route', icon: '⚡', color: '#0078D4', angle: -Math.PI / 2 }
-  ];
-
-  // Hub resources placement (Aligned boxes)
-  hubResources.forEach(({ id, label, icon, color, angle }) => {
-    if (!state.activeChips.has(id)) return;
-    const dist = 120;
-    nodes.push({
-      id, type: 'resource',
-      x: cx + Math.cos(angle) * dist, y: cy + Math.sin(angle) * dist,
-      label, icon, color, width: 64, height: 50, radius: 30, // For boxes
-      parentId: 'hub', tooltip: { type: 'Hub Resource' }
-    });
-  });
-
-  // Spoke resources placement (Aligned Array Layout)
-  Object.entries(resourceDefs).forEach(([spokeKey, resources]) => {
-    if (!state.spokes[spokeKey]) return;
-    const angle = spokeAngles[spokeKey];
+  // Spokes (Δυναμική κατανομή 360 μοιρών)
+  const spCount = state.spokes.length;
+  state.spokes.forEach((spoke, i) => {
+    // Ξεκινάμε από τις 90 μοίρες (κάτω) ή κατανέμουμε ισόποσα
+    const angle = spCount === 1 ? Math.PI/2 : (i / spCount) * Math.PI * 2;
     const sx = cx + Math.cos(angle) * r;
     const sy = cy + Math.sin(angle) * r;
-    const cos = Math.cos(angle), sin = Math.sin(angle);
-    const perp = { x: -sin, y: cos };
     
-    // Αλγόριθμος Ευθυγράμμισης (Boxes σε ευθεία γραμμή δίπλα στο Spoke)
-    const activeRes = resources.filter(r => state.activeChips.has(r.id));
-    const spacing = 75; // Απόσταση μεταξύ κουτιών
-    const totalLength = (activeRes.length - 1) * spacing;
+    nodes.push({ id: spoke.id, isVnet: true, parentId: state.hub.id, x: sx, y: sy, label: spoke.name, sub: spoke.cidr, color: spoke.color, radius: 45 });
+
+    // Spoke Resources (Ευθυγραμμισμένα γύρω από το Spoke)
+    const sResCount = spoke.resources.length;
+    const spacing = 75;
+    const totalLength = (sResCount - 1) * spacing;
+    const perp = { x: -Math.sin(angle), y: Math.cos(angle) };
     
-    activeRes.forEach((res, i) => {
-      const t = activeRes.length > 1 ? (i * spacing - totalLength / 2) : 0;
-      // offset προς τα έξω από το VNet
-      const resR = 90; 
-      const rx = sx + cos * resR + perp.x * t;
-      const ry = sy + sin * resR + perp.y * t;
+    spoke.resources.forEach((res, j) => {
+      const t = sResCount > 1 ? (j * spacing - totalLength / 2) : 0;
+      const resR = 95; // Απόσταση έξω από το VNet
+      const rx = sx + Math.cos(angle) * resR + perp.x * t;
+      const ry = sy + Math.sin(angle) * resR + perp.y * t;
       
       nodes.push({
-        id: res.id, type: 'resource', x: rx, y: ry,
-        label: res.label, icon: res.icon, color: res.color,
-        width: 64, height: 50, radius: 30,
-        parentId: `spoke-${spokeKey}`, tooltip: { type: 'Spoke Resource' }
+        id: res.id, isVnet: false, parentId: spoke.id,
+        x: rx, y: ry, label: res.name, type: res.type, color: RES_TYPES[res.type].color, width: 70, height: 50
       });
     });
   });
@@ -527,190 +428,121 @@ function getNodes() {
 }
 
 // ============================================================
-// DRAWING
+// DRAWING ENGINE
 // ============================================================
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save(); ctx.translate(state.offset.x, state.offset.y); ctx.scale(state.scale, state.scale);
 
-  const nodes = getNodes();
-  const nodesMap = {}; nodes.forEach(n => nodesMap[n.id] = n);
-
-  if (state.view === 'sec') drawSecView(nodes, nodesMap);
-  else drawArchView(nodes, nodesMap);
-
-  ctx.restore();
-}
-
-function drawArchView(nodes, nodesMap) {
-  const hub = nodesMap['hub'];
-  if (!hub) return;
+  const nodes = getRenderNodes();
+  const map = {}; nodes.forEach(n => map[n.id] = n);
 
   // Draw Lines
-  nodes.filter(n => n.type === 'spoke').forEach(spoke => drawPeeringLine(hub, spoke, spoke.color));
-  nodes.filter(n => n.type === 'resource').forEach(res => {
-    const parent = nodesMap[res.parentId];
-    if (parent) drawResourceLine(parent, res, res.color);
+  nodes.forEach(n => {
+    if (n.parentId && map[n.parentId]) {
+      const p = map[n.parentId];
+      ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(p.x, p.y);
+      if (n.isVnet) { // Peering
+        const grad = ctx.createLinearGradient(p.x, p.y, n.x, n.y);
+        grad.addColorStop(0, 'rgba(0,120,212,0.5)'); grad.addColorStop(1, n.color+'80');
+        ctx.strokeStyle = grad; ctx.lineWidth = 2;
+      } else { // Resource Link
+        ctx.strokeStyle = n.color+'60'; ctx.lineWidth = 1; ctx.setLineDash([3,6]);
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+    }
   });
 
-  // Draw All Nodes
-  nodes.forEach(node => drawNode(node));
+  // Draw Nodes
+  nodes.forEach(n => drawNode(n));
+  ctx.restore();
 }
 
-function drawSecView(nodes, nodesMap) {
-  const hub = nodesMap['hub'];
-  if (!hub) return;
-  const zones = [
-    { label: 'DMZ Zone', r: Math.min(canvas.width, canvas.height) * 0.40, color: 'rgba(255,140,0,0.07)' },
-    { label: 'Trusted Zone', r: Math.min(canvas.width, canvas.height) * 0.28, color: 'rgba(0,120,212,0.08)' }
-  ];
-  zones.forEach(({ r, color, label }) => {
-    ctx.beginPath(); ctx.arc(hub.x, hub.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = color; ctx.fill();
-    ctx.strokeStyle = 'rgba(0,120,212,0.2)'; ctx.lineWidth = 1; ctx.setLineDash([4, 8]); ctx.stroke();
-    ctx.setLineDash([]); ctx.fillStyle = 'rgba(123,163,192,0.6)'; ctx.font = '10px JetBrains Mono';
-    ctx.fillText(label, hub.x + r - 60, hub.y - 8);
-  });
-  drawArchView(nodes, nodesMap);
-}
-
-function drawPeeringLine(a, b, color) {
-  ctx.save(); const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
-  grad.addColorStop(0, 'rgba(0,120,212,0.5)'); grad.addColorStop(1, color + '80');
-  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-  ctx.strokeStyle = grad; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
-}
-
-function drawResourceLine(a, b, color) {
-  ctx.save(); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-  ctx.strokeStyle = color + '60'; ctx.lineWidth = 1; ctx.setLineDash([3, 6]); ctx.stroke(); ctx.restore();
-}
-
-// ========== DRAW NODE (Κεντρική Συνάρτηση) ==========
-function drawNode(node) {
-  const glow = state.hoveredNode === node.id || state.selectedNode === node.id;
+function drawNode(n) {
+  const isSelected = state.selectedId === n.id;
   ctx.save();
-  if (glow) { ctx.shadowColor = node.color; ctx.shadowBlur = 15; }
+  if (isSelected) { ctx.shadowColor = n.color; ctx.shadowBlur = 15; }
 
-  if (node.type === 'resource') {
-    // Σχεδιασμός σε καθαρά, στρογγυλεμένα Boxes!
-    const w = node.width, h = node.height;
+  if (!n.isVnet) {
+    // Resource Box
+    const rt = RES_TYPES[n.type];
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(node.x - w/2, node.y - h/2, w, h, 8);
-    else ctx.rect(node.x - w/2, node.y - h/2, w, h);
+    if (ctx.roundRect) ctx.roundRect(n.x - n.width/2, n.y - n.height/2, n.width, n.height, 8);
+    else ctx.rect(n.x - n.width/2, n.y - n.height/2, n.width, n.height);
     
-    ctx.fillStyle = node.color + '25'; // Background Box
-    ctx.fill();
-    ctx.strokeStyle = glow ? node.color : node.color + '80';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    ctx.fillStyle = n.color + '25'; ctx.fill();
+    ctx.strokeStyle = isSelected ? n.color : n.color + '80'; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Εικονίδιο
-    ctx.font = '20px serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(node.icon, node.x, node.y - 8);
-
-    // Κείμενο
-    ctx.font = 'bold 9px JetBrains Mono';
-    ctx.fillStyle = '#FFFFFF'; // High contrast white για το text
-    ctx.fillText(node.label.length > 10 ? node.label.slice(0, 9) + '…' : node.label, node.x, node.y + 14);
+    ctx.font = '20px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(rt.icon, n.x, n.y - 8);
+    ctx.font = 'bold 9px JetBrains Mono'; ctx.fillStyle = '#FFF';
+    ctx.fillText(n.label.length > 10 ? n.label.slice(0,9)+'…' : n.label, n.x, n.y + 14);
 
   } else {
-    // Σχεδιασμός VNet Nodes (Κύκλοι)
-    ctx.beginPath(); ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-    if (node.type === 'hub') {
-      const grad = ctx.createRadialGradient(node.x-10, node.y-10, 0, node.x, node.y, node.radius);
-      grad.addColorStop(0, '#1A8FE3'); grad.addColorStop(1, '#003A5C');
-      ctx.fillStyle = grad;
-    } else {
-      ctx.fillStyle = node.color + '25';
-    }
+    // VNet Circle
+    ctx.beginPath(); ctx.arc(n.x, n.y, n.radius, 0, Math.PI*2);
+    if (n.id === 'hub') {
+      const g = ctx.createRadialGradient(n.x-10, n.y-10, 0, n.x, n.y, n.radius);
+      g.addColorStop(0, '#1A8FE3'); g.addColorStop(1, '#003A5C'); ctx.fillStyle = g;
+    } else ctx.fillStyle = n.color + '25';
     ctx.fill();
-    ctx.strokeStyle = glow ? node.color : node.color + '80';
-    ctx.lineWidth = node.type === 'hub' ? 2.5 : 2; ctx.stroke();
+    ctx.strokeStyle = isSelected ? n.color : n.color + '80'; ctx.lineWidth = 2; ctx.stroke();
     ctx.shadowBlur = 0;
 
-    if (node.type === 'hub') {
-      ctx.font = 'bold 12px Syne'; ctx.fillStyle = '#E8F4FD';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('HUB VNet', node.x, node.y - 6);
-      ctx.fillStyle = 'rgba(123,163,192,0.9)'; ctx.font = '9px JetBrains Mono';
-      ctx.fillText(node.sublabel, node.x, node.y + 12);
-    } else {
-      ctx.font = 'bold 11px Syne'; ctx.fillStyle = node.color;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(node.label, node.x, node.y - 6);
-      ctx.font = '9px JetBrains Mono'; ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.fillText(node.sublabel, node.x, node.y + 10);
-    }
+    ctx.font = 'bold 11px Syne'; ctx.fillStyle = n.id==='hub' ? '#E8F4FD' : n.color;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(n.label, n.x, n.y - 6);
+    ctx.font = '9px JetBrains Mono'; ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText(n.sub, n.x, n.y + 10);
   }
   ctx.restore();
 }
 
 // ============================================================
-// INTERACTIONS & TOOLTIPS
+// CANVAS INTERACTIONS (PAN & ZOOM)
 // ============================================================
-function hitTest(pos) {
-  const nodes = getNodes();
-  for (let i = nodes.length - 1; i >= 0; i--) {
-    const n = nodes[i];
-    const dx = pos.x - n.x, dy = pos.y - n.y;
-    if (n.type === 'resource') {
-      if (Math.abs(dx) < n.width/2 && Math.abs(dy) < n.height/2) return n;
-    } else {
-      if (Math.sqrt(dx*dx + dy*dy) < n.radius) return n;
-    }
-  }
-  return null;
-}
-
-canvas.addEventListener('mousemove', e => {
-  const rect = canvas.getBoundingClientRect();
-  const pos = { x: (e.clientX - rect.left - state.offset.x) / state.scale, y: (e.clientY - rect.top - state.offset.y) / state.scale };
-  const hit = hitTest(pos);
-  const tooltip = document.getElementById('tooltip');
-
-  if (hit) {
-    state.hoveredNode = hit.id;
-    tooltip.style.left = (e.clientX - rect.left + 16) + 'px';
-    tooltip.style.top = (e.clientY - rect.top - 10) + 'px';
-    tooltip.classList.add('show');
-    tooltip.innerHTML = `<div class="tooltip-title">${hit.icon||'⬡'} ${hit.label}</div>
-                         ${hit.sublabel ? `<div class="tooltip-row"><span>CIDR</span><span>${hit.sublabel}</span></div>` : ''}`;
-    canvas.style.cursor = 'pointer';
-  } else {
-    state.hoveredNode = null; tooltip.classList.remove('show');
-    canvas.style.cursor = 'grab';
-  }
-  draw();
-});
-
 canvas.addEventListener('mousedown', e => {
   const rect = canvas.getBoundingClientRect();
-  const pos = { x: (e.clientX - rect.left - state.offset.x)/state.scale, y: (e.clientY - rect.top - state.offset.y)/state.scale };
-  const hit = hitTest(pos);
-  if(hit) {
-    state.selectedNode = hit.id;
-    document.getElementById('selected-panel').innerHTML = `
-      <div class="info-title">${hit.icon||'⬡'} ${hit.label}</div>
-      <div class="config-row"><span class="config-key">Type</span><span class="config-val">${hit.type}</span></div>
-      ${hit.sublabel ? `<div class="config-row"><span class="config-key">Subnet</span><span class="config-val">${hit.sublabel}</span></div>` : ''}
-    `;
+  const px = (e.clientX - rect.left - state.offset.x) / state.scale;
+  const py = (e.clientY - rect.top - state.offset.y) / state.scale;
+  
+  const nodes = getRenderNodes();
+  let hit = null;
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const n = nodes[i];
+    if (!n.isVnet && Math.abs(px - n.x) < n.width/2 && Math.abs(py - n.y) < n.height/2) hit = n;
+    else if (n.isVnet && Math.sqrt((px-n.x)**2 + (py-n.y)**2) < n.radius) hit = n;
+    if (hit) break;
   }
+
+  if (hit) { selectNode(hit.id); }
+  else {
+    state.selectedId = null; fullUpdate();
+    state.dragging = true; state.dragStart = {x: e.clientX, y: e.clientY};
+    state.offsetStart = {...state.offset};
+    canvas.style.cursor = 'grabbing';
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!state.dragging) return;
+  state.offset.x = state.offsetStart.x + (e.clientX - state.dragStart.x);
+  state.offset.y = state.offsetStart.y + (e.clientY - state.dragStart.y);
   draw();
 });
 
-// UI Actions
-function toggleHub(btn) { btn.classList.toggle('on'); state.hubEnabled = btn.classList.contains('on'); draw(); }
-function toggleSpoke(btn, key) { btn.classList.toggle('on'); state.spokes[key] = btn.classList.contains('on'); draw(); }
-function toggleChip(el, id) {
-  el.classList.toggle('active');
-  if (el.classList.contains('active')) state.activeChips.add(id); else state.activeChips.delete(id);
+canvas.addEventListener('mouseup', () => { state.dragging = false; canvas.style.cursor = 'grab'; });
+canvas.addEventListener('mouseleave', () => { state.dragging = false; canvas.style.cursor = 'grab'; });
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  state.scale = Math.max(0.3, Math.min(2.5, state.scale * factor));
   draw();
-}
-function setView(v) { state.view = v; document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active')); document.getElementById('btn-'+v).classList.add('active'); draw(); }
-function exportDiagram() { /* Export logic remain identical */ }
+}, { passive: false });
+
+// INIT
+fullUpdate();
 
 </script>
 </body>

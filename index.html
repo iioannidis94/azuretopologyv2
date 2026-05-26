@@ -32,7 +32,7 @@
   /* LAYOUT */
   .app { position: relative; z-index: 1; display: grid; grid-template-columns: 360px 1fr 340px; height: calc(100vh - 69px); }
   .sidebar { border-right: 1px solid var(--border); overflow-y: auto; background: var(--card-bg); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
-  .sidebar.right { border-right: none; border-left: 1px solid var(--border); }
+  .sidebar.right { border-right: none; border-left: 1px solid var(--border); display: flex; flex-direction: column; }
   
   .section-title { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--azure-light); padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
 
@@ -65,12 +65,17 @@
   .res-option { padding: 8px; font-size: 10px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 8px; }
   .res-option:hover { background: var(--azure-blue); color: white; }
 
+  /* EXPORT BTN */
+  .export-btn { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; padding: 12px; border-radius: 8px; border: none; background: linear-gradient(135deg, var(--azure-blue), #00BCF2); color: white; cursor: pointer; width: 100%; transition: all 0.2s; text-transform: uppercase; margin-top: auto; }
+  .export-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,120,212,0.4); }
+
   /* CANVAS */
   .canvas-area { position: relative; overflow: hidden; background: var(--bg); }
   #diagram-canvas { width: 100%; height: 100%; cursor: grab; }
   #diagram-canvas:active { cursor: grabbing; }
 
   /* EDITOR (RIGHT SIDEBAR) */
+  #editor-container { flex-grow: 1; }
   .editor-panel { background: var(--bg3); border: 1px solid var(--azure-blue); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
   .editor-header { display: flex; align-items: center; gap: 10px; font-family: 'Syne'; font-size: 16px; font-weight: 700; color: var(--azure-light); margin-bottom: 8px; }
   .editor-row { display: flex; flex-direction: column; gap: 4px; }
@@ -108,6 +113,10 @@
         ← Click a VNet or Resource to edit its configuration
       </div>
     </div>
+    
+    <div style="padding-top: 20px; margin-top: auto; border-top: 1px solid var(--border);">
+      <button class="export-btn" onclick="exportDiagram()">⬇ Export as PNG</button>
+    </div>
   </div>
 </div>
 
@@ -127,7 +136,8 @@ const RES_TYPES = {
   nva: { icon: '🧱', color: '#E81123', label: 'FortiGate NVA', config: { mode: 'Active/Passive', version: '7.2' } },
   agw: { icon: '🌍', color: '#FF8C00', label: 'App Gateway', config: { sku: 'WAF_v2', capacity: 'Autoscale' } },
   lb: { icon: '⚖️', color: '#00BCF2', label: 'Load Balancer', config: { sku: 'Standard', type: 'Internal' } },
-  gw: { icon: '🔀', color: '#0078D4', label: 'VPN Gateway', config: { sku: 'VpnGw2AZ', routing: 'BGP Enabled' } }
+  gw: { icon: '🔀', color: '#0078D4', label: 'VPN Gateway', config: { sku: 'VpnGw2AZ', routing: 'BGP Enabled' } },
+  bas: { icon: '🖥️', color: '#0078D4', label: 'Azure Bastion', config: { sku: 'Standard', tunneling: 'Enabled' } }
 };
 
 // ============================================================
@@ -138,14 +148,15 @@ let state = {
     id: 'hub', name: 'Hub VNet', cidr: '10.0.0.0/16', color: '#0078D4',
     resources: [
       { id: 'res-h1', type: 'fw', name: 'Hub Firewall', config: { ...RES_TYPES.fw.config } },
-      { id: 'res-h2', type: 'agw', name: 'Public App GW', config: { ...RES_TYPES.agw.config } }
+      { id: 'res-h2', type: 'gw', name: 'VPN Gateway', config: { ...RES_TYPES.gw.config } },
+      { id: 'res-h3', type: 'bas', name: 'Bastion', config: { ...RES_TYPES.bas.config } }
     ]
   },
   spokes: [
     {
       id: 'spoke-1', name: 'Production', cidr: '10.1.0.0/16', color: '#00BCF2',
       resources: [
-        { id: 'res-s1', type: 'vm', name: 'Prod Web VMs', config: { ...RES_TYPES.vm.config } },
+        { id: 'res-s1', type: 'vm', name: 'Prod VMs', config: { ...RES_TYPES.vm.config } },
         { id: 'res-s2', type: 'sql', name: 'Prod DB', config: { ...RES_TYPES.sql.config } }
       ]
     },
@@ -169,12 +180,9 @@ function renderSidebar() {
   const container = document.getElementById('sidebar-left');
   let html = `<div class="section-title">// Hub Environment</div>`;
   
-  // Render Hub
   html += buildVnetCard(state.hub, true);
-
   html += `<div class="section-title" style="margin-top:20px;">// Spoke Networks</div>`;
   
-  // Render Spokes
   state.spokes.forEach((spoke, idx) => {
     html += buildVnetCard(spoke, false, idx);
   });
@@ -232,7 +240,6 @@ function renderEditor() {
     return;
   }
 
-  // Find what is selected
   let selectedObj = null;
   let parentVnet = null;
   let isVnet = false;
@@ -267,7 +274,6 @@ function renderEditor() {
       <div class="editor-header">${rType.icon} ${rType.label}</div>
       <div class="editor-row"><span class="editor-label">Resource Name</span><input type="text" class="input-field" value="${selectedObj.name}" onchange="updateResource('${parentVnet.id}', '${selectedObj.id}', 'name', this.value)"></div>
     `;
-    // Render dynamic config inputs
     Object.keys(selectedObj.config).forEach(key => {
       html += `
         <div class="editor-row" style="margin-top:6px;">
@@ -345,7 +351,6 @@ function updateResourceConfig(vnetId, resId, configKey, val) {
   const vnet = state.hub.id === vnetId ? state.hub : state.spokes.find(s => s.id === vnetId);
   const res = vnet.resources.find(r => r.id === resId);
   res.config[configKey] = val;
-  // Δεν χρειάζεται full update στον καμβά για απλό config αλλαγή, μόνο editor save
   renderEditor(); 
 }
 
@@ -358,6 +363,41 @@ function fullUpdate() {
   renderSidebar();
   renderEditor();
   draw();
+}
+
+// ============================================================
+// EXPORT DIAGRAM (ΑΚΡΙΒΩΣ ΟΠΩΣ ΤΟ ΒΛΕΠΕΙΣ)
+// ============================================================
+function exportDiagram() {
+  const expCanvas = document.createElement('canvas');
+  expCanvas.width = canvas.width * 2;
+  expCanvas.height = canvas.height * 2;
+  const ec = expCanvas.getContext('2d');
+  
+  ec.scale(2, 2);
+  
+  // Βάφουμε το φόντο
+  ec.fillStyle = '#060D18';
+  ec.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Ζωγραφίζουμε το πλέγμα
+  ec.strokeStyle = 'rgba(0,120,212,0.04)';
+  ec.lineWidth = 1;
+  for(let x = 0; x < canvas.width; x += 40) { 
+    ec.beginPath(); ec.moveTo(x, 0); ec.lineTo(x, canvas.height); ec.stroke(); 
+  }
+  for(let y = 0; y < canvas.height; y += 40) { 
+    ec.beginPath(); ec.moveTo(0, y); ec.lineTo(canvas.width, y); ec.stroke(); 
+  }
+
+  // Αντιγράφουμε τον κύριο καμβά
+  ec.drawImage(canvas, 0, 0, canvas.width, canvas.height);
+
+  // Download logic
+  const link = document.createElement('a');
+  link.download = `azure-diagram-${new Date().getTime()}.png`;
+  link.href = expCanvas.toDataURL('image/png');
+  link.click();
 }
 
 // ============================================================
@@ -380,10 +420,8 @@ function getRenderNodes() {
   const r = Math.min(canvas.width, canvas.height) * 0.35;
   const nodes = [];
 
-  // Hub
   nodes.push({ id: state.hub.id, isVnet: true, x: cx, y: cy, label: state.hub.name, sub: state.hub.cidr, color: state.hub.color, radius: 55 });
   
-  // Hub Resources (Κυκλικά γύρω από το κέντρο)
   const hResCount = state.hub.resources.length;
   state.hub.resources.forEach((res, i) => {
     const angle = (i / Math.max(hResCount, 1)) * Math.PI * 2 - Math.PI/2;
@@ -395,17 +433,14 @@ function getRenderNodes() {
     });
   });
 
-  // Spokes (Δυναμική κατανομή 360 μοιρών)
   const spCount = state.spokes.length;
   state.spokes.forEach((spoke, i) => {
-    // Ξεκινάμε από τις 90 μοίρες (κάτω) ή κατανέμουμε ισόποσα
     const angle = spCount === 1 ? Math.PI/2 : (i / spCount) * Math.PI * 2;
     const sx = cx + Math.cos(angle) * r;
     const sy = cy + Math.sin(angle) * r;
     
     nodes.push({ id: spoke.id, isVnet: true, parentId: state.hub.id, x: sx, y: sy, label: spoke.name, sub: spoke.cidr, color: spoke.color, radius: 45 });
 
-    // Spoke Resources (Ευθυγραμμισμένα γύρω από το Spoke)
     const sResCount = spoke.resources.length;
     const spacing = 75;
     const totalLength = (sResCount - 1) * spacing;
@@ -413,7 +448,7 @@ function getRenderNodes() {
     
     spoke.resources.forEach((res, j) => {
       const t = sResCount > 1 ? (j * spacing - totalLength / 2) : 0;
-      const resR = 95; // Απόσταση έξω από το VNet
+      const resR = 95;
       const rx = sx + Math.cos(angle) * resR + perp.x * t;
       const ry = sy + Math.sin(angle) * resR + perp.y * t;
       
@@ -437,23 +472,21 @@ function draw() {
   const nodes = getRenderNodes();
   const map = {}; nodes.forEach(n => map[n.id] = n);
 
-  // Draw Lines
   nodes.forEach(n => {
     if (n.parentId && map[n.parentId]) {
       const p = map[n.parentId];
       ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(p.x, p.y);
-      if (n.isVnet) { // Peering
+      if (n.isVnet) {
         const grad = ctx.createLinearGradient(p.x, p.y, n.x, n.y);
         grad.addColorStop(0, 'rgba(0,120,212,0.5)'); grad.addColorStop(1, n.color+'80');
         ctx.strokeStyle = grad; ctx.lineWidth = 2;
-      } else { // Resource Link
+      } else {
         ctx.strokeStyle = n.color+'60'; ctx.lineWidth = 1; ctx.setLineDash([3,6]);
       }
       ctx.stroke(); ctx.setLineDash([]);
     }
   });
 
-  // Draw Nodes
   nodes.forEach(n => drawNode(n));
   ctx.restore();
 }
@@ -464,7 +497,6 @@ function drawNode(n) {
   if (isSelected) { ctx.shadowColor = n.color; ctx.shadowBlur = 15; }
 
   if (!n.isVnet) {
-    // Resource Box
     const rt = RES_TYPES[n.type];
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(n.x - n.width/2, n.y - n.height/2, n.width, n.height, 8);
@@ -480,7 +512,6 @@ function drawNode(n) {
     ctx.fillText(n.label.length > 10 ? n.label.slice(0,9)+'…' : n.label, n.x, n.y + 14);
 
   } else {
-    // VNet Circle
     ctx.beginPath(); ctx.arc(n.x, n.y, n.radius, 0, Math.PI*2);
     if (n.id === 'hub') {
       const g = ctx.createRadialGradient(n.x-10, n.y-10, 0, n.x, n.y, n.radius);
@@ -547,3 +578,5 @@ fullUpdate();
 </script>
 </body>
 </html>
+
+```

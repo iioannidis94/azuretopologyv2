@@ -66,8 +66,10 @@
   .res-option:hover { background: var(--azure-blue); color: white; }
 
   /* EXPORT BTN */
-  .export-btn { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; padding: 12px; border-radius: 8px; border: none; background: linear-gradient(135deg, var(--azure-blue), #00BCF2); color: white; cursor: pointer; width: 100%; transition: all 0.2s; text-transform: uppercase; margin-top: auto; }
+  .export-btn { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; padding: 12px; border-radius: 8px; border: none; background: linear-gradient(135deg, var(--azure-blue), #00BCF2); color: white; cursor: pointer; width: 100%; transition: all 0.2s; text-transform: uppercase; }
   .export-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,120,212,0.4); }
+  .export-btn.reset { background: transparent; border: 1px solid var(--danger); color: var(--danger); margin-bottom: 10px; }
+  .export-btn.reset:hover { background: var(--danger); color: white; box-shadow: 0 8px 24px rgba(255,68,68,0.4); }
 
   /* CANVAS */
   .canvas-area { position: relative; overflow: hidden; background: var(--bg); }
@@ -115,6 +117,7 @@
     </div>
     
     <div style="padding-top: 20px; margin-top: auto; border-top: 1px solid var(--border);">
+      <button class="export-btn reset" onclick="resetDiagram()">🔄 Reset Diagram</button>
       <button class="export-btn" onclick="exportDiagram()">⬇ Export as PNG</button>
     </div>
   </div>
@@ -141,9 +144,11 @@ const RES_TYPES = {
 };
 
 // ============================================================
-// DYNAMIC STATE
+// DYNAMIC STATE & LOCAL STORAGE
 // ============================================================
-let state = {
+const SAVED_STATE_KEY = 'azureBuilderState';
+
+const defaultState = {
   hub: {
     id: 'hub', name: 'Hub VNet', cidr: '10.0.0.0/16', color: '#0078D4',
     resources: [
@@ -170,6 +175,22 @@ let state = {
   selectedId: null,
   offset: { x: 0, y: 0 }, scale: 1, dragging: false, dragStart: {x:0,y:0}, offsetStart: {x:0,y:0}
 };
+
+// Load state from localStorage or use default
+let state;
+const savedState = localStorage.getItem(SAVED_STATE_KEY);
+if (savedState) {
+  try {
+    state = JSON.parse(savedState);
+    // Reset temporary UI states that shouldn't persist exactly as they were
+    state.dragging = false; 
+  } catch (e) {
+    console.error("Error parsing saved state, resetting to default.", e);
+    state = JSON.parse(JSON.stringify(defaultState));
+  }
+} else {
+  state = JSON.parse(JSON.stringify(defaultState));
+}
 
 const getUid = () => 'id-' + Math.random().toString(36).substr(2, 9);
 
@@ -205,7 +226,7 @@ function buildVnetCard(vnet, isHub, idx = null) {
   `;
 
   vnet.resources.forEach(res => {
-    const rType = RES_TYPES[res.type];
+    const rType = RES_TYPES[res.type] || RES_TYPES.vm; // Fallback in case of error
     const isResSelected = state.selectedId === res.id;
     html += `
       <div class="chip ${isHub ? 'hub-chip' : ''}" style="${isResSelected ? 'border-color:white; box-shadow:0 0 8px '+rType.color : ''}" onclick="selectNode('${res.id}')">
@@ -255,7 +276,11 @@ function renderEditor() {
     if (hubRes) { selectedObj = hubRes; parentVnet = state.hub; }
   }
 
-  if (!selectedObj) return;
+  if (!selectedObj) {
+    // Edge case if selectedId is invalid
+    state.selectedId = null;
+    return renderEditor();
+  }
 
   let html = `<div class="editor-panel">`;
   
@@ -269,7 +294,7 @@ function renderEditor() {
       html += `<button class="btn danger" onclick="deleteSpoke('${selectedObj.id}')">🗑️ Delete Spoke</button>`;
     }
   } else {
-    const rType = RES_TYPES[selectedObj.type];
+    const rType = RES_TYPES[selectedObj.type] || RES_TYPES.vm;
     html += `
       <div class="editor-header">${rType.icon} ${rType.label}</div>
       <div class="editor-row"><span class="editor-label">Resource Name</span><input type="text" class="input-field" value="${selectedObj.name}" onchange="updateResource('${parentVnet.id}', '${selectedObj.id}', 'name', this.value)"></div>
@@ -290,9 +315,28 @@ function renderEditor() {
 }
 
 // ============================================================
-// STATE MUTATIONS
+// STATE MUTATIONS & PERSISTENCE
 // ============================================================
 const colors = ['#00BCF2', '#00B294', '#FF8C00', '#8764B8', '#E81123', '#107C10'];
+
+function saveState() {
+  localStorage.setItem(SAVED_STATE_KEY, JSON.stringify(state));
+}
+
+function fullUpdate() {
+  saveState(); // Save to localStorage on every major update
+  renderSidebar();
+  renderEditor();
+  draw();
+}
+
+function resetDiagram() {
+  if (confirm('Are you sure you want to delete all your changes and reset to the default diagram?')) {
+    localStorage.removeItem(SAVED_STATE_KEY);
+    location.reload();
+  }
+}
+
 function addSpoke() {
   state.spokes.push({
     id: getUid(),
@@ -351,18 +395,13 @@ function updateResourceConfig(vnetId, resId, configKey, val) {
   const vnet = state.hub.id === vnetId ? state.hub : state.spokes.find(s => s.id === vnetId);
   const res = vnet.resources.find(r => r.id === resId);
   res.config[configKey] = val;
+  saveState(); // Save state even for minor text edits
   renderEditor(); 
 }
 
 function selectNode(id) {
   state.selectedId = id;
   fullUpdate();
-}
-
-function fullUpdate() {
-  renderSidebar();
-  renderEditor();
-  draw();
 }
 
 // ============================================================
@@ -429,7 +468,7 @@ function getRenderNodes() {
     nodes.push({
       id: res.id, isVnet: false, parentId: state.hub.id,
       x: cx + Math.cos(angle)*dist, y: cy + Math.sin(angle)*dist,
-      label: res.name, type: res.type, color: RES_TYPES[res.type].color, width: 70, height: 50
+      label: res.name, type: res.type, color: RES_TYPES[res.type] ? RES_TYPES[res.type].color : '#FFF', width: 70, height: 50
     });
   });
 
@@ -454,7 +493,7 @@ function getRenderNodes() {
       
       nodes.push({
         id: res.id, isVnet: false, parentId: spoke.id,
-        x: rx, y: ry, label: res.name, type: res.type, color: RES_TYPES[res.type].color, width: 70, height: 50
+        x: rx, y: ry, label: res.name, type: res.type, color: RES_TYPES[res.type] ? RES_TYPES[res.type].color : '#FFF', width: 70, height: 50
       });
     });
   });
@@ -489,6 +528,11 @@ function draw() {
 
   nodes.forEach(n => drawNode(n));
   ctx.restore();
+  
+  // Save position metadata (panning/zoom state) to localstorage implicitly via draw calls
+  if (state.dragging) {
+    saveState();
+  }
 }
 
 function drawNode(n) {
@@ -497,7 +541,7 @@ function drawNode(n) {
   if (isSelected) { ctx.shadowColor = n.color; ctx.shadowBlur = 15; }
 
   if (!n.isVnet) {
-    const rt = RES_TYPES[n.type];
+    const rt = RES_TYPES[n.type] || { icon: '❓' };
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(n.x - n.width/2, n.y - n.height/2, n.width, n.height, 8);
     else ctx.rect(n.x - n.width/2, n.y - n.height/2, n.width, n.height);
@@ -563,12 +607,27 @@ canvas.addEventListener('mousemove', e => {
   draw();
 });
 
-canvas.addEventListener('mouseup', () => { state.dragging = false; canvas.style.cursor = 'grab'; });
-canvas.addEventListener('mouseleave', () => { state.dragging = false; canvas.style.cursor = 'grab'; });
+canvas.addEventListener('mouseup', () => { 
+  if(state.dragging) {
+    state.dragging = false; 
+    saveState(); // Save final pan position
+  }
+  canvas.style.cursor = 'grab'; 
+});
+
+canvas.addEventListener('mouseleave', () => { 
+  if(state.dragging) {
+    state.dragging = false; 
+    saveState();
+  }
+  canvas.style.cursor = 'grab'; 
+});
+
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
   const factor = e.deltaY < 0 ? 1.1 : 0.9;
   state.scale = Math.max(0.3, Math.min(2.5, state.scale * factor));
+  saveState(); // Save zoom state
   draw();
 }, { passive: false });
 
@@ -578,5 +637,3 @@ fullUpdate();
 </script>
 </body>
 </html>
-
-```

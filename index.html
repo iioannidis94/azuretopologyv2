@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Azure Hub & Spoke Designer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --azure-blue: #0078D4;
+    --azure-light: #50E6FF;
+    --azure-dark: #003A5C;
+    --accent: #FFB900;
+    --danger: #FF4444;
+    --success: #00C851;
+    --bg: #060D18;
+    --bg2: #0A1628;
+    --bg3: #0F1F3A;
+    --border: rgba(0,120,212,0.3);
+    --text: #E8F4FD;
+    --muted: #7BA3C0;
+    --card-bg: rgba(10,22,40,0.95);
+    --hub-color: #0078D4;
+    --spoke1: #00BCF2;
+    --spoke2: #00B294;
+    --spoke3: #FF8C00;
+    --spoke4: #8764B8;
+    --spoke5: #E81123;
+    --spoke6: #107C10;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ========== GRID BACKGROUND ========== */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,120,212,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,120,212,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ========== HEADER ========== */
+  header {
+    position: relative;
+    z-index: 10;
+    padding: 24px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: rgba(6,13,24,0.9);
+    backdrop-filter: blur(20px);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-icon {
+    width: 42px; height: 42px;
+    background: linear-gradient(135deg, var(--azure-blue), var(--azure-light));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 0 20px rgba(0,120,212,0.5);
+  }
+
+  .logo h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { color: var(--azure-light); }
+
+  .header-meta {
+    display: flex; gap: 20px; align-items: center;
+  }
+
+  .badge {
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .badge.live {
+    border-color: var(--success);
+    color: var(--success);
+    animation: pulse-badge 2s infinite;
+  }
+
+  @keyframes pulse-badge {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* ========== MAIN LAYOUT ========== */
+  .app {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 320px 1fr 340px;
+    height: calc(100vh - 73px);
+  }
+
+  /* ========== SIDEBAR LEFT ========== */
+  .sidebar-left {
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    background: var(--card-bg);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .sidebar-left::-webkit-scrollbar { width: 4px; }
+  .sidebar-left::-webkit-scrollbar-track { background: transparent; }
+  .sidebar-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .section-title {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+
+  /* ========== SPOKE CONTROLS ========== */
+  .spoke-config {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    transition: border-color 0.2s;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .spoke-config::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--spoke-color, var(--azure-blue));
+  }
+
+  .spoke-config:hover { border-color: var(--azure-light); }
+  .spoke-config.active { border-color: var(--azure-light); }
+
+  .spoke-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .spoke-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .spoke-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--spoke-color, var(--azure-blue));
+    box-shadow: 0 0 6px var(--spoke-color, var(--azure-blue));
+  }
+
+  .toggle-btn {
+    width: 32px; height: 18px;
+    background: var(--bg);
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .toggle-btn.on { background: var(--azure-blue); border-color: var(--azure-blue); }
+
+  .toggle-btn::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 12px; height: 12px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+
+  .toggle-btn.on::after { transform: translateX(14px); }
+
+  .resource-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .chip {
+    font-size: 9px;
+    padding: 3px 7px;
+    border-radius: 4px;
+    background: rgba(0,120,212,0.15);
+    border: 1px solid rgba(0,120,212,0.3);
+    color: var(--azure-light);
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+  }
+
+  .chip:hover { background: rgba(0,120,212,0.3); }
+  .chip.active { background: var(--azure-blue); border-color: var(--azure-blue); color: white; }
+
+  /* ========== MAIN CANVAS ========== */
+  .canvas-area {
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  .canvas-toolbar {
+    position: absolute;
+    top: 16px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    display: flex;
+    gap: 8px;
+    background: rgba(6,13,24,0.9);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    backdrop-filter: blur(10px);
+  }
+
+  .tool-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tool-btn:hover, .tool-btn.active {
+    background: var(--azure-blue);
+    border-color: var(--azure-blue);
+    color: white;
+  }
+
+  #diagram-canvas {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+  }
+
+  #diagram-canvas:active { cursor: grabbing; }
+
+  /* ========== SIDEBAR RIGHT ========== */
+  .sidebar-right {
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    background: var(--card-bg);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .sidebar-right::-webkit-scrollbar { width: 4px; }
+  .sidebar-right::-webkit-scrollbar-track { background: transparent; }
+  .sidebar-right::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ========== RESOURCE PANEL ========== */
+  .resource-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    transition: all 0.2s;
+  }
+
+  .resource-card:hover { border-color: rgba(0,120,212,0.5); }
+
+  .resource-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .res-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .res-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .res-type {
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .config-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .config-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(0,120,212,0.1);
+    font-size: 10px;
+  }
+
+  .config-key { color: var(--muted); }
+  .config-val {
+    color: var(--azure-light);
+    font-weight: 600;
+    text-align: right;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .config-val.warn { color: var(--accent); }
+  .config-val.ok { color: var(--success); }
+
+  /* ========== COST ESTIMATOR ========== */
+  .cost-panel {
+    background: linear-gradient(135deg, rgba(0,120,212,0.1), rgba(0,188,242,0.05));
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .cost-total {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--azure-light);
+    margin: 8px 0 4px;
+  }
+
+  .cost-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  .cost-breakdown {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .cost-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+  }
+
+  .cost-item .name { color: var(--muted); }
+  .cost-item .amount { color: var(--text); }
+
+  /* ========== NODE TOOLTIP ========== */
+  .tooltip {
+    position: absolute;
+    background: var(--bg2);
+    border: 1px solid var(--azure-blue);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 11px;
+    pointer-events: none;
+    z-index: 100;
+    display: none;
+    min-width: 160px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  .tooltip.show { display: block; }
+  .tooltip-title { font-family: 'Syne', sans-serif; font-weight: 700; margin-bottom: 6px; color: var(--azure-light); }
+  .tooltip-row { display: flex; justify-content: space-between; gap: 16px; margin-top: 3px; color: var(--muted); font-size: 10px; }
+  .tooltip-row span:last-child { color: var(--text); }
+
+  /* ========== LEGEND ========== */
+  .legend {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 10px;
+  }
+
+  .legend-line {
+    width: 24px; height: 2px;
+    border-radius: 1px;
+  }
+
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ========== EXPORT BTN ========== */
+  .export-btn {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    background: linear-gradient(135deg, var(--azure-blue), #00BCF2);
+    color: white;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .export-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(0,120,212,0.4);
+  }
+
+  /* ========== SCROLLBAR ========== */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); }
+
+  /* ========== RESPONSIVE ========== */
+  @media (max-width: 1200px) {
+    .app { grid-template-columns: 260px 1fr 280px; }
+  }
+
+  /* Animate in */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .spoke-config { animation: fadeUp 0.3s ease both; }
+  .spoke-config:nth-child(2) { animation-delay: 0.05s; }
+  .spoke-config:nth-child(3) { animation-delay: 0.10s; }
+  .spoke-config:nth-child(4) { animation-delay: 0.15s; }
+  .spoke-config:nth-child(5) { animation-delay: 0.20s; }
+  .spoke-config:nth-child(6) { animation-delay: 0.25s; }
+
+  .selected-info {
+    background: var(--bg3);
+    border: 1px solid var(--azure-blue);
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 10px;
+    color: var(--muted);
+    min-height: 60px;
+  }
+
+  .selected-info .placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 40px;
+    color: rgba(123,163,192,0.4);
+    font-size: 10px;
+    text-align: center;
+  }
+
+  .info-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--azure-light);
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⬡</div>
+    <h1>Azure <span>Hub & Spoke</span> Designer</h1>
+  </div>
+  <div class="header-meta">
+    <span class="badge">v2.1.0</span>
+    <span class="badge live">● Interactive</span>
+    <span class="badge">GitHub Pages</span>
+  </div>
+</header>
+
+<div class="app">
+
+  <!-- ===== LEFT SIDEBAR ===== -->
+  <div class="sidebar-left">
+    <div class="section-title">// Hub Configuration</div>
+
+    <div class="spoke-config" style="--spoke-color: var(--hub-color)">
+      <div class="spoke-header">
+        <div class="spoke-label">
+          <div class="spoke-dot"></div>
+          Hub VNet
+        </div>
+        <div class="toggle-btn on" id="hub-toggle" onclick="toggleHub(this)"></div>
+      </div>
+      <div class="resource-chips">
+        <div class="chip active" onclick="toggleChip(this,'hub-fw')">🛡️ Firewall</div>
+        <div class="chip active" onclick="toggleChip(this,'hub-gw')">🔀 VPN Gateway</div>
+        <div class="chip active" onclick="toggleChip(this,'hub-er')">⚡ ExpressRoute</div>
+        <div class="chip active" onclick="toggleChip(this,'hub-bas')">🖥️ Bastion</div>
+        <div class="chip active" onclick="toggleChip(this,'hub-dns')">🌐 Private DNS</div>
+        <div class="chip" onclick="toggleChip(this,'hub-ddos')">🛡️ DDoS Plan</div>
+        <div class="chip active" onclick="toggleChip(this,'hub-mon')">📊 Monitor</div>
+        <div class="chip" onclick="toggleChip(this,'hub-nsg')">🔒 NSG</div>
+      </div>
+    </div>
+
+    <div class="section-title">// Spoke Networks</div>
+
+    <div class="spoke-config" style="--spoke-color: var(--spoke1)" id="spoke-prod">
+      <div class="spoke-header">
+        <div class="spoke-label">
+          <div class="spoke-dot" style="background:var(--spoke1);box-shadow:0 0 6px var(--spoke1)"></div>
+          Production
+        </div>
+        <div class="toggle-btn on" onclick="toggleSpoke(this,'prod')"></div>
+      </div>
+      <div class="resource-chips">
+        <div class="chip active" onclick="toggleChip(this,'prod-vm')">💻 VMs (4x D4s)</div>
+        <div class="chip active" onclick="toggleChip(this,'prod-lb')">⚖️ Load Balancer</div>
+        <div class="chip active" onclick="toggleChip(this,'prod-sql')">🗄️ Azure SQL</div>
+        <div class="chip active" onclick="toggleChip(this,'prod-app')">🌐 App Service</div>
+        <div class="chip" onclick="toggleChip(this,'prod-aks')">☸️ AKS Cluster</div>
+        <div class="chip active" onclick="toggleChip(this,'prod-kv')">🔑 Key Vault</div>
+        <div class="chip" onclick="toggleChip(this,'prod-sb')">📨 Service Bus</div>
+        <div class="chip" onclick="toggleChip(this,'prod-cache')">⚡ Redis Cache</div>
+      </div>
+    </div>
+
+    <div class="spoke-config" style="--spoke-color: var(--spoke2)" id="spoke-dev">
+      <div class="spoke-header">
+        <div class="spoke-label">
+          <div class="spoke-dot" style="background:var(--spoke2);box-shadow:0 0 6px var(--spoke2)"></div>
+          Dev / Test
+        </div>
+        <div class="toggle-btn on" onclick="toggleSpoke(this,'dev')"></div>
+      </div>
+      <div class="resource-chips">
+        <div class="chip active" onclick="toggleChip(this,'dev-vm')">💻 VMs (2x B2s)</div>
+        <div class="chip active" onclick="toggleChip(this,'dev-app')">🌐 App Service</div>
+        <div class="chip" onclick="toggleChip(this,'dev-sql')">🗄️ SQL (S2 Tier)</div>
+        <div class="chip active" onclick="toggleChip(this,'dev-st')">📦 Storage Acct</div>
+        <div class="chip" onclick="toggleChip(this,'dev-func')">⚡ Functions</div>
+      </div>
+    </div>
+
+    <div class="spoke-config" style="--spoke-color: var(--spoke3)" id="spoke-dmz">
+      <div class="spoke-header">
+        <div class="spoke-label">
+          <div class="spoke-dot" style="background:var(--spoke3);box-shadow:0 0 6px var(--spoke3)"></div>
+          DMZ / Public
+        </div>
+        <div class="toggle-btn on" onclick="toggleSpoke(this,'dmz')"></div>
+      </div>
+      <div class="resource-chips">
+        <div class="chip active" onclick="toggleChip(this,'dmz-agw')">🌐 App Gateway</div>
+        <div class="chip active" onclick="toggleChip(this,'dmz-waf')">🛡️ WAF Policy</div>
+        <div class="chip active" onclick="toggleChip(this,'dmz-afd')">⚡ Front Door</div>
+        <div class="chip" onclick="toggleChip(this,'dmz-cdn')">📡 CDN Profile</div>
+        <div class="chip active" onclick="toggleChip(this,'dmz-apim')">🔌 APIM</div>
+      </div>
+    </div>
+
+    <div class="spoke-config" style="--spoke-color: var(--spoke4)" id="spoke-data">
+      <div class="spoke-header">
+        <div class="spoke-label">
+          <div class="spoke-dot" style="background:var(--spoke4);box-shadow:0 0 6px var(--spoke4)"></div>
+          Data Platform
+        </div>
+        <div class="toggle-btn on" onclick="toggleSpoke(this,'data')"></div>
+      </div>
+      <div class="resource-chips">
+        <div class="chip active" onclick="toggleChip(this,'data-syn')">📊 Synapse</div>
+        <div class="chip active" onclick="toggleChip(this,'data-adf')">🔄 Data Factory</div>
+        <div class="chip active" onclick="toggleChip(this,'data-adls')">💾 ADLS Gen2</div>
+        <div class="chip" onclick="toggleChip(this,'data-eh')">📨 Event Hubs</div>
+        <div class="chip" onclick="toggleChip(this,'data-cosmos')">🌌 Cosmos DB</div>
+        <div class="chip" onclick="toggleChip(this,'data-pbi')">📈 Power BI</div>
+      </div>
+    </div>
+
+    <div class="spoke-config" style="--spoke-color: var(--spoke5)" id="spoke-sec">
+      <div class="spoke-header">
+        <div class="spoke-label">
+          <div class="spoke-dot" style="background:var(--spoke5);box-shadow:0 0 6px var(--spoke5)"></div>
+          Security Hub
+        </div>
+        <div class="toggle-btn" onclick="toggleSpoke(this,'sec')"></div>
+      </div>
+      <div class="resource-chips">
+        <div class="chip" onclick="toggleChip(this,'sec-sent')">🔍 Sentinel</div>
+        <div class="chip" onclick="toggleChip(this,'sec-def')">🛡️ Defender</div>
+        <div class="chip" onclick="toggleChip(this,'sec-law')">📋 Log Analytics</div>
+        <div class="chip" onclick="toggleChip(this,'sec-ai')">🤖 Security AI</div>
+      </div>
+    </div>
+
+    <div class="spoke-config" style="--spoke-color: var(--spoke6)" id="spoke-mgmt">
+      <div class="spoke-header">
+        <div class="spoke-label">
+          <div class="spoke-dot" style="background:var(--spoke6);box-shadow:0 0 6px var(--spoke6)"></div>
+          Management
+        </div>
+        <div class="toggle-btn" onclick="toggleSpoke(this,'mgmt')"></div>
+      </div>
+      <div class="resource-chips">
+        <div class="chip" onclick="toggleChip(this,'mgmt-auto')">⚙️ Automation</div>
+        <div class="chip" onclick="toggleChip(this,'mgmt-bkp')">💾 Backup Vault</div>
+        <div class="chip" onclick="toggleChip(this,'mgmt-pol')">📋 Policy</div>
+        <div class="chip" onclick="toggleChip(this,'mgmt-arc')">🔗 Arc</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CANVAS ===== -->
+  <div class="canvas-area">
+    <div class="canvas-toolbar">
+      <button class="tool-btn active" id="btn-arch" onclick="setView('arch')">Architecture</button>
+      <button class="tool-btn" id="btn-net" onclick="setView('net')">Network Flow</button>
+      <button class="tool-btn" id="btn-sec" onclick="setView('sec')">Security Zones</button>
+    </div>
+    <canvas id="diagram-canvas"></canvas>
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+
+  <!-- ===== RIGHT SIDEBAR ===== -->
+  <div class="sidebar-right">
+
+    <div class="section-title">// Selected Resource</div>
+    <div class="selected-info" id="selected-panel">
+      <div class="placeholder">← Click a node to inspect</div>
+    </div>
+
+    <div class="section-title">// Cost Estimate</div>
+    <div class="cost-panel">
+      <div class="cost-label">Monthly Estimate</div>
+      <div class="cost-total" id="cost-total">€0</div>
+      <div class="cost-label" id="cost-range">Active resources: 0</div>
+      <div class="cost-breakdown" id="cost-breakdown"></div>
+    </div>
+
+    <div class="section-title">// Active Resources</div>
+
+    <div class="resource-card" id="panel-hub-fw" style="display:block">
+      <div class="resource-card-header">
+        <div class="res-icon" style="background:rgba(0,120,212,0.2)">🛡️</div>
+        <div>
+          <div class="res-name">Azure Firewall Premium</div>
+          <div class="res-type">Microsoft.Network/azureFirewalls</div>
+        </div>
+      </div>
+      <div class="config-rows">
+        <div class="config-row"><span class="config-key">SKU</span><span class="config-val">Premium</span></div>
+        <div class="config-row"><span class="config-key">Tier</span><span class="config-val ok">IDPS Enabled</span></div>
+        <div class="config-row"><span class="config-key">Subnet</span><span class="config-val">AzureFirewallSubnet /26</span></div>
+        <div class="config-row"><span class="config-key">Public IP</span><span class="config-val">Static (Zone-redundant)</span></div>
+        <div class="config-row"><span class="config-key">Threat Intel</span><span class="config-val ok">Alert and Deny</span></div>
+        <div class="config-row"><span class="config-key">DNS Proxy</span><span class="config-val ok">Enabled</span></div>
+        <div class="config-row"><span class="config-key">Cost/mo</span><span class="config-val warn">~€1,250</span></div>
+      </div>
+    </div>
+
+    <div class="resource-card" id="panel-hub-gw" style="display:block">
+      <div class="resource-card-header">
+        <div class="res-icon" style="background:rgba(0,188,242,0.2)">🔀</div>
+        <div>
+          <div class="res-name">VPN Gateway</div>
+          <div class="res-type">Microsoft.Network/virtualNetworkGateways</div>
+        </div>
+      </div>
+      <div class="config-rows">
+        <div class="config-row"><span class="config-key">SKU</span><span class="config-val">VpnGw2AZ</span></div>
+        <div class="config-row"><span class="config-key">Generation</span><span class="config-val">Generation2</span></div>
+        <div class="config-row"><span class="config-key">Type</span><span class="config-val">RouteBased</span></div>
+        <div class="config-row"><span class="config-key">Subnet</span><span class="config-val">GatewaySubnet /27</span></div>
+        <div class="config-row"><span class="config-key">BGP</span><span class="config-val ok">Enabled (ASN 65001)</span></div>
+        <div class="config-row"><span class="config-key">AZ</span><span class="config-val ok">Zone-redundant</span></div>
+        <div class="config-row"><span class="config-key">Cost/mo</span><span class="config-val warn">~€380</span></div>
+      </div>
+    </div>
+
+    <div class="resource-card" id="panel-hub-bas" style="display:block">
+      <div class="resource-card-header">
+        <div class="res-icon" style="background:rgba(0,120,212,0.2)">🖥️</div>
+        <div>
+          <div class="res-name">Azure Bastion</div>
+          <div class="res-type">Microsoft.Network/bastionHosts</div>
+        </div>
+      </div>
+      <div class="config-rows">
+        <div class="config-row"><span class="config-key">SKU</span><span class="config-val">Standard</span></div>
+        <div class="config-row"><span class="config-key">Subnet</span><span class="config-val">AzureBastionSubnet /27</span></div>
+        <div class="config-row"><span class="config-key">Tunneling</span><span class="config-val ok">Enabled</span></div>
+        <div class="config-row"><span class="config-key">Shareable Link</span><span class="config-val ok">Enabled</span></div>
+        <div class="config-row"><span class="config-key">Cost/mo</span><span class="config-val warn">~€190</span></div>
+      </div>
+    </div>
+
+    <div class="resource-card" id="panel-prod-app" style="display:block">
+      <div class="resource-card-header">
+        <div class="res-icon" style="background:rgba(0,188,242,0.2)">🌐</div>
+        <div>
+          <div class="res-name">App Service Plan</div>
+          <div class="res-type">Microsoft.Web/serverfarms</div>
+        </div>
+      </div>
+      <div class="config-rows">
+        <div class="config-row"><span class="config-key">SKU</span><span class="config-val">P3v3 (Premium v3)</span></div>
+        <div class="config-row"><span class="config-key">Instances</span><span class="config-val">3 (AZ distributed)</span></div>
+        <div class="config-row"><span class="config-key">VNet Integration</span><span class="config-val ok">Enabled</span></div>
+        <div class="config-row"><span class="config-key">Private Endpoint</span><span class="config-val ok">Configured</span></div>
+        <div class="config-row"><span class="config-key">Always On</span><span class="config-val ok">Yes</span></div>
+        <div class="config-row"><span class="config-key">Cost/mo</span><span class="config-val warn">~€520</span></div>
+      </div>
+    </div>
+
+    <div class="resource-card" id="panel-prod-sql" style="display:block">
+      <div class="resource-card-header">
+        <div class="res-icon" style="background:rgba(0,178,148,0.2)">🗄️</div>
+        <div>
+          <div class="res-name">Azure SQL Database</div>
+          <div class="res-type">Microsoft.Sql/servers/databases</div>
+        </div>
+      </div>
+      <div class="config-rows">
+        <div class="config-row"><span class="config-key">Tier</span><span class="config-val">Business Critical</span></div>
+        <div class="config-row"><span class="config-key">vCores</span><span class="config-val">8 vCores</span></div>
+        <div class="config-row"><span class="config-key">HA Replicas</span><span class="config-val ok">4 (Zone-redundant)</span></div>
+        <div class="config-row"><span class="config-key">Backup</span><span class="config-val ok">GRS (35 days)</span></div>
+        <div class="config-row"><span class="config-key">Private Endpoint</span><span class="config-val ok">Enabled</span></div>
+        <div class="config-row"><span class="config-key">TDE</span><span class="config-val ok">CMK (Key Vault)</span></div>
+        <div class="config-row"><span class="config-key">Cost/mo</span><span class="config-val warn">~€1,100</span></div>
+      </div>
+    </div>
+
+    <div class="resource-card" id="panel-dmz-agw" style="display:block">
+      <div class="resource-card-header">
+        <div class="res-icon" style="background:rgba(255,140,0,0.2)">🌐</div>
+        <div>
+          <div class="res-name">Application Gateway v2</div>
+          <div class="res-type">Microsoft.Network/applicationGateways</div>
+        </div>
+      </div>
+      <div class="config-rows">
+        <div class="config-row"><span class="config-key">SKU</span><span class="config-val">WAF_v2</span></div>
+        <div class="config-row"><span class="config-key">Capacity</span><span class="config-val">Autoscale (1-10)</span></div>
+        <div class="config-row"><span class="config-key">WAF Mode</span><span class="config-val ok">Prevention</span></div>
+        <div class="config-row"><span class="config-key">SSL Policy</span><span class="config-val ok">AppGwSslPolicy20220101S</span></div>
+        <div class="config-row"><span class="config-key">Zones</span><span class="config-val ok">1, 2, 3</span></div>
+        <div class="config-row"><span class="config-key">Cost/mo</span><span class="config-val warn">~€340</span></div>
+      </div>
+    </div>
+
+    <div class="section-title">// Legend</div>
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--hub-color);box-shadow:0 0 6px var(--hub-color)"></div>
+        <span>Hub VNet (10.0.0.0/16)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--spoke1);box-shadow:0 0 6px var(--spoke1)"></div>
+        <span>Production (10.1.0.0/16)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--spoke2);box-shadow:0 0 6px var(--spoke2)"></div>
+        <span>Dev/Test (10.2.0.0/16)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--spoke3);box-shadow:0 0 6px var(--spoke3)"></div>
+        <span>DMZ/Public (10.3.0.0/16)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--spoke4);box-shadow:0 0 6px var(--spoke4)"></div>
+        <span>Data Platform (10.4.0.0/16)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--spoke5);box-shadow:0 0 6px var(--spoke5)"></div>
+        <span>Security (10.5.0.0/16)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:var(--spoke6);box-shadow:0 0 6px var(--spoke6)"></div>
+        <span>Management (10.6.0.0/16)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-line" style="background:var(--azure-light);height:2px"></div>
+        <span>VNet Peering</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-line" style="background:var(--accent);height:1px;border-top:1px dashed var(--accent)"></div>
+        <span>Internet / On-Premises</span>
+      </div>
+    </div>
+
+    <button class="export-btn" onclick="exportDiagram()">⬇ Export as PNG</button>
+
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  view: 'arch',
+  spokes: {
+    prod: true, dev: true, dmz: true, data: true, sec: false, mgmt: false
+  },
+  hubEnabled: true,
+  activeChips: new Set([
+    'hub-fw','hub-gw','hub-er','hub-bas','hub-dns','hub-mon',
+    'prod-vm','prod-lb','prod-sql','prod-app','prod-kv',
+    'dev-vm','dev-app','dev-st',
+    'dmz-agw','dmz-waf','dmz-afd','dmz-apim',
+    'data-syn','data-adf','data-adls'
+  ]),
+  hoveredNode: null,
+  selectedNode: null,
+  offset: { x: 0, y: 0 },
+  dragging: false,
+  dragStart: { x: 0, y: 0 },
+  offsetStart: { x: 0, y: 0 },
+  scale: 1
+};
+
+// ============================================================
+// CANVAS SETUP
+// ============================================================
+const canvas = document.getElementById('diagram-canvas');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  const area = canvas.parentElement;
+  canvas.width = area.clientWidth;
+  canvas.height = area.clientHeight;
+  draw();
+}
+
+window.addEventListener('resize', resize);
+setTimeout(resize, 100);
+
+// ============================================================
+// NODES DEFINITION
+// ============================================================
+function getNodes() {
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const r = Math.min(canvas.width, canvas.height) * 0.30;
+
+  const spokeAngles = {
+    prod: -Math.PI / 2,
+    dev: -Math.PI / 2 + (Math.PI * 2 / 5),
+    dmz: -Math.PI / 2 + (Math.PI * 4 / 5),
+    data: -Math.PI / 2 + (Math.PI * 6 / 5),
+    sec: -Math.PI / 2 + (Math.PI * 8 / 5),
+    mgmt: -Math.PI / 2 + (Math.PI * 10 / 5)
+  };
+
+  const spokeColors = {
+    prod: '#00BCF2', dev: '#00B294', dmz: '#FF8C00',
+    data: '#8764B8', sec: '#E81123', mgmt: '#107C10'
+  };
+
+  const spokeLabels = {
+    prod: 'Production', dev: 'Dev/Test', dmz: 'DMZ/Public',
+    data: 'Data Platform', sec: 'Security', mgmt: 'Management'
+  };
+
+  const spokeIPs = {
+    prod: '10.1.0.0/16', dev: '10.2.0.0/16', dmz: '10.3.0.0/16',
+    data: '10.4.0.0/16', sec: '10.5.0.0/16', mgmt: '10.6.0.0/16'
+  };
+
+  const nodes = [];
+
+  // Hub center
+  nodes.push({
+    id: 'hub', x: cx, y: cy,
+    label: 'Hub VNet', sublabel: '10.0.0.0/16',
+    color: '#0078D4', radius: 48, type: 'hub',
+    tooltip: { sku: 'Hub & Spoke', cidr: '10.0.0.0/16', region: 'West Europe', az: 'Zone 1,2,3' }
+  });
+
+  // Spoke VNets
+  Object.entries(spokeAngles).forEach(([key, angle]) => {
+    if (!state.spokes[key]) return;
+    const sx = cx + Math.cos(angle) * r;
+    const sy = cy + Math.sin(angle) * r;
+    nodes.push({
+      id: `spoke-${key}`, x: sx, y: sy,
+      label: spokeLabels[key], sublabel: spokeIPs[key],
+      color: spokeColors[key], radius: 36, type: 'spoke',
+      spokeKey: key,
+      tooltip: { sku: 'VNet Spoke', cidr: spokeIPs[key], region: 'West Europe', peering: 'Hub Peering' }
+    });
+  });
+
+  // Sub-resources for each spoke
+  const resourceDefs = {
+    prod: [
+      { id: 'prod-vm', label: 'VMs', icon: '💻', color: '#00BCF2', offset: [-80, -50] },
+      { id: 'prod-lb', label: 'LB', icon: '⚖️', color: '#00BCF2', offset: [80, -50] },
+      { id: 'prod-sql', label: 'SQL', icon: '🗄️', color: '#00BCF2', offset: [-80, 50] },
+      { id: 'prod-app', label: 'App', icon: '🌐', color: '#00BCF2', offset: [80, 50] },
+      { id: 'prod-kv', label: 'KV', icon: '🔑', color: '#00BCF2', offset: [0, -80] },
+    ],
+    dev: [
+      { id: 'dev-vm', label: 'VMs', icon: '💻', color: '#00B294', offset: [-70, -40] },
+      { id: 'dev-app', label: 'App', icon: '🌐', color: '#00B294', offset: [70, -40] },
+      { id: 'dev-st', label: 'Storage', icon: '📦', color: '#00B294', offset: [0, -70] },
+    ],
+    dmz: [
+      { id: 'dmz-agw', label: 'App GW', icon: '🌐', color: '#FF8C00', offset: [-80, -50] },
+      { id: 'dmz-waf', label: 'WAF', icon: '🛡️', color: '#FF8C00', offset: [80, -50] },
+      { id: 'dmz-afd', label: 'Front Door', icon: '⚡', color: '#FF8C00', offset: [0, -80] },
+      { id: 'dmz-apim', label: 'APIM', icon: '🔌', color: '#FF8C00', offset: [0, 80] },
+    ],
+    data: [
+      { id: 'data-syn', label: 'Synapse', icon: '📊', color: '#8764B8', offset: [-80, -50] },
+      { id: 'data-adf', label: 'ADF', icon: '🔄', color: '#8764B8', offset: [80, -50] },
+      { id: 'data-adls', label: 'ADLS', icon: '💾', color: '#8764B8', offset: [0, -80] },
+    ],
+    sec: [
+      { id: 'sec-sent', label: 'Sentinel', icon: '🔍', color: '#E81123', offset: [-70, -40] },
+      { id: 'sec-law', label: 'Log Analytics', icon: '📋', color: '#E81123', offset: [70, -40] },
+    ],
+    mgmt: [
+      { id: 'mgmt-auto', label: 'Automation', icon: '⚙️', color: '#107C10', offset: [-70, -40] },
+      { id: 'mgmt-bkp', label: 'Backup', icon: '💾', color: '#107C10', offset: [70, -40] },
+    ]
+  };
+
+  // Hub resources
+  const hubResources = [
+    { id: 'hub-fw', label: 'Firewall', icon: '🛡️', color: '#0078D4', angle: -0.6, dist: 120 },
+    { id: 'hub-gw', label: 'VPN GW', icon: '🔀', color: '#0078D4', angle: 0.6, dist: 120 },
+    { id: 'hub-bas', label: 'Bastion', icon: '🖥️', color: '#0078D4', angle: Math.PI - 0.6, dist: 120 },
+    { id: 'hub-dns', label: 'DNS', icon: '🌐', color: '#0078D4', angle: Math.PI + 0.6, dist: 120 },
+    { id: 'hub-er', label: 'ExpressRoute', icon: '⚡', color: '#0078D4', angle: -Math.PI / 2, dist: 130 },
+  ];
+
+  hubResources.forEach(({ id, label, icon, color, angle, dist }) => {
+    if (!state.activeChips.has(id)) return;
+    nodes.push({
+      id, type: 'resource',
+      x: cx + Math.cos(angle) * dist,
+      y: cy + Math.sin(angle) * dist,
+      label, icon, color,
+      radius: 22,
+      parentId: 'hub',
+      tooltip: { type: 'Hub Resource', id }
+    });
+  });
+
+  // Spoke resources
+  Object.entries(resourceDefs).forEach(([spokeKey, resources]) => {
+    if (!state.spokes[spokeKey]) return;
+    const angle = spokeAngles[spokeKey];
+    const sx = cx + Math.cos(angle) * r;
+    const sy = cy + Math.sin(angle) * r;
+    const cos = Math.cos(angle), sin = Math.sin(angle);
+    const perp = { x: -sin, y: cos };
+    const resR = 80;
+    const resCount = resources.filter(r2 => state.activeChips.has(r2.id)).length;
+    let i = 0;
+    resources.forEach(({ id, label, icon, color }) => {
+      if (!state.activeChips.has(id)) return;
+      const t = resCount > 1 ? (i / (resCount - 1) - 0.5) : 0;
+      const rx = sx + cos * resR + perp.x * t * 80;
+      const ry = sy + sin * resR + perp.y * t * 80;
+      nodes.push({
+        id, type: 'resource',
+        x: rx, y: ry,
+        label, icon, color,
+        radius: 20,
+        parentId: `spoke-${spokeKey}`,
+        tooltip: { type: 'Spoke Resource', spoke: spokeKey, id }
+      });
+      i++;
+    });
+  });
+
+  return nodes;
+}
+
+// ============================================================
+// DRAW
+// ============================================================
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(state.offset.x, state.offset.y);
+  ctx.scale(state.scale, state.scale);
+
+  const nodes = getNodes();
+  const nodesMap = {};
+  nodes.forEach(n => nodesMap[n.id] = n);
+
+  if (state.view === 'arch') drawArchView(nodes, nodesMap);
+  else if (state.view === 'net') drawNetView(nodes, nodesMap);
+  else drawSecView(nodes, nodesMap);
+
+  ctx.restore();
+}
+
+function drawArchView(nodes, nodesMap) {
+  // Draw internet/on-prem connections
+  const hub = nodesMap['hub'];
+  if (!hub) return;
+
+  // Draw outer cloud ring
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(hub.x, hub.y, Math.min(canvas.width, canvas.height) * 0.47, 0, Math.PI * 2);
+  ctx.setLineDash([6, 12]);
+  ctx.strokeStyle = 'rgba(255,185,0,0.15)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // Draw peering lines
+  nodes.filter(n => n.type === 'spoke').forEach(spoke => {
+    drawPeeringLine(hub, spoke, spoke.color);
+  });
+
+  // Draw resource connections
+  nodes.filter(n => n.type === 'resource').forEach(res => {
+    const parent = nodesMap[res.parentId];
+    if (!parent) return;
+    drawResourceLine(parent, res, res.color);
+  });
+
+  // Draw nodes
+  nodes.forEach(node => {
+    drawNode(node);
+  });
+
+  // Internet / On-Prem labels
+  const vpnGw = nodes.find(n => n.id === 'hub-gw');
+  const er = nodes.find(n => n.id === 'hub-er');
+
+  if (vpnGw) {
+    drawExternalNode(vpnGw.x + 90, vpnGw.y, '🏢', 'On-Premises', '#FFB900');
+    drawDashedLine(vpnGw, { x: vpnGw.x + 90, y: vpnGw.y }, '#FFB900');
+  }
+  if (er) {
+    drawExternalNode(er.x, er.y - 90, '⚡', 'ExpressRoute Circuit', '#FFB900');
+    drawDashedLine(er, { x: er.x, y: er.y - 90 }, '#FFB900');
+  }
+
+  const dmzAgw = nodes.find(n => n.id === 'dmz-agw' || n.id === 'dmz-afd');
+  if (dmzAgw) {
+    drawExternalNode(dmzAgw.x, dmzAgw.y - 80, '🌍', 'Internet', '#50E6FF');
+    drawDashedLine(dmzAgw, { x: dmzAgw.x, y: dmzAgw.y - 80 }, '#50E6FF');
+  }
+}
+
+function drawNetView(nodes, nodesMap) {
+  // Show traffic flow with animated arrows
+  drawArchView(nodes, nodesMap);
+
+  // Draw flow annotations
+  const hub = nodesMap['hub'];
+  if (!hub) return;
+
+  ctx.save();
+  ctx.font = '10px JetBrains Mono';
+  ctx.fillStyle = 'rgba(80,230,255,0.6)';
+  ctx.fillText('All spoke traffic → Hub Firewall', hub.x - 80, hub.y + 70);
+  ctx.fillText('UDR: 0.0.0.0/0 → Firewall', hub.x - 80, hub.y + 85);
+  ctx.restore();
+}
+
+function drawSecView(nodes, nodesMap) {
+  const hub = nodesMap['hub'];
+  if (!hub) return;
+
+  // Draw security zones
+  const zones = [
+    { label: 'Internet Zone', r: Math.min(canvas.width, canvas.height) * 0.47, color: 'rgba(232,17,35,0.05)' },
+    { label: 'DMZ Zone', r: Math.min(canvas.width, canvas.height) * 0.38, color: 'rgba(255,140,0,0.07)' },
+    { label: 'Trusted Zone', r: Math.min(canvas.width, canvas.height) * 0.28, color: 'rgba(0,120,212,0.08)' },
+    { label: 'Core Zone', r: Math.min(canvas.width, canvas.height) * 0.15, color: 'rgba(0,120,212,0.15)' },
+  ];
+
+  zones.forEach(({ r, color, label }) => {
+    ctx.beginPath();
+    ctx.arc(hub.x, hub.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,120,212,0.2)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 8]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(123,163,192,0.6)';
+    ctx.font = '10px JetBrains Mono';
+    ctx.fillText(label, hub.x + r - 80, hub.y - 8);
+  });
+
+  drawArchView(nodes, nodesMap);
+}
+
+function drawPeeringLine(a, b, color) {
+  ctx.save();
+  const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+  grad.addColorStop(0, 'rgba(0,120,212,0.5)');
+  grad.addColorStop(1, color + '80');
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Peering arrow midpoint
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  ctx.fillStyle = color + 'CC';
+  ctx.beginPath();
+  ctx.arc(mx, my, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawResourceLine(a, b, color) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.strokeStyle = color + '60';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 6]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawDashedLine(a, b, color) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.strokeStyle = color + '80';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 8]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawExternalNode(x, y, icon, label, color) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, 16, 0, Math.PI * 2);
+  ctx.fillStyle = color + '20';
+  ctx.fill();
+  ctx.strokeStyle = color + '60';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 5]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = '14px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(icon, x, y);
+  ctx.font = '9px JetBrains Mono';
+  ctx.fillStyle = color + 'CC';
+  ctx.fillText(label, x, y + 26);
+  ctx.restore();
+}
+
+function drawNode(node) {
+  const isHovered = state.hoveredNode === node.id;
+  const isSelected = state.selectedNode === node.id;
+  const glow = isHovered || isSelected;
+
+  ctx.save();
+
+  // Glow
+  if (glow) {
+    ctx.shadowColor = node.color;
+    ctx.shadowBlur = 20;
+  }
+
+  // Circle bg
+  ctx.beginPath();
+  ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+
+  if (node.type === 'hub') {
+    const grad = ctx.createRadialGradient(node.x - 10, node.y - 10, 0, node.x, node.y, node.radius);
+    grad.addColorStop(0, '#1A8FE3');
+    grad.addColorStop(1, '#003A5C');
+    ctx.fillStyle = grad;
+  } else if (node.type === 'spoke') {
+    ctx.fillStyle = node.color + '25';
+  } else {
+    ctx.fillStyle = node.color + '20';
+  }
+  ctx.fill();
+
+  // Border
+  ctx.strokeStyle = glow ? node.color : node.color + '80';
+  ctx.lineWidth = node.type === 'hub' ? 2.5 : (node.type === 'spoke' ? 2 : 1.5);
+  ctx.stroke();
+
+  // Inner ring for spoke
+  if (node.type === 'spoke') {
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, node.radius - 6, 0, Math.PI * 2);
+    ctx.strokeStyle = node.color + '40';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  ctx.shadowBlur = 0;
+
+  // Icon / text
+  if (node.type === 'resource') {
+    ctx.font = '14px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(node.icon, node.x, node.y - 3);
+    ctx.font = '8px JetBrains Mono';
+    ctx.fillStyle = node.color + 'DD';
+    ctx.fillText(node.label, node.x, node.y + 12);
+  } else if (node.type === 'hub') {
+    ctx.font = 'bold 11px Syne, sans-serif';
+    ctx.fillStyle = '#E8F4FD';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('HUB', node.x, node.y - 6);
+    ctx.font = '8px JetBrains Mono';
+    ctx.fillStyle = '#50E6FF';
+    ctx.fillText('VNet', node.x, node.y + 6);
+    ctx.fillStyle = 'rgba(123,163,192,0.7)';
+    ctx.font = '7px JetBrains Mono';
+    ctx.fillText('10.0.0.0/16', node.x, node.y + 18);
+  } else {
+    ctx.font = 'bold 10px Syne, sans-serif';
+    ctx.fillStyle = node.color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(node.label.length > 10 ? node.label.slice(0, 9) + '…' : node.label, node.x, node.y - 5);
+    ctx.font = '8px JetBrains Mono';
+    ctx.fillStyle = 'rgba(123,163,192,0.8)';
+    ctx.fillText(node.sublabel, node.x, node.y + 8);
+  }
+
+  ctx.restore();
+}
+
+// ============================================================
+// INTERACTIONS
+// ============================================================
+function getCanvasPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left - state.offset.x) / state.scale,
+    y: (e.clientY - rect.top - state.offset.y) / state.scale
+  };
+}
+
+function hitTest(pos) {
+  const nodes = getNodes();
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const n = nodes[i];
+    const dx = pos.x - n.x, dy = pos.y - n.y;
+    if (Math.sqrt(dx * dx + dy * dy) < n.radius + 5) return n;
+  }
+  return null;
+}
+
+canvas.addEventListener('mousemove', e => {
+  const pos = getCanvasPos(e);
+  const hit = hitTest(pos);
+  const rect = canvas.getBoundingClientRect();
+
+  if (state.dragging) {
+    state.offset.x = state.offsetStart.x + (e.clientX - state.dragStart.x);
+    state.offset.y = state.offsetStart.y + (e.clientY - state.dragStart.y);
+    draw();
+    return;
+  }
+
+  const prev = state.hoveredNode;
+  state.hoveredNode = hit ? hit.id : null;
+  if (prev !== state.hoveredNode) draw();
+
+  const tooltip = document.getElementById('tooltip');
+  if (hit) {
+    tooltip.style.left = (e.clientX - rect.left + 16) + 'px';
+    tooltip.style.top = (e.clientY - rect.top - 10) + 'px';
+    tooltip.classList.add('show');
+    renderTooltip(hit);
+    canvas.style.cursor = 'pointer';
+  } else {
+    tooltip.classList.remove('show');
+    canvas.style.cursor = state.dragging ? 'grabbing' : 'grab';
+  }
+});
+
+canvas.addEventListener('mousedown', e => {
+  state.dragging = true;
+  state.dragStart = { x: e.clientX, y: e.clientY };
+  state.offsetStart = { ...state.offset };
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (Math.abs(e.clientX - state.dragStart.x) < 5 && Math.abs(e.clientY - state.dragStart.y) < 5) {
+    const pos = getCanvasPos(e);
+    const hit = hitTest(pos);
+    state.selectedNode = hit ? hit.id : null;
+    if (hit) renderSelectedPanel(hit);
+    draw();
+  }
+  state.dragging = false;
+});
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  state.scale = Math.max(0.3, Math.min(2.5, state.scale * factor));
+  draw();
+}, { passive: false });
+
+canvas.addEventListener('mouseleave', () => {
+  state.dragging = false;
+  document.getElementById('tooltip').classList.remove('show');
+});
+
+// ============================================================
+// TOOLTIP / PANEL
+// ============================================================
+function renderTooltip(node) {
+  const t = node.tooltip || {};
+  let html = `<div class="tooltip-title">${node.icon || '⬡'} ${node.label}</div>`;
+  if (node.sublabel) html += `<div class="tooltip-row"><span>CIDR</span><span>${node.sublabel}</span></div>`;
+  if (t.sku) html += `<div class="tooltip-row"><span>Type</span><span>${t.sku}</span></div>`;
+  if (t.region) html += `<div class="tooltip-row"><span>Region</span><span>${t.region}</span></div>`;
+  if (t.az) html += `<div class="tooltip-row"><span>AZ</span><span>${t.az}</span></div>`;
+  document.getElementById('tooltip').innerHTML = html;
+}
+
+const resourceDetails = {
+  'hub': { title: 'Hub VNet', config: [['Address Space','10.0.0.0/16'],['Region','West Europe'],['Subnets','AzureFirewallSubnet, GatewaySubnet, AzureBastionSubnet, RouteServerSubnet'],['DNS Servers','Custom (Azure Firewall)'],['Peerings','All Spoke VNets'],['Route Tables','UDR → Firewall']] },
+  'hub-fw': { title: '🛡️ Azure Firewall Premium', config: [['SKU','Premium'],['IDPS','Alert and Deny'],['TLS Inspection','Enabled'],['Threat Intel','Alert and Deny'],['DNS Proxy','Enabled'],['Cost/mo','~€1,250']] },
+  'hub-gw': { title: '🔀 VPN Gateway VpnGw2AZ', config: [['SKU','VpnGw2AZ'],['Generation','Generation2'],['Type','RouteBased'],['BGP','ASN 65001'],['Zones','1,2,3'],['Cost/mo','~€380']] },
+  'hub-bas': { title: '🖥️ Azure Bastion Standard', config: [['SKU','Standard'],['Subnet','/27'],['Tunneling','Enabled'],['Copy/Paste','Enabled'],['Cost/mo','~€190']] },
+  'hub-dns': { title: '🌐 Private DNS Zone', config: [['Zone','privatelink.azure.com'],['Auto-registration','Enabled'],['Linked VNets','All Spokes'],['TTL','300s'],['Cost/mo','~€5']] },
+  'hub-er': { title: '⚡ ExpressRoute Gateway', config: [['SKU','ErGw2AZ'],['Bandwidth','1 Gbps'],['Zones','1,2,3'],['FastPath','Enabled'],['Cost/mo','~€580']] },
+  'prod-vm': { title: '💻 Virtual Machines (4x)', config: [['Size','Standard_D4s_v5'],['OS','Windows Server 2022'],['Managed Disk','Premium SSD LRS'],['Accelerated Net','Enabled'],['Availability','Zone 1,2,3'],['Cost/mo','~€680']] },
+  'prod-lb': { title: '⚖️ Load Balancer', config: [['SKU','Standard'],['Tier','Regional'],['Type','Internal'],['HA Ports','Disabled'],['Zones','Zone-redundant'],['Cost/mo','~€20']] },
+  'prod-sql': { title: '🗄️ Azure SQL BC 8vCore', config: [['Tier','Business Critical'],['vCores','8'],['HA Replicas','4'],['Backup','GRS 35 days'],['TDE','CMK (Key Vault)'],['Cost/mo','~€1,100']] },
+  'prod-app': { title: '🌐 App Service P3v3', config: [['SKU','P3v3 Premium'],['Instances','3 (AZ)'],['VNet Integration','Enabled'],['Private Endpoint','Configured'],['Cost/mo','~€520']] },
+  'prod-kv': { title: '🔑 Key Vault', config: [['SKU','Premium'],['Soft Delete','90 days'],['Purge Protection','Enabled'],['Private Endpoint','Yes'],['RBAC','Enabled'],['Cost/mo','~€15']] },
+  'dev-vm': { title: '💻 Dev VMs (2x)', config: [['Size','Standard_B2s'],['Auto-shutdown','19:00 UTC'],['Spot','Enabled'],['Cost/mo','~€60']] },
+  'dev-app': { title: '🌐 App Service B1', config: [['SKU','B1 Basic'],['Instances','1'],['Cost/mo','~€13']] },
+  'dev-st': { title: '📦 Storage Account', config: [['Redundancy','LRS'],['Tier','Hot'],['Access','Private Endpoint'],['Cost/mo','~€8']] },
+  'dmz-agw': { title: '🌐 Application Gateway WAF v2', config: [['SKU','WAF_v2'],['Capacity','Autoscale 1-10'],['WAF Mode','Prevention (OWASP 3.2)'],['SSL Policy','AppGwSslPolicy20220101S'],['Zones','1,2,3'],['Cost/mo','~€340']] },
+  'dmz-waf': { title: '🛡️ WAF Policy', config: [['Mode','Prevention'],['Ruleset','OWASP 3.2'],['Custom Rules','IP Rate Limit'],['Cost/mo','~€30']] },
+  'dmz-afd': { title: '⚡ Azure Front Door Premium', config: [['SKU','Premium'],['WAF','Enabled'],['Private Link','Enabled'],['Health Probes','HTTPS'],['Cost/mo','~€250']] },
+  'dmz-apim': { title: '🔌 API Management', config: [['SKU','Premium'],['VNet Mode','External'],['Capacity','1 Unit'],['Gateway URL','api.company.com'],['Cost/mo','~€720']] },
+  'data-syn': { title: '📊 Azure Synapse', config: [['SQL Pool','DW500c'],['Spark Pool','Small (3-10 nodes)'],['VNet','Managed'],['Cost/mo','~€900']] },
+  'data-adf': { title: '🔄 Data Factory', config: [['IR','Azure + Self-hosted'],['Linked Services','10+'],['Private Endpoint','Yes'],['Cost/mo','~€80']] },
+  'data-adls': { title: '💾 ADLS Gen2', config: [['Redundancy','GRS'],['Namespace','Hierarchical'],['Private Endpoint','Yes'],['Cost/mo','~€120']] },
+};
+
+function renderSelectedPanel(node) {
+  const details = resourceDetails[node.id];
+  const panel = document.getElementById('selected-panel');
+  if (!details) {
+    panel.innerHTML = `<div class="info-title">${node.icon||'⬡'} ${node.label}</div><div style="color:var(--muted);font-size:10px">No detailed config available</div>`;
+    return;
+  }
+  let html = `<div class="info-title">${details.title}</div>`;
+  html += '<div class="config-rows">';
+  details.config.forEach(([k, v]) => {
+    const cls = k === 'Cost/mo' ? 'warn' : '';
+    html += `<div class="config-row"><span class="config-key">${k}</span><span class="config-val ${cls}">${v}</span></div>`;
+  });
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+// ============================================================
+// COST CALCULATOR
+// ============================================================
+const costs = {
+  'hub-fw': 1250, 'hub-gw': 380, 'hub-bas': 190, 'hub-dns': 5, 'hub-er': 580,
+  'hub-ddos': 2500, 'hub-mon': 80, 'hub-nsg': 0,
+  'prod-vm': 680, 'prod-lb': 20, 'prod-sql': 1100, 'prod-app': 520,
+  'prod-aks': 800, 'prod-kv': 15, 'prod-sb': 25, 'prod-cache': 90,
+  'dev-vm': 60, 'dev-app': 13, 'dev-sql': 50, 'dev-st': 8, 'dev-func': 5,
+  'dmz-agw': 340, 'dmz-waf': 30, 'dmz-afd': 250, 'dmz-cdn': 30, 'dmz-apim': 720,
+  'data-syn': 900, 'data-adf': 80, 'data-adls': 120, 'data-eh': 100, 'data-cosmos': 400,
+  'sec-sent': 300, 'sec-def': 150, 'sec-law': 200, 'sec-ai': 400,
+  'mgmt-auto': 30, 'mgmt-bkp': 50, 'mgmt-pol': 0, 'mgmt-arc': 60
+};
+
+const costNames = {
+  'hub-fw': 'Azure Firewall', 'hub-gw': 'VPN Gateway', 'hub-bas': 'Bastion',
+  'hub-er': 'ExpressRoute GW', 'hub-ddos': 'DDoS Plan',
+  'prod-vm': 'Prod VMs (4x)', 'prod-sql': 'SQL Business Critical',
+  'prod-app': 'App Service P3v3', 'prod-aks': 'AKS Cluster',
+  'dmz-agw': 'Application GW', 'dmz-apim': 'API Management',
+  'data-syn': 'Synapse Analytics'
+};
+
+function updateCost() {
+  let total = 0;
+  const breakdown = [];
+  state.activeChips.forEach(id => {
+    const c = costs[id] || 0;
+    if (c > 0) {
+      total += c;
+      if (costNames[id]) breakdown.push({ name: costNames[id], amount: c });
+    }
+  });
+
+  // Adjust for disabled spokes
+  ['prod','dev','dmz','data','sec','mgmt'].forEach(k => {
+    if (!state.spokes[k]) {
+      Object.keys(costs).forEach(id => {
+        if (id.startsWith(k + '-') && state.activeChips.has(id)) {
+          total -= (costs[id] || 0);
+        }
+      });
+    }
+  });
+
+  document.getElementById('cost-total').textContent = `€${total.toLocaleString()}`;
+  document.getElementById('cost-range').textContent = `Active chips: ${state.activeChips.size}`;
+
+  const el = document.getElementById('cost-breakdown');
+  breakdown.sort((a, b) => b.amount - a.amount).slice(0, 6).forEach(({ name, amount }) => {
+    // already rendered statically, skip dynamic for now
+  });
+}
+
+// ============================================================
+// CONTROLS
+// ============================================================
+function toggleHub(btn) {
+  btn.classList.toggle('on');
+  state.hubEnabled = btn.classList.contains('on');
+  draw();
+}
+
+function toggleSpoke(btn, key) {
+  btn.classList.toggle('on');
+  state.spokes[key] = btn.classList.contains('on');
+  updateCost();
+  draw();
+}
+
+function toggleChip(el, id) {
+  el.classList.toggle('active');
+  if (el.classList.contains('active')) {
+    state.activeChips.add(id);
+  } else {
+    state.activeChips.delete(id);
+  }
+  updateCost();
+  draw();
+}
+
+function setView(v) {
+  state.view = v;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + v).classList.add('active');
+  draw();
+}
+
+function exportDiagram() {
+  // Create high-res export canvas
+  const exp = document.createElement('canvas');
+  exp.width = canvas.width * 2;
+  exp.height = canvas.height * 2;
+  const ec = exp.getContext('2d');
+  ec.scale(2, 2);
+  ec.fillStyle = '#060D18';
+  ec.fillRect(0, 0, canvas.width, canvas.height);
+  ec.drawImage(canvas, 0, 0);
+
+  const link = document.createElement('a');
+  link.download = 'azure-hub-spoke-architecture.png';
+  link.href = exp.toDataURL('image/png');
+  link.click();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+updateCost();
+resize();
+
+// Animate glow on hub periodically
+setInterval(() => {
+  draw();
+}, 3000);
+</script>
+</body>
+</html>

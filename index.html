@@ -14,55 +14,74 @@
     --card-bg: rgba(10,22,40,0.95);
   }
 
+  /* DRAW.IO / LIGHT THEME VARIABLES */
+  body.theme-drawio {
+    --bg: #F9FAFB; --bg2: #FFFFFF; --bg3: #FFFFFF;
+    --border: #D1D5DB; --text: #111827; --muted: #6B7280;
+    --card-bg: #FFFFFF;
+    --azure-light: #0078D4; 
+  }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'JetBrains Mono', monospace; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+  body { font-family: 'JetBrains Mono', monospace; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; transition: background 0.3s, color 0.3s; }
+  
   body::before {
     content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
     background-image: linear-gradient(rgba(0,120,212,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,120,212,0.04) 1px, transparent 1px); background-size: 40px 40px;
+    transition: background-image 0.3s;
+  }
+  body.theme-drawio::before {
+    background-image: linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
   }
 
   /* HEADER */
-  header { position: relative; z-index: 10; padding: 16px 30px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); background: rgba(6,13,24,0.9); backdrop-filter: blur(20px); }
+  header { position: relative; z-index: 10; padding: 16px 30px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); background: var(--bg2); box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
   .logo { display: flex; align-items: center; gap: 14px; }
-  .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--azure-blue), var(--azure-light)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 0 15px rgba(0,120,212,0.5); }
+  .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--azure-blue), var(--azure-light)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 0 15px rgba(0,120,212,0.3); color: white; }
   .logo h1 { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; }
-  .logo span { color: var(--azure-light); }
+  .logo span { color: var(--azure-blue); }
+  
+  .header-actions { display: flex; gap: 12px; align-items: center; }
   .badge { font-size: 10px; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--success); color: var(--success); text-transform: uppercase; }
 
   /* LAYOUT */
   .app { position: relative; z-index: 1; display: grid; grid-template-columns: 360px 1fr 340px; height: calc(100vh - 69px); }
-  .sidebar { border-right: 1px solid var(--border); overflow-y: auto; background: var(--card-bg); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .sidebar { border-right: 1px solid var(--border); overflow-y: auto; background: var(--card-bg); padding: 20px; display: flex; flex-direction: column; gap: 16px; transition: background 0.3s; }
   .sidebar.right { border-right: none; border-left: 1px solid var(--border); display: flex; flex-direction: column; }
   
-  .section-title { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--azure-light); padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .section-title { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--azure-blue); padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
 
   /* DYNAMIC CARDS */
-  .vnet-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 12px; position: relative; overflow: visible; }
+  .vnet-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 12px; position: relative; overflow: visible; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
   .vnet-header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
   .vnet-row { display: flex; gap: 8px; align-items: center; }
   
-  .input-field { background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: white; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 6px; border-radius: 4px; outline: none; width: 100%; transition: 0.2s; }
+  .input-field { background: rgba(0,0,0,0.05); border: 1px solid var(--border); color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 6px; border-radius: 4px; outline: none; width: 100%; transition: 0.2s; }
+  body:not(.theme-drawio) .input-field { background: rgba(0,0,0,0.3); color: white; }
   .input-field:focus { border-color: var(--azure-light); background: rgba(0,120,212,0.1); }
-  .input-field.cidr { width: 110px; text-align: center; color: var(--azure-light); }
+  .input-field.cidr { width: 110px; text-align: center; color: var(--azure-blue); font-weight: bold; }
 
   .resource-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { font-size: 10px; padding: 4px 8px; border-radius: 4px; background: rgba(0,120,212,0.2); border: 1px solid var(--azure-blue); color: white; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
-  .chip:hover { background: var(--azure-blue); }
-  .chip.hub-chip { background: rgba(255,140,0,0.2); border-color: #FF8C00; }
-  .chip.hub-chip:hover { background: #FF8C00; }
+  .chip { font-size: 10px; padding: 4px 8px; border-radius: 4px; background: rgba(0,120,212,0.1); border: 1px solid var(--azure-blue); color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+  body:not(.theme-drawio) .chip { color: white; background: rgba(0,120,212,0.2); }
+  .chip:hover { background: var(--azure-blue); color: white !important; }
+  .chip.hub-chip { background: rgba(255,140,0,0.1); border-color: #FF8C00; }
+  body:not(.theme-drawio) .chip.hub-chip { background: rgba(255,140,0,0.2); }
+  .chip.hub-chip:hover { background: #FF8C00; color: white !important; }
 
   /* BUTTONS & DROPDOWNS */
-  .btn { background: transparent; border: 1px dashed var(--muted); color: var(--muted); padding: 6px 12px; font-size: 10px; cursor: pointer; border-radius: 4px; font-family: 'JetBrains Mono'; transition: 0.2s; text-align: center; width: 100%; margin-top: 8px; }
-  .btn:hover { border-color: var(--azure-light); color: var(--azure-light); background: rgba(80,230,255,0.05); }
-  .btn.primary { background: rgba(0,120,212,0.2); border: 1px solid var(--azure-blue); color: white; }
-  .btn.primary:hover { background: var(--azure-blue); }
+  .btn { background: transparent; border: 1px solid var(--muted); color: var(--muted); padding: 6px 12px; font-size: 10px; cursor: pointer; border-radius: 4px; font-family: 'JetBrains Mono'; transition: 0.2s; text-align: center; width: 100%; margin-top: 8px; }
+  .btn:hover { border-color: var(--azure-blue); color: var(--azure-blue); background: rgba(0,120,212,0.05); }
+  .btn.primary { background: rgba(0,120,212,0.1); border: 1px solid var(--azure-blue); color: var(--azure-blue); font-weight: bold; }
+  body:not(.theme-drawio) .btn.primary { background: rgba(0,120,212,0.2); color: white; }
+  .btn.primary:hover { background: var(--azure-blue); color: white; }
   .btn.danger { border-color: var(--danger); color: var(--danger); margin-top: 16px; }
   .btn.danger:hover { background: var(--danger); color: white; }
 
   .add-res-container { position: relative; }
-  .res-dropdown { display: none; position: absolute; top: 100%; left: 0; width: 100%; background: var(--bg2); border: 1px solid var(--azure-blue); border-radius: 4px; z-index: 100; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+  .res-dropdown { display: none; position: absolute; top: 100%; left: 0; width: 100%; background: var(--bg2); border: 1px solid var(--azure-blue); border-radius: 4px; z-index: 100; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
   .res-dropdown.show { display: block; }
-  .res-option { padding: 8px; font-size: 10px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 8px; }
+  .res-option { padding: 8px; font-size: 10px; cursor: pointer; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; color: var(--text); }
   .res-option:hover { background: var(--azure-blue); color: white; }
 
   /* EXPORT BTN */
@@ -72,37 +91,39 @@
   .export-btn.reset:hover { background: var(--danger); color: white; box-shadow: 0 8px 24px rgba(255,68,68,0.4); }
 
   /* CANVAS */
-  .canvas-area { position: relative; overflow: hidden; background: var(--bg); }
+  .canvas-area { position: relative; overflow: hidden; background: transparent; }
   #diagram-canvas { width: 100%; height: 100%; cursor: grab; }
   #diagram-canvas:active { cursor: grabbing; }
 
   /* EDITOR (RIGHT SIDEBAR) */
   #editor-container { flex-grow: 1; }
-  .editor-panel { background: var(--bg3); border: 1px solid var(--azure-blue); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-  .editor-header { display: flex; align-items: center; gap: 10px; font-family: 'Syne'; font-size: 16px; font-weight: 700; color: var(--azure-light); margin-bottom: 8px; }
+  .editor-panel { background: var(--bg3); border: 1px solid var(--azure-blue); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+  .editor-header { display: flex; align-items: center; gap: 10px; font-family: 'Syne'; font-size: 16px; font-weight: 700; color: var(--azure-blue); margin-bottom: 8px; }
   .editor-row { display: flex; flex-direction: column; gap: 4px; }
-  .editor-label { font-size: 9px; color: var(--muted); text-transform: uppercase; }
+  .editor-label { font-size: 9px; color: var(--muted); text-transform: uppercase; font-weight: bold; }
 
-  /* SCROLLBARS */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--azure-blue); }
 </style>
 </head>
-<body>
+<body class="theme-drawio">
 
 <header>
   <div class="logo">
     <div class="logo-icon">⬡</div>
     <h1>Azure <span>Dynamic</span> Builder</h1>
   </div>
-  <div class="badge">● Live Design Mode</div>
+  <div class="header-actions">
+    <button class="btn" style="width: auto; margin: 0; font-weight:bold;" onclick="toggleLayout()">📐 Toggle Layout</button>
+    <button class="btn" style="width: auto; margin: 0;" onclick="toggleTheme()">🌗 Toggle Theme</button>
+    <div class="badge">● Live Design Mode</div>
+  </div>
 </header>
 
 <div class="app">
-  <div class="sidebar" id="sidebar-left">
-    </div>
+  <div class="sidebar" id="sidebar-left"></div>
 
   <div class="canvas-area">
     <canvas id="diagram-canvas"></canvas>
@@ -118,7 +139,7 @@
     
     <div style="padding-top: 20px; margin-top: auto; border-top: 1px solid var(--border);">
       <button class="export-btn reset" onclick="resetDiagram()">🔄 Reset Diagram</button>
-      <button class="export-btn" onclick="exportDiagram()">⬇ Export as PNG</button>
+      <button class="export-btn" onclick="exportDiagram()">⬇ Export Diagram</button>
     </div>
   </div>
 </div>
@@ -144,29 +165,30 @@ const RES_TYPES = {
 };
 
 // ============================================================
-// DYNAMIC STATE & LOCAL STORAGE
+// DYNAMIC STATE & LOCAL STORAGE (BUMPED VERSION TO V5)
 // ============================================================
-const SAVED_STATE_KEY = 'azureBuilderState';
+const SAVED_STATE_KEY = 'azureBuilderStateV5'; 
 
 const defaultState = {
+  theme: 'drawio', 
+  layout: 'grid', 
   hub: {
     id: 'hub', name: 'Hub VNet', cidr: '10.0.0.0/16', color: '#0078D4',
     resources: [
       { id: 'res-h1', type: 'fw', name: 'Hub Firewall', config: { ...RES_TYPES.fw.config } },
-      { id: 'res-h2', type: 'gw', name: 'VPN Gateway', config: { ...RES_TYPES.gw.config } },
-      { id: 'res-h3', type: 'bas', name: 'Bastion', config: { ...RES_TYPES.bas.config } }
+      { id: 'res-h2', type: 'gw', name: 'VPN Gateway', config: { ...RES_TYPES.gw.config } }
     ]
   },
   spokes: [
     {
-      id: 'spoke-1', name: 'Production', cidr: '10.1.0.0/16', color: '#00BCF2',
+      id: 'spoke-1', name: 'Production', cidr: '10.1.0.0/16', color: '#00BCF2', peering: true,
       resources: [
         { id: 'res-s1', type: 'vm', name: 'Prod VMs', config: { ...RES_TYPES.vm.config } },
         { id: 'res-s2', type: 'sql', name: 'Prod DB', config: { ...RES_TYPES.sql.config } }
       ]
     },
     {
-      id: 'spoke-2', name: 'Dev / Test', cidr: '10.2.0.0/16', color: '#00B294',
+      id: 'spoke-2', name: 'Dev / Test', cidr: '10.2.0.0/16', color: '#00B294', peering: true,
       resources: [
         { id: 'res-s3', type: 'app', name: 'Dev API', config: { ...RES_TYPES.app.config } }
       ]
@@ -176,16 +198,15 @@ const defaultState = {
   offset: { x: 0, y: 0 }, scale: 1, dragging: false, dragStart: {x:0,y:0}, offsetStart: {x:0,y:0}
 };
 
-// Load state from localStorage or use default
 let state;
 const savedState = localStorage.getItem(SAVED_STATE_KEY);
 if (savedState) {
   try {
     state = JSON.parse(savedState);
-    // Reset temporary UI states that shouldn't persist exactly as they were
     state.dragging = false; 
+    if(state.theme === 'dark') document.body.classList.remove('theme-drawio');
+    else document.body.classList.add('theme-drawio');
   } catch (e) {
-    console.error("Error parsing saved state, resetting to default.", e);
     state = JSON.parse(JSON.stringify(defaultState));
   }
 } else {
@@ -195,19 +216,37 @@ if (savedState) {
 const getUid = () => 'id-' + Math.random().toString(36).substr(2, 9);
 
 // ============================================================
+// TOGGLES
+// ============================================================
+function toggleTheme() {
+  if (state.theme === 'drawio') {
+    state.theme = 'dark';
+    document.body.classList.remove('theme-drawio');
+  } else {
+    state.theme = 'drawio';
+    document.body.classList.add('theme-drawio');
+  }
+  fullUpdate();
+}
+
+function toggleLayout() {
+  state.layout = state.layout === 'grid' ? 'radial' : 'grid';
+  state.offset = { x: 0, y: 0 };
+  state.scale = 1;
+  fullUpdate();
+}
+
+// ============================================================
 // UI RENDERING (LEFT SIDEBAR)
 // ============================================================
 function renderSidebar() {
   const container = document.getElementById('sidebar-left');
   let html = `<div class="section-title">// Hub Environment</div>`;
-  
   html += buildVnetCard(state.hub, true);
   html += `<div class="section-title" style="margin-top:20px;">// Spoke Networks</div>`;
-  
   state.spokes.forEach((spoke, idx) => {
     html += buildVnetCard(spoke, false, idx);
   });
-
   html += `<button class="btn primary" onclick="addSpoke()">➕ Add New Spoke</button>`;
   container.innerHTML = html;
 }
@@ -215,7 +254,7 @@ function renderSidebar() {
 function buildVnetCard(vnet, isHub, idx = null) {
   const isSelected = state.selectedId === vnet.id;
   let html = `
-    <div class="vnet-card" style="border-color: ${isSelected ? 'var(--azure-light)' : 'var(--border)'}">
+    <div class="vnet-card" style="border-color: ${isSelected ? 'var(--azure-blue)' : 'var(--border)'}">
       <div class="vnet-header">
         <div class="vnet-row">
           <input type="text" class="input-field" value="${vnet.name}" onchange="updateVnet('${vnet.id}', 'name', this.value)" onclick="selectNode('${vnet.id}')">
@@ -224,29 +263,25 @@ function buildVnetCard(vnet, isHub, idx = null) {
       </div>
       <div class="resource-chips">
   `;
-
   vnet.resources.forEach(res => {
-    const rType = RES_TYPES[res.type] || RES_TYPES.vm; // Fallback in case of error
+    const rType = RES_TYPES[res.type] || RES_TYPES.vm;
     const isResSelected = state.selectedId === res.id;
     html += `
-      <div class="chip ${isHub ? 'hub-chip' : ''}" style="${isResSelected ? 'border-color:white; box-shadow:0 0 8px '+rType.color : ''}" onclick="selectNode('${res.id}')">
+      <div class="chip ${isHub ? 'hub-chip' : ''}" style="${isResSelected ? 'border-color:var(--azure-blue); background:var(--azure-blue); color:white;' : ''}" onclick="selectNode('${res.id}')">
         ${rType.icon} ${res.name}
       </div>
     `;
   });
-
   html += `
       </div>
       <div class="add-res-container" style="margin-top:12px;">
         <button class="btn" onclick="toggleDropdown('${vnet.id}')">➕ Add Resource</button>
         <div class="res-dropdown" id="dropdown-${vnet.id}">
   `;
-  
   Object.keys(RES_TYPES).forEach(key => {
     const t = RES_TYPES[key];
     html += `<div class="res-option" onclick="addResource('${vnet.id}', '${key}')">${t.icon} ${t.label}</div>`;
   });
-
   html += `</div></div></div>`;
   return html;
 }
@@ -277,13 +312,11 @@ function renderEditor() {
   }
 
   if (!selectedObj) {
-    // Edge case if selectedId is invalid
     state.selectedId = null;
     return renderEditor();
   }
 
   let html = `<div class="editor-panel">`;
-  
   if (isVnet) {
     html += `
       <div class="editor-header">🌐 ${selectedObj.name}</div>
@@ -291,6 +324,15 @@ function renderEditor() {
       <div class="editor-row"><span class="editor-label">CIDR Block</span><input type="text" class="input-field" value="${selectedObj.cidr}" onchange="updateVnet('${selectedObj.id}', 'cidr', this.value)"></div>
     `;
     if (selectedObj.id !== 'hub') {
+      const isPeered = selectedObj.peering !== false;
+      html += `
+        <div class="editor-row" style="margin-top:10px;">
+          <span class="editor-label">Hub Peering</span>
+          <button class="btn ${isPeered ? 'primary' : ''}" onclick="togglePeering('${selectedObj.id}')">
+            ${isPeered ? '🔗 Connected' : '🔌 Disconnected'}
+          </button>
+        </div>
+      `;
       html += `<button class="btn danger" onclick="deleteSpoke('${selectedObj.id}')">🗑️ Delete Spoke</button>`;
     }
   } else {
@@ -309,26 +351,17 @@ function renderEditor() {
     });
     html += `<button class="btn danger" onclick="deleteResource('${parentVnet.id}', '${selectedObj.id}')">🗑️ Delete Resource</button>`;
   }
-
   html += `</div>`;
   container.innerHTML = html;
 }
 
 // ============================================================
-// STATE MUTATIONS & PERSISTENCE
+// STATE MUTATIONS
 // ============================================================
 const colors = ['#00BCF2', '#00B294', '#FF8C00', '#8764B8', '#E81123', '#107C10'];
 
-function saveState() {
-  localStorage.setItem(SAVED_STATE_KEY, JSON.stringify(state));
-}
-
-function fullUpdate() {
-  saveState(); // Save to localStorage on every major update
-  renderSidebar();
-  renderEditor();
-  draw();
-}
+function saveState() { localStorage.setItem(SAVED_STATE_KEY, JSON.stringify(state)); }
+function fullUpdate() { saveState(); renderSidebar(); renderEditor(); draw(); }
 
 function resetDiagram() {
   if (confirm('Are you sure you want to delete all your changes and reset to the default diagram?')) {
@@ -339,35 +372,26 @@ function resetDiagram() {
 
 function addSpoke() {
   state.spokes.push({
-    id: getUid(),
-    name: `Spoke ${state.spokes.length + 1}`,
-    cidr: `10.${state.spokes.length + 1}.0.0/16`,
-    color: colors[state.spokes.length % colors.length],
-    resources: []
+    id: getUid(), name: `Spoke ${state.spokes.length + 1}`, cidr: `10.${state.spokes.length + 1}.0.0/16`,
+    color: colors[state.spokes.length % colors.length], peering: true, resources: []
   });
   fullUpdate();
 }
 
-function deleteSpoke(id) {
-  state.spokes = state.spokes.filter(s => s.id !== id);
-  state.selectedId = null;
-  fullUpdate();
-}
-
+function deleteSpoke(id) { state.spokes = state.spokes.filter(s => s.id !== id); state.selectedId = null; fullUpdate(); }
 function updateVnet(id, key, val) {
   if (state.hub.id === id) state.hub[key] = val;
-  else {
-    const sp = state.spokes.find(s => s.id === id);
-    if (sp) sp[key] = val;
-  }
+  else { const sp = state.spokes.find(s => s.id === id); if (sp) sp[key] = val; }
   fullUpdate();
 }
-
+function togglePeering(id) {
+  const sp = state.spokes.find(s => s.id === id);
+  if (sp) { sp.peering = sp.peering === false ? true : false; fullUpdate(); }
+}
 function toggleDropdown(id) {
   document.querySelectorAll('.res-dropdown').forEach(d => d.classList.remove('show'));
   document.getElementById(`dropdown-${id}`).classList.toggle('show');
 }
-
 function addResource(vnetId, resType) {
   const vnet = state.hub.id === vnetId ? state.hub : state.spokes.find(s => s.id === vnetId);
   const rT = RES_TYPES[resType];
@@ -376,36 +400,25 @@ function addResource(vnetId, resType) {
   document.querySelectorAll('.res-dropdown').forEach(d => d.classList.remove('show'));
   selectNode(newRes.id);
 }
-
 function deleteResource(vnetId, resId) {
   const vnet = state.hub.id === vnetId ? state.hub : state.spokes.find(s => s.id === vnetId);
   vnet.resources = vnet.resources.filter(r => r.id !== resId);
-  state.selectedId = null;
-  fullUpdate();
+  state.selectedId = null; fullUpdate();
 }
-
 function updateResource(vnetId, resId, key, val) {
   const vnet = state.hub.id === vnetId ? state.hub : state.spokes.find(s => s.id === vnetId);
   const res = vnet.resources.find(r => r.id === resId);
-  res[key] = val;
-  fullUpdate();
+  res[key] = val; fullUpdate();
 }
-
 function updateResourceConfig(vnetId, resId, configKey, val) {
   const vnet = state.hub.id === vnetId ? state.hub : state.spokes.find(s => s.id === vnetId);
   const res = vnet.resources.find(r => r.id === resId);
-  res.config[configKey] = val;
-  saveState(); // Save state even for minor text edits
-  renderEditor(); 
+  res.config[configKey] = val; saveState(); renderEditor(); 
 }
-
-function selectNode(id) {
-  state.selectedId = id;
-  fullUpdate();
-}
+function selectNode(id) { state.selectedId = id; fullUpdate(); }
 
 // ============================================================
-// EXPORT DIAGRAM (ΑΚΡΙΒΩΣ ΟΠΩΣ ΤΟ ΒΛΕΠΕΙΣ)
+// EXPORT DIAGRAM
 // ============================================================
 function exportDiagram() {
   const expCanvas = document.createElement('canvas');
@@ -414,25 +427,17 @@ function exportDiagram() {
   const ec = expCanvas.getContext('2d');
   
   ec.scale(2, 2);
-  
-  // Βάφουμε το φόντο
-  ec.fillStyle = '#060D18';
+  const isDrawio = state.theme === 'drawio';
+  ec.fillStyle = isDrawio ? '#F9FAFB' : '#060D18';
   ec.fillRect(0, 0, canvas.width, canvas.height);
   
-  // Ζωγραφίζουμε το πλέγμα
-  ec.strokeStyle = 'rgba(0,120,212,0.04)';
+  ec.strokeStyle = isDrawio ? 'rgba(0,0,0,0.04)' : 'rgba(0,120,212,0.04)';
   ec.lineWidth = 1;
-  for(let x = 0; x < canvas.width; x += 40) { 
-    ec.beginPath(); ec.moveTo(x, 0); ec.lineTo(x, canvas.height); ec.stroke(); 
-  }
-  for(let y = 0; y < canvas.height; y += 40) { 
-    ec.beginPath(); ec.moveTo(0, y); ec.lineTo(canvas.width, y); ec.stroke(); 
-  }
+  for(let x = 0; x < canvas.width; x += 40) { ec.beginPath(); ec.moveTo(x, 0); ec.lineTo(x, canvas.height); ec.stroke(); }
+  for(let y = 0; y < canvas.height; y += 40) { ec.beginPath(); ec.moveTo(0, y); ec.lineTo(canvas.width, y); ec.stroke(); }
 
-  // Αντιγράφουμε τον κύριο καμβά
   ec.drawImage(canvas, 0, 0, canvas.width, canvas.height);
 
-  // Download logic
   const link = document.createElement('a');
   link.download = `azure-diagram-${new Date().getTime()}.png`;
   link.href = expCanvas.toDataURL('image/png');
@@ -440,63 +445,108 @@ function exportDiagram() {
 }
 
 // ============================================================
-// CANVAS SETUP & MATH
+// CANVAS SETUP, MATH & LAYOUT ENGINE
 // ============================================================
 const canvas = document.getElementById('diagram-canvas');
 const ctx = canvas.getContext('2d');
 
-function resize() {
-  canvas.width = canvas.parentElement.clientWidth;
-  canvas.height = canvas.parentElement.clientHeight;
-  draw();
+function safeRoundRect(c, x, y, w, h, r) {
+  if (typeof c.roundRect === 'function') {
+    c.roundRect(x, y, w, h, r);
+  } else {
+    c.rect(x, y, w, h);
+  }
 }
+
+function resize() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; draw(); }
 window.addEventListener('resize', resize);
 setTimeout(resize, 100);
 
 function getRenderNodes() {
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
-  const r = Math.min(canvas.width, canvas.height) * 0.35;
   const nodes = [];
 
-  nodes.push({ id: state.hub.id, isVnet: true, x: cx, y: cy, label: state.hub.name, sub: state.hub.cidr, color: state.hub.color, radius: 55 });
-  
-  const hResCount = state.hub.resources.length;
-  state.hub.resources.forEach((res, i) => {
-    const angle = (i / Math.max(hResCount, 1)) * Math.PI * 2 - Math.PI/2;
-    const dist = 110;
-    nodes.push({
-      id: res.id, isVnet: false, parentId: state.hub.id,
-      x: cx + Math.cos(angle)*dist, y: cy + Math.sin(angle)*dist,
-      label: res.name, type: res.type, color: RES_TYPES[res.type] ? RES_TYPES[res.type].color : '#FFF', width: 70, height: 50
+  if (state.layout === 'grid') {
+    // --------------------------------------------------------
+    // GRID / ARCHITECTURAL LAYOUT
+    // --------------------------------------------------------
+    const topY = Math.max(cy - 180, 150); 
+    const bottomY = topY + 300; 
+
+    // HUB VNET
+    const hResCount = state.hub.resources.length;
+    const hWidth = Math.max(260, hResCount * 90 + 40);
+    const hHeight = 140;
+    
+    nodes.push({ id: state.hub.id, isVnet: true, x: cx, y: topY, width: hWidth, height: hHeight, label: state.hub.name, sub: state.hub.cidr, color: state.hub.color, peering: true });
+    
+    state.hub.resources.forEach((res, i) => {
+      const rx = cx - (hResCount*90)/2 + 45 + i * 90;
+      nodes.push({ id: res.id, isVnet: false, parentId: state.hub.id, x: rx, y: topY + 15, label: res.name, type: res.type, color: RES_TYPES[res.type] ? RES_TYPES[res.type].color : '#FFF', width: 80, height: 50 });
     });
-  });
 
-  const spCount = state.spokes.length;
-  state.spokes.forEach((spoke, i) => {
-    const angle = spCount === 1 ? Math.PI/2 : (i / spCount) * Math.PI * 2;
-    const sx = cx + Math.cos(angle) * r;
-    const sy = cy + Math.sin(angle) * r;
+    // SPOKE VNETS
+    const spCount = state.spokes.length;
+    const spokeWidths = state.spokes.map(s => Math.max(240, s.resources.length * 90 + 40));
+    const spacing = 60;
+    const totalWidth = spokeWidths.reduce((a,b) => a+b, 0) + spacing * (spCount - 1);
     
-    nodes.push({ id: spoke.id, isVnet: true, parentId: state.hub.id, x: sx, y: sy, label: spoke.name, sub: spoke.cidr, color: spoke.color, radius: 45 });
-
-    const sResCount = spoke.resources.length;
-    const spacing = 75;
-    const totalLength = (sResCount - 1) * spacing;
-    const perp = { x: -Math.sin(angle), y: Math.cos(angle) };
+    let currentX = cx - totalWidth / 2;
     
-    spoke.resources.forEach((res, j) => {
-      const t = sResCount > 1 ? (j * spacing - totalLength / 2) : 0;
-      const resR = 95;
-      const rx = sx + Math.cos(angle) * resR + perp.x * t;
-      const ry = sy + Math.sin(angle) * resR + perp.y * t;
+    state.spokes.forEach((spoke, i) => {
+      const sWidth = spokeWidths[i];
+      const sHeight = 140;
+      const sx = currentX + sWidth / 2;
       
-      nodes.push({
-        id: res.id, isVnet: false, parentId: spoke.id,
-        x: rx, y: ry, label: res.name, type: res.type, color: RES_TYPES[res.type] ? RES_TYPES[res.type].color : '#FFF', width: 70, height: 50
+      nodes.push({ id: spoke.id, isVnet: true, parentId: state.hub.id, x: sx, y: bottomY, width: sWidth, height: sHeight, label: spoke.name, sub: spoke.cidr, color: spoke.color, peering: spoke.peering !== false });
+      
+      const sResCount = spoke.resources.length;
+      spoke.resources.forEach((res, j) => {
+        const rx = sx - (sResCount*90)/2 + 45 + j * 90;
+        nodes.push({ id: res.id, isVnet: false, parentId: spoke.id, x: rx, y: bottomY + 15, label: res.name, type: res.type, color: RES_TYPES[res.type] ? RES_TYPES[res.type].color : '#FFF', width: 80, height: 50 });
+      });
+      
+      currentX += sWidth + spacing;
+    });
+
+  } else {
+    // --------------------------------------------------------
+    // RADIAL / SPIDER WEB LAYOUT
+    // --------------------------------------------------------
+    const r = Math.min(canvas.width, canvas.height) * 0.35;
+    nodes.push({ id: state.hub.id, isVnet: true, x: cx, y: cy, label: state.hub.name, sub: state.hub.cidr, color: state.hub.color, radius: 70, peering: true });
+    
+    const hResCount = state.hub.resources.length;
+    state.hub.resources.forEach((res, i) => {
+      const angle = (i / Math.max(hResCount, 1)) * Math.PI * 2 - Math.PI/2;
+      const dist = 135;
+      nodes.push({ id: res.id, isVnet: false, parentId: state.hub.id, x: cx + Math.cos(angle)*dist, y: cy + Math.sin(angle)*dist, label: res.name, type: res.type, color: RES_TYPES[res.type] ? RES_TYPES[res.type].color : '#FFF', width: 80, height: 50 });
+    });
+
+    const spCount = state.spokes.length;
+    state.spokes.forEach((spoke, i) => {
+      const angle = spCount === 1 ? Math.PI/2 : (i / spCount) * Math.PI * 2;
+      const sx = cx + Math.cos(angle) * r;
+      const sy = cy + Math.sin(angle) * r;
+      
+      nodes.push({ id: spoke.id, isVnet: true, parentId: state.hub.id, x: sx, y: sy, label: spoke.name, sub: spoke.cidr, color: spoke.color, radius: 55, peering: spoke.peering !== false });
+
+      const sResCount = spoke.resources.length;
+      const spacing = 85;
+      const totalLength = (sResCount - 1) * spacing;
+      const perp = { x: -Math.sin(angle), y: Math.cos(angle) };
+      
+      spoke.resources.forEach((res, j) => {
+        const t = sResCount > 1 ? (j * spacing - totalLength / 2) : 0;
+        const resR = 120;
+        const rx = sx + Math.cos(angle) * resR + perp.x * t;
+        const ry = sy + Math.sin(angle) * resR + perp.y * t;
+        
+        nodes.push({ id: res.id, isVnet: false, parentId: spoke.id, x: rx, y: ry, label: res.name, type: res.type, color: RES_TYPES[res.type] ? RES_TYPES[res.type].color : '#FFF', width: 80, height: 50 });
       });
     });
-  });
+  }
 
   return nodes;
 }
@@ -510,72 +560,152 @@ function draw() {
 
   const nodes = getRenderNodes();
   const map = {}; nodes.forEach(n => map[n.id] = n);
+  const isDrawio = state.theme === 'drawio';
+  const isGrid = state.layout === 'grid';
 
+  // Draw Lines
   nodes.forEach(n => {
     if (n.parentId && map[n.parentId]) {
+      if (n.isVnet && n.peering === false) return; // Hide disconnected spokes
+
       const p = map[n.parentId];
-      ctx.beginPath(); ctx.moveTo(n.x, n.y); ctx.lineTo(p.x, p.y);
-      if (n.isVnet) {
-        const grad = ctx.createLinearGradient(p.x, p.y, n.x, n.y);
-        grad.addColorStop(0, 'rgba(0,120,212,0.5)'); grad.addColorStop(1, n.color+'80');
-        ctx.strokeStyle = grad; ctx.lineWidth = 2;
+      ctx.beginPath();
+      
+      if (isGrid && n.isVnet) {
+        // Orthogonal Peering Lines
+        ctx.moveTo(p.x, p.y + p.height/2); 
+        ctx.lineTo(p.x, p.y + p.height/2 + 30); 
+        ctx.lineTo(n.x, p.y + p.height/2 + 30); 
+        ctx.lineTo(n.x, n.y - n.height/2); 
+      } else if (isGrid && !n.isVnet) {
+        return; // Resources inside boxes don't need connecting lines in grid mode
       } else {
-        ctx.strokeStyle = n.color+'60'; ctx.lineWidth = 1; ctx.setLineDash([3,6]);
+        // Radial lines
+        ctx.moveTo(n.x, n.y); ctx.lineTo(p.x, p.y);
       }
+      
+      if (isDrawio) {
+        ctx.strokeStyle = n.isVnet ? '#9CA3AF' : '#D1D5DB';
+        ctx.lineWidth = n.isVnet ? 2 : 1;
+        if (!n.isVnet) ctx.setLineDash([4,4]);
+      } else {
+        if (n.isVnet) {
+          const grad = ctx.createLinearGradient(p.x, p.y, n.x, n.y);
+          grad.addColorStop(0, 'rgba(0,120,212,0.5)'); grad.addColorStop(1, n.color+'80');
+          ctx.strokeStyle = grad; ctx.lineWidth = 2;
+        } else {
+          ctx.strokeStyle = n.color+'60'; ctx.lineWidth = 1; ctx.setLineDash([3,6]);
+        }
+      }
+      
       ctx.stroke(); ctx.setLineDash([]);
     }
   });
 
+  // Draw Nodes
   nodes.forEach(n => drawNode(n));
   ctx.restore();
-  
-  // Save position metadata (panning/zoom state) to localstorage implicitly via draw calls
-  if (state.dragging) {
-    saveState();
-  }
 }
 
 function drawNode(n) {
   const isSelected = state.selectedId === n.id;
+  const isDrawio = state.theme === 'drawio';
+  const isGrid = state.layout === 'grid';
   ctx.save();
-  if (isSelected) { ctx.shadowColor = n.color; ctx.shadowBlur = 15; }
+  
+  if (isSelected && !isDrawio) { ctx.shadowColor = n.color; ctx.shadowBlur = 15; }
+  else if (isSelected && isDrawio) { ctx.shadowColor = 'rgba(0,120,212,0.5)'; ctx.shadowBlur = 10; }
 
   if (!n.isVnet) {
+    // ---------------- RESOURCE NODE ----------------
     const rt = RES_TYPES[n.type] || { icon: '❓' };
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(n.x - n.width/2, n.y - n.height/2, n.width, n.height, 8);
-    else ctx.rect(n.x - n.width/2, n.y - n.height/2, n.width, n.height);
+    safeRoundRect(ctx, n.x - n.width/2, n.y - n.height/2, n.width, n.height, 6);
     
-    ctx.fillStyle = n.color + '25'; ctx.fill();
-    ctx.strokeStyle = isSelected ? n.color : n.color + '80'; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.shadowBlur = 0;
+    if (isDrawio) {
+      ctx.fillStyle = '#FFFFFF';
+      if (!isSelected) { ctx.shadowColor = 'rgba(0,0,0,0.1)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 2; }
+      ctx.fill();
+      ctx.strokeStyle = isSelected ? '#0078D4' : '#E5E7EB'; 
+      ctx.lineWidth = isSelected ? 2 : 1; ctx.stroke();
+      ctx.shadowColor = 'transparent';
 
-    ctx.font = '20px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(rt.icon, n.x, n.y - 8);
-    ctx.font = 'bold 9px JetBrains Mono'; ctx.fillStyle = '#FFF';
-    ctx.fillText(n.label.length > 10 ? n.label.slice(0,9)+'…' : n.label, n.x, n.y + 14);
+      ctx.beginPath();
+      safeRoundRect(ctx, n.x - n.width/2, n.y - n.height/2, n.width, 4, {tl: 6, tr: 6, bl: 0, br: 0});
+      ctx.fillStyle = n.color; ctx.fill();
+    } else {
+      ctx.fillStyle = n.color + '25'; ctx.fill();
+      ctx.strokeStyle = isSelected ? n.color : n.color + '80'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    
+    ctx.shadowBlur = 0;
+    ctx.font = '22px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(rt.icon, n.x, n.y - 6);
+    
+    ctx.font = 'bold 9px JetBrains Mono'; 
+    ctx.fillStyle = isDrawio ? '#374151' : '#FFF';
+    ctx.fillText(n.label.length > 11 ? n.label.slice(0,10)+'…' : n.label, n.x, n.y + 16);
 
   } else {
-    ctx.beginPath(); ctx.arc(n.x, n.y, n.radius, 0, Math.PI*2);
-    if (n.id === 'hub') {
-      const g = ctx.createRadialGradient(n.x-10, n.y-10, 0, n.x, n.y, n.radius);
-      g.addColorStop(0, '#1A8FE3'); g.addColorStop(1, '#003A5C'); ctx.fillStyle = g;
-    } else ctx.fillStyle = n.color + '25';
-    ctx.fill();
-    ctx.strokeStyle = isSelected ? n.color : n.color + '80'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.shadowBlur = 0;
+    // ---------------- VNET NODE ----------------
+    if (isGrid) {
+      ctx.beginPath();
+      safeRoundRect(ctx, n.x - n.width/2, n.y - n.height/2, n.width, n.height, 12);
+      
+      if (isDrawio) {
+        ctx.fillStyle = n.id === 'hub' ? 'rgba(0,120,212,0.02)' : 'rgba(255,255,255,0.7)';
+        ctx.fill();
+        ctx.setLineDash([6, 6]);
+        ctx.strokeStyle = isSelected ? '#0078D4' : (n.id === 'hub' ? '#0078D4' : n.color);
+        ctx.lineWidth = isSelected ? 3 : 2; ctx.stroke(); ctx.setLineDash([]);
+      } else {
+        ctx.fillStyle = n.color + '10'; ctx.fill();
+        ctx.setLineDash([6, 6]);
+        ctx.strokeStyle = isSelected ? n.color : n.color + '80'; ctx.lineWidth = isSelected ? 3 : 2; ctx.stroke(); ctx.setLineDash([]);
+      }
+      ctx.shadowBlur = 0;
 
-    ctx.font = 'bold 11px Syne'; ctx.fillStyle = n.id==='hub' ? '#E8F4FD' : n.color;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(n.label, n.x, n.y - 6);
-    ctx.font = '9px JetBrains Mono'; ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText(n.sub, n.x, n.y + 10);
+      ctx.font = 'bold 12px Syne'; 
+      ctx.fillStyle = isDrawio ? '#111827' : (n.id==='hub' ? '#E8F4FD' : n.color);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText(n.label, n.x - n.width/2 + 16, n.y - n.height/2 + 16);
+      
+      ctx.font = '10px JetBrains Mono'; 
+      ctx.fillStyle = isDrawio ? '#6B7280' : 'rgba(255,255,255,0.7)';
+      ctx.fillText(n.sub, n.x - n.width/2 + 16, n.y - n.height/2 + 32);
+
+    } else {
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.radius, 0, Math.PI*2);
+      if (isDrawio) {
+        ctx.fillStyle = '#FFFFFF';
+        if (!isSelected) { ctx.shadowColor = 'rgba(0,0,0,0.05)'; ctx.shadowBlur = 10; }
+        ctx.fill(); ctx.shadowBlur = 0;
+        ctx.setLineDash([6, 6]); ctx.strokeStyle = n.id === 'hub' ? '#0078D4' : n.color;
+        ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+      } else {
+        if (n.id === 'hub') {
+          const g = ctx.createRadialGradient(n.x-10, n.y-10, 0, n.x, n.y, n.radius);
+          g.addColorStop(0, '#1A8FE3'); g.addColorStop(1, '#003A5C'); ctx.fillStyle = g;
+        } else ctx.fillStyle = n.color + '25';
+        ctx.fill();
+        ctx.strokeStyle = isSelected ? n.color : n.color + '80'; ctx.lineWidth = 2; ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+
+      ctx.font = 'bold 12px Syne'; 
+      ctx.fillStyle = isDrawio ? '#111827' : (n.id==='hub' ? '#E8F4FD' : n.color);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(n.label, n.x, n.y - 8);
+      ctx.font = '10px JetBrains Mono'; 
+      ctx.fillStyle = isDrawio ? '#6B7280' : 'rgba(255,255,255,0.7)';
+      ctx.fillText(n.sub, n.x, n.y + 12);
+    }
   }
   ctx.restore();
 }
 
 // ============================================================
-// CANVAS INTERACTIONS (PAN & ZOOM)
+// CANVAS INTERACTIONS (PAN, ZOOM, HIT TEST)
 // ============================================================
 canvas.addEventListener('mousedown', e => {
   const rect = canvas.getBoundingClientRect();
@@ -586,8 +716,15 @@ canvas.addEventListener('mousedown', e => {
   let hit = null;
   for (let i = nodes.length - 1; i >= 0; i--) {
     const n = nodes[i];
-    if (!n.isVnet && Math.abs(px - n.x) < n.width/2 && Math.abs(py - n.y) < n.height/2) hit = n;
-    else if (n.isVnet && Math.sqrt((px-n.x)**2 + (py-n.y)**2) < n.radius) hit = n;
+    if (!n.isVnet) {
+      if (Math.abs(px - n.x) < n.width/2 && Math.abs(py - n.y) < n.height/2) hit = n;
+    } else {
+      if (state.layout === 'grid') {
+        if (Math.abs(px - n.x) < n.width/2 && Math.abs(py - n.y) < n.height/2) hit = n;
+      } else {
+        if (Math.sqrt((px-n.x)**2 + (py-n.y)**2) < n.radius) hit = n;
+      }
+    }
     if (hit) break;
   }
 
@@ -607,27 +744,14 @@ canvas.addEventListener('mousemove', e => {
   draw();
 });
 
-canvas.addEventListener('mouseup', () => { 
-  if(state.dragging) {
-    state.dragging = false; 
-    saveState(); // Save final pan position
-  }
-  canvas.style.cursor = 'grab'; 
-});
-
-canvas.addEventListener('mouseleave', () => { 
-  if(state.dragging) {
-    state.dragging = false; 
-    saveState();
-  }
-  canvas.style.cursor = 'grab'; 
-});
+canvas.addEventListener('mouseup', () => { if(state.dragging) { state.dragging = false; saveState(); } canvas.style.cursor = 'grab'; });
+canvas.addEventListener('mouseleave', () => { if(state.dragging) { state.dragging = false; saveState(); } canvas.style.cursor = 'grab'; });
 
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
   const factor = e.deltaY < 0 ? 1.1 : 0.9;
   state.scale = Math.max(0.3, Math.min(2.5, state.scale * factor));
-  saveState(); // Save zoom state
+  saveState(); 
   draw();
 }, { passive: false });
 

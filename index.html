@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Azure Architecture Builder - Pro Edition</title>
+<title>Azure Architecture Builder - Enterprise Edition</title>
 <link rel="icon" type="image/svg+xml" href="https://upload.wikimedia.org/wikipedia/commons/a/a8/Microsoft_Azure_Logo.svg">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -38,7 +38,7 @@
   .header-actions{display:flex;gap:10px;align-items:center;}
   .badge{font-size:9px;padding:4px 8px;border-radius:20px;border:1px solid var(--success);color:var(--success);text-transform:uppercase;font-weight:bold;letter-spacing:0.5px;}
   
-  .app{position:relative;z-index:1;display:grid;grid-template-columns:330px 1fr 310px;height:calc(100vh - 57px);}
+  .app{position:relative;z-index:1;display:grid;grid-template-columns:360px 1fr 310px;height:calc(100vh - 57px);}
   
   /* SIDEBARS */
   .sidebar{border-right:1px solid var(--border);overflow-y:auto;background:var(--card-bg);padding:16px;display:flex;flex-direction:column;gap:4px;transition:background .3s; padding-bottom: 80px;} 
@@ -76,26 +76,32 @@
   .rg-name-input:focus, .rg-name-input:hover{border-color:rgba(135,100,184,0.5);background:var(--bg2);}
   .rg-loc-select{background:transparent;border:1px solid var(--border);color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:9px;outline:none;cursor:pointer;max-width:75px;padding:2px;border-radius:3px;}
   .rg-loc-select:focus, .rg-loc-select:hover{border-color:rgba(135,100,184,.5);color:var(--text);}
-  .rg-body{padding-left:10px;border-left:2px solid rgba(135,100,184,.15);display:flex;flex-direction:column;gap:6px;margin-top:6px;margin-left:4px;}
+  .rg-body{padding-left:10px;border-left:2px solid rgba(135,100,184,.15);display:flex;flex-direction:column;gap:8px;margin-top:6px;margin-left:4px;}
   
   /* VNET CARD */
   .vnet-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px;box-shadow:0 2px 4px rgba(0,0,0,0.05);}
-  .vnet-card-header{display:flex;align-items:center;gap:6px;margin-bottom:10px;}
+  .vnet-card-header{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
   .vnet-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
   .vnet-name-input{flex:1;background:transparent;border:1px solid transparent;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;outline:none;min-width:0;transition:0.2s;padding:2px 4px;border-radius:3px;}
   .vnet-name-input:focus, .vnet-name-input:hover{border-color:rgba(0,120,212,0.4);background:var(--bg2);}
   .vnet-cidr-input{width:95px;background:rgba(0,0,0,0.05);border:1px dashed var(--border);color:var(--azure-blue);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;outline:none;text-align:center;border-radius:4px;padding:3px;flex-shrink:0;}
   body:not(.theme-drawio) .vnet-cidr-input{background:rgba(0,0,0,0.3);}
   .vnet-cidr-input:focus, .vnet-cidr-input:hover{border-style:solid;border-color:var(--azure-blue);}
-  .resource-chips{display:flex;flex-wrap:wrap;gap:5px;}
   
-  .chip{font-size:9px;padding:4px 8px;border-radius:4px;background:rgba(0,120,212,.08);border:1px solid rgba(0,120,212,.3);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px;transition:.15s;max-width:115px;}
+  /* SUBNET CARD */
+  .subnet-card {background:rgba(0,0,0,0.03); border:1px dashed var(--border); border-radius:4px; padding:6px; margin-bottom:6px;}
+  body:not(.theme-drawio) .subnet-card {background:rgba(255,255,255,0.02);}
+  .subnet-header {display:flex; align-items:center; gap:4px; margin-bottom:6px;}
+  .subnet-name-input{flex:1;background:transparent;border:1px solid transparent;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;outline:none;min-width:0;padding:2px;}
+  .subnet-name-input:focus, .subnet-name-input:hover{border-color:var(--border);background:var(--bg2);}
+  .subnet-cidr-input{width:80px;background:transparent;border:1px solid transparent;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:9px;outline:none;text-align:center;}
+  .subnet-cidr-input:focus, .subnet-cidr-input:hover{border-color:var(--border);background:var(--bg2);}
+
+  .resource-chips{display:flex;flex-wrap:wrap;gap:5px;}
+  .chip{font-size:9px;padding:4px 6px;border-radius:4px;background:rgba(0,120,212,.08);border:1px solid rgba(0,120,212,.3);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:4px;transition:.15s;max-width:115px;}
   body:not(.theme-drawio) .chip{color:white;background:rgba(0,120,212,.18);}
   .chip:hover{background:var(--azure-blue);color:white!important;border-color:var(--azure-blue);}
   .chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .chip.hub-chip{background:rgba(255,140,0,.08);border-color:rgba(255,140,0,.4);}
-  body:not(.theme-drawio) .chip.hub-chip{background:rgba(255,140,0,.18);}
-  .chip.hub-chip:hover{background:#FF8C00;color:white!important;border-color:#FF8C00;}
   .chip img {width: 14px; height: 14px; object-fit: contain;}
   
   /* BUTTONS */
@@ -105,6 +111,7 @@
   .add-btn.sub-level:hover{border-color:#FFB900;color:#FFB900;background:rgba(255,185,0,.08);}
   .add-btn.rg-level{border-color:rgba(135,100,184,.5);color:#8764B8;margin-top:6px;}
   .add-btn.rg-level:hover{border-color:#8764B8;color:#8764B8;background:rgba(135,100,184,.08);}
+  .add-btn.subnet-level{font-size:8px; padding:4px; margin-top:6px;}
   
   /* RES DROPDOWN */
   .add-res-container{position:relative;}
@@ -159,7 +166,6 @@
   .modal-btn.secondary{background:transparent;border:1px solid var(--muted);color:var(--muted);}
   .modal-btn:hover{opacity:.85;transform:translateY(-1px);}
   
-  /* RENAME OVERLAY */
   #rename-overlay{display:none;position:fixed;z-index:500;}
   #rename-input{font-family:'JetBrains Mono',monospace;font-size:12px;padding:6px 10px;border:2px solid #0078D4;border-radius:6px;background:#fff;color:#111;outline:none;min-width:140px;box-shadow:0 4px 15px rgba(0,0,0,0.2);}
   
@@ -197,7 +203,7 @@
 
     <div class="tree-section-title">// Properties Editor</div>
     <div id="editor-container">
-      <div style="text-align:center;color:var(--muted);font-size:11px;margin-top:20px;line-height:1.9;">← Click a resource or VNet<br>to edit its properties<br><br>Double-click to rename<br>any element on canvas</div>
+      <div style="text-align:center;color:var(--muted);font-size:11px;margin-top:20px;line-height:1.9;">← Click a resource, subnet or VNet<br>to edit its properties</div>
     </div>
     
     <div class="export-area">
@@ -212,7 +218,6 @@
   </div>
 </div>
 
-<!-- PowerShell Modal -->
 <div class="modal-overlay" id="ps-modal">
   <div class="modal">
     <h2>⚡ Azure PowerShell Deployment Script</h2>
@@ -225,7 +230,6 @@
   </div>
 </div>
 
-<!-- Bicep Modal -->
 <div class="modal-overlay" id="bicep-modal">
   <div class="modal">
     <h2>📄 Bicep Template</h2>
@@ -250,39 +254,36 @@ const AZURE_ICON_BASE = 'https://cdn.jsdelivr.net/gh/benc-uk/icon-collection@mas
 
 const RES_CATEGORIES={compute:'Compute',network:'Networking',data:'Data & Storage',security:'Security',integration:'Integration',ai:'AI & Analytics',management:'Management'};
 const RES_TYPES={
-  vm:{icon:'💻', img:'virtual-machines.svg', color:'#00BCF2',label:'Virtual Machine',cat:'compute', cost: 85, config:{size:'Standard_D2s_v3',os:'Ubuntu 22.04',zone:'1'}},
-  vmss:{icon:'🖥️', img:'virtual-machine-scale-sets.svg', color:'#00A4EF',label:'VM Scale Set',cat:'compute', cost: 250, config:{size:'Standard_D2s_v3',minInstances:'2',maxInstances:'10'}},
-  aks:{icon:'☸️', img:'kubernetes-services.svg', color:'#0078D4',label:'AKS Cluster',cat:'compute', cost: 150, config:{nodes:'3',version:'1.29',tier:'Standard'}},
-  fa:{icon:'⚡', img:'function-apps.svg', color:'#8764B8',label:'Function App',cat:'compute', cost: 20, config:{plan:'Consumption',runtime:'.NET 8'}},
-  aca:{icon:'📦', img:'container-instances.svg', color:'#8764B8',label:'Container Apps',cat:'compute', cost: 40, config:{minReplicas:'0',maxReplicas:'10'}},
-  fw:{icon:'🛡️', img:'firewalls.svg', color:'#E81123',label:'Azure Firewall',cat:'network', cost: 900, config:{sku:'Premium',mode:'Alert & Deny',zones:'1,2,3'}},
-  nva:{icon:'🧱', img:'network-appliances.svg', color:'#E81123',label:'FortiGate NVA',cat:'network', cost: 600, config:{mode:'Active/Passive',version:'7.6'}},
-  agw:{icon:'🌍', img:'application-gateways.svg', color:'#FF8C00',label:'App Gateway',cat:'network', cost: 350, config:{sku:'WAF_v2',capacity:'Autoscale',waf:'Enabled'}},
-  lb:{icon:'⚖️', img:'load-balancers.svg', color:'#00BCF2',label:'Load Balancer',cat:'network', cost: 25, config:{sku:'Standard',type:'Internal'}},
-  gw:{icon:'🔀', img:'virtual-network-gateways.svg', color:'#0078D4',label:'VPN Gateway',cat:'network', cost: 140, config:{sku:'VpnGw2AZ',routing:'BGP Enabled'}},
-  ergw:{icon:'🚄', img:'expressroute-circuits.svg', color:'#003A5C',label:'ExpressRoute GW',cat:'network', cost: 450, config:{sku:'ErGw2AZ',fastPath:'Enabled'}},
-  bas:{icon:'🔒', img:'bastions.svg', color:'#0078D4',label:'Azure Bastion',cat:'network', cost: 190, config:{sku:'Standard',shareable:'Enabled'}},
-  afd:{icon:'⚡', img:'front-doors.svg', color:'#FF8C00',label:'Azure Front Door',cat:'network', cost: 330, config:{sku:'Premium',waf:'Enabled'}},
-  pe:{icon:'🔌', img:'private-endpoint.svg', color:'#8764B8',label:'Private Endpoint',cat:'network', cost: 10, config:{targetService:'Storage',subresource:'blob'}},
-  dns:{icon:'🌐', img:'dns-zones.svg', color:'#00B294',label:'Private DNS Zone',cat:'network', cost: 5, config:{zone:'privatelink.blob.core.windows.net'}},
-  nsg:{icon:'📋', img:'network-security-groups.svg', color:'#E81123',label:'Network Sec Group',cat:'network', cost: 0, config:{rules:'5 custom rules'}},
-  sql:{icon:'🗄️', img:'sql-databases.svg', color:'#00B294',label:'Azure SQL',cat:'data', cost: 380, config:{tier:'General Purpose',vcores:'4',ha:'Zone Redundant'}},
-  cosmos:{icon:'🌌', img:'azure-cosmos-db.svg', color:'#00B294',label:'Cosmos DB',cat:'data', cost: 400, config:{api:'NoSQL',consistency:'Session',zones:'Enabled'}},
-  sa:{icon:'💾', img:'storage-accounts.svg', color:'#00B294',label:'Storage Account',cat:'data', cost: 25, config:{tier:'Standard',replication:'ZRS',accessTier:'Hot'}},
-  redis:{icon:'⚡', img:'azure-cache-for-redis.svg', color:'#E81123',label:'Azure Cache Redis',cat:'data', cost: 120, config:{sku:'Premium P1',zones:'Enabled'}},
-  adls:{icon:'🗃️', img:'storage-accounts.svg', color:'#0078D4',label:'Data Lake Storage',cat:'data', cost: 50, config:{tier:'Standard',hns:'Enabled'}},
-  kv:{icon:'🔑', img:'key-vaults.svg', color:'#FF8C00',label:'Key Vault',cat:'security', cost: 5, config:{sku:'Premium',rbac:'Enabled',purgeProtect:'Enabled'}},
-  app:{icon:'📱', img:'app-services.svg', color:'#00BCF2',label:'App Service',cat:'integration', cost: 220, config:{sku:'Premium V3 P1v3',instances:'2',zone:'Enabled'}},
-  apim:{icon:'🔌', img:'api-management.svg', color:'#FF8C00',label:'API Management',cat:'integration', cost: 700, config:{tier:'Developer',capacity:'1'}},
-  sb:{icon:'📨', img:'service-bus.svg', color:'#8764B8',label:'Service Bus',cat:'integration', cost: 50, config:{tier:'Premium',zones:'Enabled'}},
-  evh:{icon:'📤', img:'event-hubs.svg', color:'#8764B8',label:'Event Hub',cat:'integration', cost: 30, config:{tier:'Standard',partitions:'4'}},
-  logic:{icon:'🔄', img:'logic-apps.svg', color:'#8764B8',label:'Logic App',cat:'integration', cost: 15, config:{plan:'Standard',sku:'WS1'}},
-  foundry:{icon:'🤖', img:'cognitive-services.svg', color:'#0078D4',label:'AI Foundry',cat:'ai', cost: 100, config:{kind:'AIServices',sku:'S0'}},
-  openai:{icon:'🧠', img:'cognitive-services.svg', color:'#50E6FF',label:'Azure OpenAI',cat:'ai', cost: 150, config:{model:'gpt-4o',tier:'PayAsYouGo'}},
-  docintel:{icon:'📄', img:'cognitive-services.svg', color:'#0078D4',label:'Document Intelligence',cat:'ai', cost: 40, config:{tier:'S0',endpoint:'Custom'}},
-  search:{icon:'🔍', img:'search.svg', color:'#FF8C00',label:'AI Search',cat:'ai', cost: 250, config:{tier:'Standard',replicas:'1',partitions:'1'}},
-  synapse:{icon:'📊', img:'azure-synapse-analytics.svg', color:'#8764B8',label:'Synapse Analytics',cat:'ai', cost: 1000, config:{sku:'Standard',dedicatedSql:'DW100c'}},
-  monitor:{icon:'📈', img:'monitor.svg', color:'#00B294',label:'Azure Monitor',cat:'management', cost: 15, config:{workspace:'Log Analytics',retentionDays:'90'}},
+  vm:{icon:'💻', img:'virtual-machines.svg', color:'#00BCF2',label:'Virtual Machine',cat:'compute', cost: 85, config:{size:'Standard_D2s_v3',os:'Ubuntu 22.04'}},
+  vmss:{icon:'🖥️', img:'virtual-machine-scale-sets.svg', color:'#00A4EF',label:'VM Scale Set',cat:'compute', cost: 250, config:{size:'Standard_D2s_v3',instances:'2'}},
+  aks:{icon:'☸️', img:'kubernetes-services.svg', color:'#0078D4',label:'AKS Cluster',cat:'compute', cost: 150, config:{nodes:'3',version:'1.29'}},
+  fa:{icon:'⚡', img:'function-apps.svg', color:'#8764B8',label:'Function App',cat:'compute', cost: 20, config:{plan:'Consumption'}},
+  aca:{icon:'📦', img:'container-instances.svg', color:'#8764B8',label:'Container Apps',cat:'compute', cost: 40, config:{replicas:'10'}},
+  fw:{icon:'🛡️', img:'firewalls.svg', color:'#E81123',label:'Azure Firewall',cat:'network', cost: 900, config:{sku:'Premium'}},
+  nva:{icon:'🧱', img:'network-appliances.svg', color:'#E81123',label:'FortiGate NVA',cat:'network', cost: 600, config:{mode:'Active/Passive'}},
+  agw:{icon:'🌍', img:'application-gateways.svg', color:'#FF8C00',label:'App Gateway',cat:'network', cost: 350, config:{sku:'WAF_v2'}},
+  lb:{icon:'⚖️', img:'load-balancers.svg', color:'#00BCF2',label:'Load Balancer',cat:'network', cost: 25, config:{sku:'Standard'}},
+  gw:{icon:'🔀', img:'virtual-network-gateways.svg', color:'#0078D4',label:'VPN Gateway',cat:'network', cost: 140, config:{sku:'VpnGw2AZ'}},
+  ergw:{icon:'🚄', img:'expressroute-circuits.svg', color:'#003A5C',label:'ExpressRoute GW',cat:'network', cost: 450, config:{sku:'ErGw2AZ'}},
+  bas:{icon:'🔒', img:'bastions.svg', color:'#0078D4',label:'Azure Bastion',cat:'network', cost: 190, config:{sku:'Standard'}},
+  afd:{icon:'⚡', img:'front-doors.svg', color:'#FF8C00',label:'Azure Front Door',cat:'network', cost: 330, config:{sku:'Premium'}},
+  pe:{icon:'🔌', img:'private-endpoint.svg', color:'#8764B8',label:'Private Endpoint',cat:'network', cost: 10, config:{target:'Storage'}},
+  dns:{icon:'🌐', img:'dns-zones.svg', color:'#00B294',label:'Private DNS Zone',cat:'network', cost: 5, config:{zone:'privatelink'}},
+  nsg:{icon:'📋', img:'network-security-groups.svg', color:'#E81123',label:'Network Sec Group',cat:'network', cost: 0, config:{rules:'5'}},
+  sql:{icon:'🗄️', img:'sql-databases.svg', color:'#00B294',label:'Azure SQL',cat:'data', cost: 380, config:{vcores:'4'}},
+  cosmos:{icon:'🌌', img:'azure-cosmos-db.svg', color:'#00B294',label:'Cosmos DB',cat:'data', cost: 400, config:{api:'NoSQL'}},
+  sa:{icon:'💾', img:'storage-accounts.svg', color:'#00B294',label:'Storage Account',cat:'data', cost: 25, config:{replication:'ZRS'}},
+  redis:{icon:'⚡', img:'azure-cache-for-redis.svg', color:'#E81123',label:'Azure Cache Redis',cat:'data', cost: 120, config:{sku:'Premium P1'}},
+  adls:{icon:'🗃️', img:'storage-accounts.svg', color:'#0078D4',label:'Data Lake',cat:'data', cost: 50, config:{tier:'Standard'}},
+  kv:{icon:'🔑', img:'key-vaults.svg', color:'#FF8C00',label:'Key Vault',cat:'security', cost: 5, config:{sku:'Premium'}},
+  app:{icon:'📱', img:'app-services.svg', color:'#00BCF2',label:'App Service',cat:'integration', cost: 220, config:{sku:'P1v3'}},
+  apim:{icon:'🔌', img:'api-management.svg', color:'#FF8C00',label:'API Management',cat:'integration', cost: 700, config:{tier:'Developer'}},
+  sb:{icon:'📨', img:'service-bus.svg', color:'#8764B8',label:'Service Bus',cat:'integration', cost: 50, config:{tier:'Premium'}},
+  evh:{icon:'📤', img:'event-hubs.svg', color:'#8764B8',label:'Event Hub',cat:'integration', cost: 30, config:{tier:'Standard'}},
+  logic:{icon:'🔄', img:'logic-apps.svg', color:'#8764B8',label:'Logic App',cat:'integration', cost: 15, config:{plan:'Standard'}},
+  foundry:{icon:'🤖', img:'cognitive-services.svg', color:'#0078D4',label:'AI Foundry',cat:'ai', cost: 100, config:{sku:'S0'}},
+  openai:{icon:'🧠', img:'cognitive-services.svg', color:'#50E6FF',label:'Azure OpenAI',cat:'ai', cost: 150, config:{model:'gpt-4o'}},
+  monitor:{icon:'📈', img:'monitor.svg', color:'#00B294',label:'Azure Monitor',cat:'management', cost: 15, config:{retentionDays:'90'}},
 };
 
 const loadedImages = {};
@@ -300,9 +301,9 @@ function loadAzureIcons(callback) {
 }
 
 // ================================================================
-// STATE (V10 - Custom Positions & OnPrem)
+// STATE (V11 - Adding Subnets)
 // ================================================================
-const KEY='azureBuilderV10';
+const KEY='azureBuilderV11';
 const SUB_COLORS=['#FFB900','#00BCF2','#00B294','#FF8C00','#8764B8'];
 const RG_COLORS=['#8764B8','#0078D4','#00B294','#FF8C00','#E81123'];
 const VNET_COLORS=['#0078D4','#00BCF2','#00B294','#FF8C00','#8764B8','#107C10'];
@@ -310,33 +311,41 @@ const VNET_COLORS=['#0078D4','#00BCF2','#00B294','#FF8C00','#8764B8','#107C10'];
 const defaultState={
   theme:'drawio', layout:'grid',
   onPrem: { enabled: false, id: 'onprem', name: 'Corp Datacenter', cidr: '192.168.0.0/16' },
-  customPos: {}, // Custom positions from Drag&Drop
+  customPos: {}, 
   subscriptions:[
-    {id:'sub-1',name:'Production Subscription'},
-    {id:'sub-2',name:'Development Subscription'}
+    {id:'sub-1',name:'Production Subscription'}
   ],
   resourceGroups:[
-    {id:'rg-conn', name:'rg-connectivity', location:'eastus',   subId:'sub-1'},
-    {id:'rg-prod', name:'rg-production',   location:'eastus',   subId:'sub-1'},
-    {id:'rg-dev',  name:'rg-development',  location:'westeurope',subId:'sub-2'}
+    {id:'rg-conn', name:'rg-connectivity', location:'eastus', subId:'sub-1'},
+    {id:'rg-prod', name:'rg-production', location:'eastus', subId:'sub-1'}
   ],
   hub:{
     id:'hub',name:'hub-vnet',cidr:'10.0.0.0/16',color:'#0078D4',rgId:'rg-conn', peerings: [],
-    resources:[
-      {id:'rh1',type:'fw', name:'hub-firewall',config:{...RES_TYPES.fw.config}},
-      {id:'rh2',type:'gw', name:'hub-vpngw',   config:{...RES_TYPES.gw.config}}
+    subnets:[
+      {
+        id:'sn-hub-fw', name:'AzureFirewallSubnet', cidr:'10.0.1.0/26',
+        resources:[{id:'rh1',type:'fw', name:'hub-firewall',config:{...RES_TYPES.fw.config}}]
+      },
+      {
+        id:'sn-hub-gw', name:'GatewaySubnet', cidr:'10.0.2.0/27',
+        resources:[{id:'rh2',type:'gw', name:'hub-vpngw',config:{...RES_TYPES.gw.config}}]
+      }
     ]
   },
   spokes:[
-    {id:'sp1',name:'prod-vnet',cidr:'10.1.0.0/16',color:'#00BCF2',peerings:['hub'],rgId:'rg-prod',
-     resources:[
-       {id:'rs1',type:'vm',  name:'prod-vm-01',  config:{...RES_TYPES.vm.config}},
-       {id:'rs2',type:'sql', name:'prod-sqldb',  config:{...RES_TYPES.sql.config}}
-     ]},
-    {id:'sp2',name:'dev-vnet',cidr:'10.2.0.0/16',color:'#00B294',peerings:['hub'],rgId:'rg-dev',
-     resources:[
-       {id:'rd1',type:'app',    name:'dev-webapp',  config:{...RES_TYPES.app.config}}
-     ]}
+    {
+      id:'sp1',name:'prod-vnet',cidr:'10.1.0.0/16',color:'#00BCF2',peerings:['hub'],rgId:'rg-prod',
+      subnets:[
+        {
+          id:'sn-sp1-web', name:'WebSubnet', cidr:'10.1.1.0/24',
+          resources:[{id:'rs1',type:'vm', name:'prod-vm-01', config:{...RES_TYPES.vm.config}}]
+        },
+        {
+          id:'sn-sp1-db', name:'DataSubnet', cidr:'10.1.2.0/24',
+          resources:[{id:'rs2',type:'sql', name:'prod-sqldb', config:{...RES_TYPES.sql.config}}]
+        }
+      ]
+    }
   ],
   selectedId:null, offset:{x:0,y:0}, scale:1, dragging:false, dragStart:{x:0,y:0}, offsetStart:{x:0,y:0}, dragNodeId:null
 };
@@ -345,8 +354,7 @@ let state;
 try{
   const s=localStorage.getItem(KEY);
   state=s?JSON.parse(s):JSON.parse(JSON.stringify(defaultState));
-  state.dragging=false;
-  state.dragNodeId=null;
+  state.dragging=false; state.dragNodeId=null;
   if(state.theme==='dark') document.body.classList.remove('theme-drawio');
   else document.body.classList.add('theme-drawio');
 }catch(e){state=JSON.parse(JSON.stringify(defaultState));}
@@ -354,19 +362,15 @@ try{
 const uid=()=>'id-'+Math.random().toString(36).substr(2,9);
 const esc=s=>String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 function saveState(){localStorage.setItem(KEY,JSON.stringify(state));}
-function fullUpdate(){
-  saveState();
-  updateCost();
-  renderSidebar();
-  renderEditor();
-  draw();
-}
+function fullUpdate(){ saveState(); updateCost(); renderSidebar(); renderEditor(); draw(); }
 
 function updateCost() {
   let total = 0;
   [state.hub, ...state.spokes].forEach(vnet => {
-    vnet.resources.forEach(r => {
-      if(RES_TYPES[r.type] && RES_TYPES[r.type].cost) total += RES_TYPES[r.type].cost;
+    vnet.subnets.forEach(sn => {
+      sn.resources.forEach(r => {
+        if(RES_TYPES[r.type] && RES_TYPES[r.type].cost) total += RES_TYPES[r.type].cost;
+      });
     });
   });
   document.getElementById('cost-display').innerText = `$${total.toLocaleString()}`;
@@ -375,36 +379,22 @@ function updateCost() {
 // ================================================================
 // TOGGLES & ON PREM
 // ================================================================
-function toggleTheme(){
-  state.theme=state.theme==='drawio'?'dark':'drawio';
-  document.body.classList.toggle('theme-drawio',state.theme==='drawio');
-  fullUpdate();
-}
-function toggleLayout(){
-  state.layout=state.layout==='grid'?'radial':'grid';
-  state.offset={x:0,y:0};state.scale=1;fullUpdate();
-}
+function toggleTheme(){ state.theme=state.theme==='drawio'?'dark':'drawio'; document.body.classList.toggle('theme-drawio',state.theme==='drawio'); fullUpdate(); }
+function toggleLayout(){ state.layout=state.layout==='grid'?'radial':'grid'; state.offset={x:0,y:0}; state.scale=1; fullUpdate(); }
 function fitToScreen(){state.offset={x:0,y:0};state.scale=1;saveState();draw();}
-function toggleOnPrem() {
-  state.onPrem.enabled = !state.onPrem.enabled;
-  fullUpdate();
-}
+function toggleOnPrem() { state.onPrem.enabled = !state.onPrem.enabled; fullUpdate(); }
 
 // ================================================================
-// LEFT SIDEBAR
+// LEFT SIDEBAR (Nested Subnets)
 // ================================================================
 function renderSidebar(){
   const el=document.getElementById('sidebar-left');
   
-  // On-Premises Toggle
   let h = `<div class="tree-section-title">// Hybrid Connectivity</div>`;
   h += `<div class="onprem-block">
           <div style="display:flex; align-items:center; gap:6px;">
             <span style="font-size:16px;">🏢</span>
-            <div>
-              <div style="font-size:11px; font-weight:bold; color:var(--azure-blue)">On-Premises Datacenter</div>
-              <div style="font-size:9px; color:var(--muted)">S2S VPN / ExpressRoute</div>
-            </div>
+            <div><div style="font-size:11px; font-weight:bold; color:var(--azure-blue)">On-Premises Datacenter</div><div style="font-size:9px; color:var(--muted)">S2S VPN / ExpressRoute</div></div>
           </div>
           <button style="border:none; padding:4px 8px; border-radius:12px; font-weight:bold; font-size:10px; cursor:pointer; background:${state.onPrem.enabled?'var(--success)':'rgba(123,163,192,0.2)'}; color:${state.onPrem.enabled?'#000':'var(--text)'}" onclick="toggleOnPrem()">
             ${state.onPrem.enabled?'ON':'OFF'}
@@ -419,9 +409,7 @@ function renderSidebar(){
     h+=`<div class="sub-block">
       <div class="sub-header" style="border-left-color:${subColor}">
         <span class="sub-icon">☁️</span>
-        <input class="sub-name-input" value="${esc(sub.name)}" 
-          onchange="renameSub('${sub.id}',this.value)"
-          onclick="event.stopPropagation()">
+        <input class="sub-name-input" value="${esc(sub.name)}" onchange="renameSub('${sub.id}',this.value)" onclick="event.stopPropagation()">
         <button class="icon-btn" title="Add Resource Group" onclick="addRg('${sub.id}')">📁+</button>
         <button class="icon-btn danger" title="Delete Subscription" onclick="deleteSub('${sub.id}')">🗑</button>
       </div>
@@ -432,9 +420,7 @@ function renderSidebar(){
       h+=`<div class="rg-block" id="rgblock-${rg.id}">
         <div class="rg-header">
           <span style="font-size:12px;">📁</span>
-          <input class="rg-name-input" value="${esc(rg.name)}"
-            onchange="renameRg('${rg.id}',this.value)"
-            onclick="event.stopPropagation()">
+          <input class="rg-name-input" value="${esc(rg.name)}" onchange="renameRg('${rg.id}',this.value)" onclick="event.stopPropagation()">
           <select class="rg-loc-select" onchange="setRgLocation('${rg.id}',this.value)" onclick="event.stopPropagation()">
             ${['eastus','westeurope','westus2','northeurope','southeastasia','australiaeast','uksouth'].map(l=>`<option value="${l}"${rg.location===l?' selected':''}>${l}</option>`).join('')}
           </select>
@@ -448,40 +434,49 @@ function renderSidebar(){
         h+=`<div class="vnet-card" style="border-left:3px solid ${vnet.color};${isSelVnet?'border-color:var(--azure-blue);box-shadow:0 0 5px rgba(0,120,212,0.3)':''}">
           <div class="vnet-card-header">
             <div class="vnet-dot" style="background:${vnet.color}"></div>
-            <input class="vnet-name-input" value="${esc(vnet.name)}"
-              onchange="updateVnet('${vnet.id}','name',this.value)"
-              onclick="selectNode('${vnet.id}')">
-            <input class="vnet-cidr-input" value="${esc(vnet.cidr)}"
-              onchange="updateVnet('${vnet.id}','cidr',this.value)"
-              onclick="selectNode('${vnet.id}')">
+            <input class="vnet-name-input" value="${esc(vnet.name)}" onchange="updateVnet('${vnet.id}','name',this.value)" onclick="selectNode('${vnet.id}')">
+            <input class="vnet-cidr-input" value="${esc(vnet.cidr)}" onchange="updateVnet('${vnet.id}','cidr',this.value)" onclick="selectNode('${vnet.id}')">
             ${!isHub?`<button class="icon-btn danger" title="Delete Spoke" onclick="deleteSpoke('${vnet.id}')">🗑</button>`:''}
-          </div>
-          <div class="resource-chips">`;
-        vnet.resources.forEach(res=>{
-          const rt=RES_TYPES[res.type] || RES_TYPES.vm;
-          const isSel=state.selectedId===res.id;
-          h+=`<div class="chip${isHub?' hub-chip':''}" style="${isSel?'background:var(--azure-blue);color:white;border-color:var(--azure-blue);':''}" onclick="selectNode('${res.id}')">
-            <img src="${AZURE_ICON_BASE}${rt.img}" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-            <span style="display:none; font-size:10px;">${rt.icon}</span>
-            <span>${esc(res.name)}</span>
           </div>`;
-        });
-        h+=`</div>
-          <div class="add-res-container" style="margin-top:10px;">
-            <button class="add-btn vnet-level" onclick="toggleDropdown('${vnet.id}')">➕ Add Resource</button>
-            <div class="res-dropdown" id="dropdown-${vnet.id}">`;
-        const cats={};
-        Object.keys(RES_TYPES).forEach(k=>{const t=RES_TYPES[k];if(!cats[t.cat])cats[t.cat]=[];cats[t.cat].push({key:k,...t});});
-        Object.keys(cats).forEach(cat=>{
-          h+=`<div class="res-dd-section">${RES_CATEGORIES[cat]||cat}</div>`;
-          cats[cat].forEach(t=>{
-              h+=`<div class="res-option" onclick="addResource('${vnet.id}','${t.key}')">
-                <img src="${AZURE_ICON_BASE}${t.img}" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-                <span style="display:none">${t.icon}</span> ${t.label}
-              </div>`;
+
+        vnet.subnets.forEach(sn => {
+          const isSelSn = state.selectedId === sn.id;
+          h += `<div class="subnet-card" style="${isSelSn?'border-color:var(--azure-blue);':''}">
+                  <div class="subnet-header">
+                    <span style="font-size:10px;color:var(--muted)">⬚</span>
+                    <input class="subnet-name-input" value="${esc(sn.name)}" onchange="updateSubnet('${vnet.id}','${sn.id}','name',this.value)" onclick="selectNode('${sn.id}')">
+                    <input class="subnet-cidr-input" value="${esc(sn.cidr)}" onchange="updateSubnet('${vnet.id}','${sn.id}','cidr',this.value)" onclick="selectNode('${sn.id}')">
+                  </div>
+                  <div class="resource-chips">`;
+          sn.resources.forEach(res=>{
+            const rt=RES_TYPES[res.type] || RES_TYPES.vm;
+            const isSelRes=state.selectedId===res.id;
+            h+=`<div class="chip${isHub?' hub-chip':''}" style="${isSelRes?'background:var(--azure-blue);color:white;border-color:var(--azure-blue);':''}" onclick="selectNode('${res.id}')">
+              <img src="${AZURE_ICON_BASE}${rt.img}" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
+              <span style="display:none; font-size:10px;">${rt.icon}</span>
+              <span>${esc(res.name)}</span>
+            </div>`;
           });
+          h+=`</div>
+              <div class="add-res-container">
+                <button class="add-btn subnet-level" onclick="toggleDropdown('${sn.id}')">➕ Add Resource to Subnet</button>
+                <div class="res-dropdown" id="dropdown-${sn.id}">`;
+          const cats={};
+          Object.keys(RES_TYPES).forEach(k=>{const t=RES_TYPES[k];if(!cats[t.cat])cats[t.cat]=[];cats[t.cat].push({key:k,...t});});
+          Object.keys(cats).forEach(cat=>{
+            h+=`<div class="res-dd-section">${RES_CATEGORIES[cat]||cat}</div>`;
+            cats[cat].forEach(t=>{
+                h+=`<div class="res-option" onclick="addResource('${vnet.id}','${sn.id}','${t.key}')">
+                  <img src="${AZURE_ICON_BASE}${t.img}" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
+                  <span style="display:none">${t.icon}</span> ${t.label}
+                </div>`;
+            });
+          });
+          h+=`</div></div></div>`; // End Subnet Card
         });
-        h+=`</div></div></div>`;
+
+        h+=`<button class="add-btn vnet-level" onclick="addSubnet('${vnet.id}')">➕ Add Subnet</button>`;
+        h+=`</div>`; // End VNet Card
       });
 
       h+=`<button class="add-btn vnet-level" onclick="addSpoke('${rg.id}')">➕ Add Spoke VNet</button>`;
@@ -509,7 +504,7 @@ function getVnetsInRg(rgId){
 function renderEditor(){
   const el=document.getElementById('editor-container');
   if(!state.selectedId){
-    el.innerHTML=`<div style="text-align:center;color:var(--muted);font-size:11px;margin-top:20px;line-height:1.9;">← Click a resource or VNet<br>to edit its properties<br><br>Drag & Drop elements<br>to custom positions</div>`;
+    el.innerHTML=`<div style="text-align:center;color:var(--muted);font-size:11px;margin-top:20px;line-height:1.9;">← Click a resource, subnet or VNet<br>to edit its properties</div>`;
     return;
   }
   
@@ -519,31 +514,35 @@ function renderEditor(){
         <div class="editor-header" style="color:#107C10">🏢 ${esc(state.onPrem.name)}</div>
         <div class="editor-row"><span class="editor-label">Name</span><input class="input-field" value="${esc(state.onPrem.name)}" onchange="state.onPrem.name=this.value;fullUpdate()"></div>
         <div class="editor-row"><span class="editor-label">Local CIDR</span><input class="input-field" value="${esc(state.onPrem.cidr)}" onchange="state.onPrem.cidr=this.value;fullUpdate()"></div>
-      </div>
-    `;
+      </div>`;
     return;
   }
 
-  let obj=null,parent=null,isVnet=false;
-  if(state.hub.id===state.selectedId){obj=state.hub;isVnet=true;}
-  else{
-    state.spokes.forEach(s=>{
-      if(s.id===state.selectedId){obj=s;isVnet=true;}
-      const r=s.resources.find(r=>r.id===state.selectedId);
-      if(r){obj=r;parent=s;}
-    });
-    const hr=state.hub.resources.find(r=>r.id===state.selectedId);
-    if(hr){obj=hr;parent=state.hub;}
+  let obj=null, parent=null, typeObj='none'; // vnet, subnet, resource
+  
+  const allVnets = [state.hub, ...state.spokes];
+  for (let v of allVnets) {
+    if (v.id === state.selectedId) { obj=v; typeObj='vnet'; break; }
+    for (let sn of v.subnets) {
+      if (sn.id === state.selectedId) { obj=sn; parent=v; typeObj='subnet'; break; }
+      for (let r of sn.resources) {
+        if (r.id === state.selectedId) { obj=r; parent=sn; typeObj='resource'; break; }
+      }
+      if (obj) break;
+    }
+    if (obj) break;
   }
+
   if(!obj){state.selectedId=null;return renderEditor();}
 
-  const allRgOpts=state.resourceGroups.map(rg=>{
-    const sub=state.subscriptions.find(s=>s.id===rg.subId);
-    return `<option value="${rg.id}" ${(isVnet?obj.rgId:parent?.rgId)===rg.id?'selected':''}>${sub?sub.name+' / ':''} ${rg.name}</option>`;
-  }).join('');
-
   let h=`<div class="editor-panel">`;
-  if(isVnet){
+
+  if(typeObj === 'vnet'){
+    const allRgOpts=state.resourceGroups.map(rg=>{
+      const sub=state.subscriptions.find(s=>s.id===rg.subId);
+      return `<option value="${rg.id}" ${obj.rgId===rg.id?'selected':''}>${sub?sub.name+' / ':''} ${rg.name}</option>`;
+    }).join('');
+
     h+=`<div class="editor-header">🌐 ${esc(obj.name)}</div>
       <div class="editor-row"><span class="editor-label">VNet Name</span><input class="input-field" value="${esc(obj.name)}" onchange="updateVnet('${obj.id}','name',this.value)"></div>
       <div class="editor-row"><span class="editor-label">CIDR Block</span><input class="input-field" value="${esc(obj.cidr)}" onchange="updateVnet('${obj.id}','cidr',this.value)"></div>
@@ -551,7 +550,6 @@ function renderEditor(){
     
     // PEERINGS
     let peerHtml = `<div class="editor-row" style="margin-top:10px;"><span class="editor-label">VNet Peerings</span><div style="display:flex; flex-direction:column; gap:4px; margin-top:4px;">`;
-    const allVnets = [state.hub, ...state.spokes];
     allVnets.forEach(v => {
       if (v.id === obj.id) return;
       const actuallyPeered = (obj.peerings || []).includes(v.id) || (v.peerings || []).includes(obj.id);
@@ -563,137 +561,114 @@ function renderEditor(){
     if(obj.id!=='hub'){
       h+=`<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="deleteSpoke('${obj.id}')">🗑 Delete Spoke</button>`;
     }
-  }else{
+
+  } else if (typeObj === 'subnet') {
+    h+=`<div class="editor-header">⬚ Subnet</div>
+      <div class="editor-row"><span class="editor-label">Subnet Name</span><input class="input-field" value="${esc(obj.name)}" onchange="updateSubnet('${parent.id}','${obj.id}','name',this.value)"></div>
+      <div class="editor-row"><span class="editor-label">CIDR Block</span><input class="input-field" value="${esc(obj.cidr)}" onchange="updateSubnet('${parent.id}','${obj.id}','cidr',this.value)"></div>
+      <button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="deleteSubnet('${parent.id}','${obj.id}')">🗑 Delete Subnet</button>`;
+  } else {
+    // RESOURCE
     const rt=RES_TYPES[obj.type]||{color:'#888',label:'Resource', icon:'❓'};
     h+=`<div class="editor-header">
           <img src="${AZURE_ICON_BASE}${rt.img}" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
           <span style="display:none">${rt.icon}</span> 
           ${rt.label}
         </div>
-      <div class="editor-row"><span class="editor-label">Name</span><input class="input-field" value="${esc(obj.name)}" onchange="updateResource('${parent.id}','${obj.id}','name',this.value)"></div>`;
+      <div class="editor-row"><span class="editor-label">Name</span><input class="input-field" value="${esc(obj.name)}" onchange="updateResource('${obj.id}','name',this.value)"></div>`;
     Object.keys(obj.config).forEach(k=>{
-      h+=`<div class="editor-row"><span class="editor-label">${k}</span><input class="input-field" value="${esc(obj.config[k])}" onchange="updateResConfig('${parent.id}','${obj.id}','${k}',this.value)"></div>`;
+      h+=`<div class="editor-row"><span class="editor-label">${k}</span><input class="input-field" value="${esc(obj.config[k])}" onchange="updateResConfig('${obj.id}','${k}',this.value)"></div>`;
     });
-    h+=`<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="deleteResource('${parent.id}','${obj.id}')">🗑 Delete Resource</button>`;
+    h+=`<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="deleteResource('${obj.id}')">🗑 Delete Resource</button>`;
   }
   h+=`</div>`;
   el.innerHTML=h;
 }
 
 // ================================================================
-// STATE MUTATIONS
+// STATE MUTATIONS (Subnets/Resources)
 // ================================================================
-function addSub(){
-  const n=state.subscriptions.length;
-  const id='sub-'+uid();
-  state.subscriptions.push({id,name:`Subscription ${n+1}`});
-  state.resourceGroups.push({id:'rg-'+uid(),name:'rg-new',location:'eastus',subId:id});
-  fullUpdate();
-}
-function deleteSub(id){
-  if(state.subscriptions.length<=1){alert('Need at least one subscription.');return;}
-  if(!confirm('Delete subscription and all its resource groups? VNets will be moved.')) return;
-  const fallbackRg=state.resourceGroups.find(r=>r.subId!==id);
-  if(!fallbackRg){alert('Cannot delete: no other resource group available.');return;}
-  const subRgIds=state.resourceGroups.filter(r=>r.subId===id).map(r=>r.id);
-  if(state.hub.rgId&&subRgIds.includes(state.hub.rgId)) state.hub.rgId=fallbackRg.id;
-  state.spokes.forEach(s=>{if(subRgIds.includes(s.rgId))s.rgId=fallbackRg.id;});
-  state.resourceGroups=state.resourceGroups.filter(r=>r.subId!==id);
-  state.subscriptions=state.subscriptions.filter(s=>s.id!==id);
-  fullUpdate();
-}
+// Subscriptions & RGs
+function addSub(){ const n=state.subscriptions.length; const id='sub-'+uid(); state.subscriptions.push({id,name:`Subscription ${n+1}`}); state.resourceGroups.push({id:'rg-'+uid(),name:'rg-new',location:'eastus',subId:id}); fullUpdate(); }
+function deleteSub(id){ if(state.subscriptions.length<=1){alert('Need at least one subscription.');return;} if(!confirm('Delete subscription? VNets will be moved.')) return; const fallbackRg=state.resourceGroups.find(r=>r.subId!==id); if(!fallbackRg){alert('Cannot delete.');return;} const subRgIds=state.resourceGroups.filter(r=>r.subId===id).map(r=>r.id); if(state.hub.rgId&&subRgIds.includes(state.hub.rgId)) state.hub.rgId=fallbackRg.id; state.spokes.forEach(s=>{if(subRgIds.includes(s.rgId))s.rgId=fallbackRg.id;}); state.resourceGroups=state.resourceGroups.filter(r=>r.subId!==id); state.subscriptions=state.subscriptions.filter(s=>s.id!==id); fullUpdate(); }
 function renameSub(id,val){const s=state.subscriptions.find(s=>s.id===id);if(s){s.name=val;saveState();draw();}}
 
-function addRg(subId){
-  const n=state.resourceGroups.filter(r=>r.subId===subId).length;
-  state.resourceGroups.push({id:'rg-'+uid(),name:`rg-new-${n+1}`,location:'eastus',subId});
-  fullUpdate();
-}
-function deleteRg(id){
-  if(state.resourceGroups.length<=1){alert('Need at least one resource group.');return;}
-  const fallback=state.resourceGroups.find(r=>r.id!==id);
-  if(!fallback){alert('No fallback RG available.');return;}
-  if(!confirm('Delete resource group? VNets will move to: '+fallback.name)) return;
-  if(state.hub.rgId===id) state.hub.rgId=fallback.id;
-  state.spokes.forEach(s=>{if(s.rgId===id)s.rgId=fallback.id;});
-  state.resourceGroups=state.resourceGroups.filter(r=>r.id!==id);
-  fullUpdate();
-}
+function addRg(subId){ const n=state.resourceGroups.filter(r=>r.subId===subId).length; state.resourceGroups.push({id:'rg-'+uid(),name:`rg-new-${n+1}`,location:'eastus',subId}); fullUpdate(); }
+function deleteRg(id){ if(state.resourceGroups.length<=1){alert('Need at least one resource group.');return;} const fallback=state.resourceGroups.find(r=>r.id!==id); if(!fallback){alert('No fallback.');return;} if(!confirm('Delete resource group?')) return; if(state.hub.rgId===id) state.hub.rgId=fallback.id; state.spokes.forEach(s=>{if(s.rgId===id)s.rgId=fallback.id;}); state.resourceGroups=state.resourceGroups.filter(r=>r.id!==id); fullUpdate(); }
 function renameRg(id,val){const rg=state.resourceGroups.find(r=>r.id===id);if(rg){rg.name=val;saveState();draw();}}
 function setRgLocation(id,val){const rg=state.resourceGroups.find(r=>r.id===id);if(rg){rg.location=val;saveState();}}
 
+// VNets
 function addSpoke(rgId){
   const n=state.spokes.length;
-  state.spokes.push({
-    id:uid(),name:`spoke-${n+1}-vnet`,cidr:`10.${n+1}.0.0/16`,
-    color:VNET_COLORS[n%VNET_COLORS.length],peerings:['hub'],
-    rgId:rgId||state.resourceGroups[0]?.id,resources:[]
+  state.spokes.push({ id:uid(),name:`spoke-${n+1}-vnet`,cidr:`10.${n+1}.0.0/16`, color:VNET_COLORS[n%VNET_COLORS.length],peerings:['hub'], rgId:rgId||state.resourceGroups[0]?.id,
+    subnets: [{id:uid(), name:'default', cidr:`10.${n+1}.1.0/24`, resources:[]}]
   });
   fullUpdate();
 }
 function deleteSpoke(id){
   state.spokes=state.spokes.filter(s=>s.id!==id);
-  [state.hub, ...state.spokes].forEach(v => {
-    if (v.peerings) v.peerings = v.peerings.filter(pId => pId !== id);
-  });
-  state.selectedId=null;
-  fullUpdate();
+  [state.hub, ...state.spokes].forEach(v => { if (v.peerings) v.peerings = v.peerings.filter(pId => pId !== id); });
+  state.selectedId=null; fullUpdate();
 }
-function updateVnet(id,key,val){
-  if(state.hub.id===id)state.hub[key]=val;
-  else{const s=state.spokes.find(s=>s.id===id);if(s)s[key]=val;}
-  fullUpdate();
-}
+function updateVnet(id,key,val){ const v=[state.hub,...state.spokes].find(v=>v.id===id); if(v)v[key]=val; fullUpdate(); }
 function togglePeering(id1, id2) {
-  const v1 = state.hub.id === id1 ? state.hub : state.spokes.find(s => s.id === id1);
-  const v2 = state.hub.id === id2 ? state.hub : state.spokes.find(s => s.id === id2);
+  const v1 = [state.hub,...state.spokes].find(s => s.id === id1);
+  const v2 = [state.hub,...state.spokes].find(s => s.id === id2);
   if (!v1 || !v2) return;
-  v1.peerings = v1.peerings || [];
-  v2.peerings = v2.peerings || [];
+  v1.peerings = v1.peerings || []; v2.peerings = v2.peerings || [];
   const hasPeering = v1.peerings.includes(id2) || v2.peerings.includes(id1);
-  if (hasPeering) {
-    v1.peerings = v1.peerings.filter(p => p !== id2);
-    v2.peerings = v2.peerings.filter(p => p !== id1);
-  } else {
-    v1.peerings.push(id2);
-  }
+  if (hasPeering) { v1.peerings = v1.peerings.filter(p => p !== id2); v2.peerings = v2.peerings.filter(p => p !== id1); } 
+  else { v1.peerings.push(id2); }
   fullUpdate();
 }
 
-function toggleDropdown(id){
-  document.querySelectorAll('.res-dropdown').forEach(d=>d.classList.remove('show'));
-  const dd=document.getElementById(`dropdown-${id}`);if(dd)dd.classList.toggle('show');
+// Subnets
+function addSubnet(vnetId){
+  const vnet=[state.hub,...state.spokes].find(v=>v.id===vnetId);
+  if(vnet) { vnet.subnets.push({id:uid(), name:`subnet-${vnet.subnets.length+1}`, cidr:'10.x.x.x/24', resources:[]}); fullUpdate(); }
 }
+function deleteSubnet(vnetId, snId){
+  const vnet=[state.hub,...state.spokes].find(v=>v.id===vnetId);
+  if(vnet) { vnet.subnets = vnet.subnets.filter(s => s.id !== snId); state.selectedId=null; fullUpdate(); }
+}
+function updateSubnet(vnetId, snId, key, val) {
+  const vnet=[state.hub,...state.spokes].find(v=>v.id===vnetId);
+  const sn = vnet?.subnets.find(s=>s.id===snId); if(sn){ sn[key]=val; fullUpdate(); }
+}
+
+// Resources
+function toggleDropdown(id){ document.querySelectorAll('.res-dropdown').forEach(d=>d.classList.remove('show')); const dd=document.getElementById(`dropdown-${id}`);if(dd)dd.classList.toggle('show'); }
 document.addEventListener('click',e=>{if(!e.target.closest('.add-res-container'))document.querySelectorAll('.res-dropdown').forEach(d=>d.classList.remove('show'));});
 
-function addResource(vnetId,resType){
-  const vnet=state.hub.id===vnetId?state.hub:state.spokes.find(s=>s.id===vnetId);
+function addResource(vnetId, snId, resType){
+  const vnet=[state.hub,...state.spokes].find(v=>v.id===vnetId);
+  const sn = vnet?.subnets.find(s=>s.id===snId);
   const rT=RES_TYPES[resType];
-  if(!rT||!vnet) return;
-  const nr={id:uid(),type:resType,name:`${vnet.name.split('-')[0]}-${resType}`,config:{...rT.config}};
-  vnet.resources.push(nr);
-  document.querySelectorAll('.res-dropdown').forEach(d=>d.classList.remove('show'));
-  selectNode(nr.id);
+  if(sn && rT) {
+    const nr={id:uid(),type:resType,name:`${sn.name.split('-')[0]}-${resType}`,config:{...rT.config}};
+    sn.resources.push(nr); document.querySelectorAll('.res-dropdown').forEach(d=>d.classList.remove('show')); selectNode(nr.id);
+  }
 }
-function deleteResource(vnetId,resId){
-  const vnet=state.hub.id===vnetId?state.hub:state.spokes.find(s=>s.id===vnetId);
-  if(vnet)vnet.resources=vnet.resources.filter(r=>r.id!==resId);
-  state.selectedId=null;fullUpdate();
+function deleteResource(resId){
+  [state.hub,...state.spokes].forEach(v => v.subnets.forEach(sn => { sn.resources = sn.resources.filter(r => r.id !== resId); }));
+  state.selectedId=null; fullUpdate();
 }
-function updateResource(vnetId,resId,key,val){
-  const vnet=state.hub.id===vnetId?state.hub:state.spokes.find(s=>s.id===vnetId);
-  const r=vnet?.resources.find(r=>r.id===resId);if(r){r[key]=val;fullUpdate();}
+function updateResource(resId,key,val){
+  [state.hub,...state.spokes].forEach(v => v.subnets.forEach(sn => { const r=sn.resources.find(r=>r.id===resId); if(r)r[key]=val; }));
+  fullUpdate();
 }
-function updateResConfig(vnetId,resId,configKey,val){
-  const vnet=state.hub.id===vnetId?state.hub:state.spokes.find(s=>s.id===vnetId);
-  const r=vnet?.resources.find(r=>r.id===resId);if(r){r.config[configKey]=val;saveState();renderEditor();}
+function updateResConfig(resId,configKey,val){
+  [state.hub,...state.spokes].forEach(v => v.subnets.forEach(sn => { const r=sn.resources.find(r=>r.id===resId); if(r)r.config[configKey]=val; }));
+  saveState(); renderEditor(); 
 }
+
 function selectNode(id){state.selectedId=id;fullUpdate();}
 function resetDiagram(){if(confirm('Delete all changes and reset to default?')){localStorage.removeItem(KEY);location.reload();}}
 function resetPositions(){if(confirm('Clear Drag&Drop positions and return to auto-layout?')){state.customPos={};fullUpdate();}}
 
 // ================================================================
-// CANVAS SETUP & LAYOUT ENGINE 
+// CANVAS SETUP & LAYOUT ENGINE
 // ================================================================
 const canvas=document.getElementById('diagram-canvas');
 const ctx=canvas.getContext('2d');
@@ -702,21 +677,31 @@ function resize(){canvas.width=canvas.parentElement.clientWidth;canvas.height=ca
 window.addEventListener('resize',resize);
 
 function getRenderNodes(){
-  const cx=canvas.width/2, cy=canvas.height/2, nodes=[];
+  const cx=canvas.width/2,cy=canvas.height/2,nodes=[];
   
   if(state.layout==='grid'){
-    const RW=84,RH=64,RP=12,VPT=48,VPB=18;
-    const VNET_GAP=60, RG_GAP=80, SUB_GAP=120;
+    const RW=84,RH=64,RP=10; // Resource Width/Height/Padding
+    const SPT=30, SPB=12, SPL=12; // Subnet Top/Bottom/Side Padding
+    const VPT=45, VPB=18, VGAP=60, SGAP=15; // VNet Padding & Gaps
+    const RG_GAP=80, SUB_GAP=120;
     
-    const vw=v=>Math.max(260,v.resources.length*(RW+RP)+20);
-    const vh=()=>VPT+RH+VPB;
+    // Subnet Width Calculation
+    const sw = (sn) => Math.max(140, sn.resources.length * (RW+RP) + SPL*2 - RP);
+    const sh = () => SPT + RH + SPB;
+
+    // VNet Width Calculation
+    const vw = (v) => {
+      if(v.subnets.length===0) return 200;
+      return v.subnets.reduce((sum, sn) => sum + sw(sn), 0) + (v.subnets.length-1)*SGAP + SPL*2;
+    };
+    const vh = () => VPT + sh() + VPB;
     
     const tree = state.subscriptions.map(sub => {
       const rgs = state.resourceGroups.filter(rg => rg.subId === sub.id).map(rg => {
         const vnets = [];
         if (state.hub.rgId === rg.id) vnets.push(state.hub);
         vnets.push(...state.spokes.filter(sp => sp.rgId === rg.id));
-        const rgWidth = vnets.length > 0 ? vnets.reduce((sum, v) => sum + vw(v), 0) + (vnets.length - 1) * VNET_GAP + 40 : 200;
+        const rgWidth = vnets.length > 0 ? vnets.reduce((sum, v) => sum + vw(v), 0) + (vnets.length - 1) * VGAP + 40 : 200;
         return { ...rg, vnets, renderWidth: rgWidth };
       });
       const subWidth = rgs.length > 0 ? rgs.reduce((sum, rg) => sum + rg.renderWidth, 0) + (rgs.length - 1) * RG_GAP + 80 : 300;
@@ -725,7 +710,7 @@ function getRenderNodes(){
 
     const totalWidth = tree.reduce((sum, sub) => sum + sub.renderWidth, 0) + (tree.length - 1) * SUB_GAP;
     const topY = Math.max(cy - 160, 150);
-    const bottomY = topY + 280;
+    const bottomY = topY + 300;
     
     let curX = cx - totalWidth / 2;
     
@@ -740,11 +725,20 @@ function getRenderNodes(){
           
           nodes.push({id:vnet.id, isVnet:true, x:vx, y:vy, width:vWidth, height:vh(), label:vnet.name, sub:vnet.cidr, color:vnet.color, peerings:vnet.peerings||[], rgId:rg.id, subId:sub.id});
           
-          vnet.resources.forEach((res,j)=>{
-            const tot=vnet.resources.length,tw=tot*RW+(tot-1)*RP;
-            nodes.push({id:res.id, isVnet:false, parentId:vnet.id, x:vx-tw/2+RW/2+j*(RW+RP), y:vy+VPT+RH/2-10, label:res.name, type:res.type, color:RES_TYPES[res.type]?.color||'#FFF', width:RW, height:RH});
+          let snX = vnetX + SPL;
+          vnet.subnets.forEach((sn, j) => {
+            const snW = sw(sn);
+            const cxSn = snX + snW/2;
+            nodes.push({id:sn.id, isSubnet:true, parentId:vnet.id, x:cxSn, y:vy+VPT+sh()/2 - (vh()/2), width:snW, height:sh(), label:sn.name, sub:sn.cidr, color:vnet.color});
+            
+            sn.resources.forEach((res,k)=>{
+              const tot=sn.resources.length,tw=tot*RW+(tot-1)*RP;
+              nodes.push({id:res.id, isVnet:false, parentId:sn.id, x:cxSn-tw/2+RW/2+k*(RW+RP), y:vy+VPT+SPT+RH/2 - (vh()/2), label:res.name, type:res.type, color:RES_TYPES[res.type]?.color||'#FFF', width:RW, height:RH});
+            });
+            snX += snW + SGAP;
           });
-          vnetX += vWidth + VNET_GAP;
+          
+          vnetX += vWidth + VGAP;
         });
         rgX += rg.renderWidth + RG_GAP;
       });
@@ -752,43 +746,46 @@ function getRenderNodes(){
     });
 
   } else {
+    // Radial Layout (flattened for simplicity: VNet circles, resources orbit them without drawing subnet boxes)
     const r=Math.min(canvas.width,canvas.height)*.34;
     nodes.push({id:state.hub.id,isVnet:true,x:cx,y:cy,label:state.hub.name,sub:state.hub.cidr,color:state.hub.color,radius:70,peerings:state.hub.peerings||[],rgId:state.hub.rgId});
-    state.hub.resources.forEach((res,i)=>{
-      const angle=(i/Math.max(state.hub.resources.length,1))*Math.PI*2-Math.PI/2;
+    
+    let hRes = []; state.hub.subnets.forEach(sn => hRes.push(...sn.resources));
+    hRes.forEach((res,i)=>{
+      const angle=(i/Math.max(hRes.length,1))*Math.PI*2-Math.PI/2;
       nodes.push({id:res.id,isVnet:false,parentId:state.hub.id,x:cx+Math.cos(angle)*135,y:cy+Math.sin(angle)*135,label:res.name,type:res.type,color:RES_TYPES[res.type]?.color||'#FFF',width:84,height:64});
     });
+
     state.spokes.forEach((sp,i)=>{
       const angle=state.spokes.length===1?Math.PI/2:(i/state.spokes.length)*Math.PI*2;
       const sx=cx+Math.cos(angle)*r,sy=cy+Math.sin(angle)*r;
       const perp={x:-Math.sin(angle),y:Math.cos(angle)};
       nodes.push({id:sp.id,isVnet:true,x:sx,y:sy,label:sp.name,sub:sp.cidr,color:sp.color,radius:55,peerings:sp.peerings||[],rgId:sp.rgId});
-      sp.resources.forEach((res,j)=>{
-        const t=sp.resources.length>1?(j*90-(sp.resources.length-1)*45):0;
+      
+      let sRes = []; sp.subnets.forEach(sn => sRes.push(...sn.resources));
+      sRes.forEach((res,j)=>{
+        const t=sRes.length>1?(j*90-(sRes.length-1)*45):0;
         nodes.push({id:res.id,isVnet:false,parentId:sp.id,x:sx+Math.cos(angle)*125+perp.x*t,y:sy+Math.sin(angle)*125+perp.y*t,label:res.name,type:res.type,color:RES_TYPES[res.type]?.color||'#FFF',width:84,height:64});
       });
     });
   }
 
-  // ADD ON-PREM NODE
+  // ON-PREM NODE
   if (state.onPrem.enabled) {
     const hubNode = nodes.find(n => n.id === 'hub');
     const hx = hubNode ? hubNode.x : cx;
     const hy = hubNode ? hubNode.y : cy;
     nodes.push({
       id: state.onPrem.id, isVnet: false, isOnPrem: true, parentId: 'hub', 
-      x: hx - 300, y: hy, width: 140, height: 80, 
+      x: hx - 320, y: hy, width: 140, height: 80, 
       label: state.onPrem.name, sub: state.onPrem.cidr, color: '#107C10'
     });
   }
 
-  // APPLY CUSTOM POSITIONS (DRAG AND DROP)
+  // CUSTOM POSITIONS
   if (!state.customPos) state.customPos = {};
   nodes.forEach(n => {
-    if (state.customPos[n.id]) {
-      n.x = state.customPos[n.id].x;
-      n.y = state.customPos[n.id].y;
-    }
+    if (state.customPos[n.id]) { n.x = state.customPos[n.id].x; n.y = state.customPos[n.id].y; }
   });
 
   return nodes;
@@ -801,12 +798,8 @@ function getSubBounds(subId,nodes){
   related.forEach(n=>{
     const hw=n.width?n.width/2:n.radius||60,hh=n.height?n.height/2:n.radius||60;
     mx=Math.min(mx,n.x-hw);my=Math.min(my,n.y-hh);Mx=Math.max(Mx,n.x+hw);My=Math.max(My,n.y+hh);
-    nodes.filter(c=>c.parentId===n.id&&!c.isVnet&&!c.isOnPrem).forEach(c=>{
-      mx=Math.min(mx,c.x-c.width/2);my=Math.min(my,c.y-c.height/2);
-      Mx=Math.max(Mx,c.x+c.width/2);My=Math.max(My,c.y+c.height/2);
-    });
   });
-  return{x:mx-40,y:my-60,w:Mx-mx+80,h:My-my+80};
+  return{x:mx-30,y:my-50,w:Mx-mx+60,h:My-my+70};
 }
 function getRgBounds(rgId,nodes){
   const related=nodes.filter(n=>n.isVnet&&n.rgId===rgId);
@@ -815,12 +808,8 @@ function getRgBounds(rgId,nodes){
   related.forEach(n=>{
     const hw=n.width?n.width/2:n.radius||60,hh=n.height?n.height/2:n.radius||60;
     mx=Math.min(mx,n.x-hw);my=Math.min(my,n.y-hh);Mx=Math.max(Mx,n.x+hw);My=Math.max(My,n.y+hh);
-    nodes.filter(c=>c.parentId===n.id&&!c.isVnet&&!c.isOnPrem).forEach(c=>{
-      mx=Math.min(mx,c.x-c.width/2);my=Math.min(my,c.y-c.height/2);
-      Mx=Math.max(Mx,c.x+c.width/2);My=Math.max(My,c.y+c.height/2);
-    });
   });
-  return{x:mx-20,y:my-35,w:Mx-mx+40,h:My-my+55};
+  return{x:mx-15,y:my-30,w:Mx-mx+30,h:My-my+45};
 }
 
 function draw(){
@@ -855,20 +844,7 @@ function draw(){
     });
   }
 
-  // DRAW LINES
-  nodes.forEach(n => {
-    if (!n.isVnet && n.parentId && map[n.parentId] && !n.isOnPrem) {
-      if (state.layout === 'grid') return; 
-      const p = map[n.parentId];
-      ctx.beginPath();
-      ctx.moveTo(n.x, n.y); ctx.lineTo(p.x, p.y);
-      ctx.strokeStyle = dw ? '#D1D5DB' : n.color+'60'; 
-      ctx.lineWidth = 1; ctx.setLineDash(dw ? [4,4] : [3,6]);
-      ctx.stroke(); ctx.setLineDash([]);
-    }
-  });
-
-  // DRAW PEERINGS & ON-PREM LINK
+  // LINES (Peerings & On-Prem)
   const drawnLines = new Set();
   nodes.forEach(n => {
     if (n.isOnPrem && n.parentId && map[n.parentId]) {
@@ -884,7 +860,6 @@ function draw(){
       n.peerings.forEach(pId => {
         const target = map[pId];
         if (!target) return;
-        
         const lineKey = [n.id, target.id].sort().join('|');
         if (drawnLines.has(lineKey)) return;
         drawnLines.add(lineKey);
@@ -899,11 +874,9 @@ function draw(){
             if (spokeN.y > hubN.y) {
               const busY = hubN.y + hubN.height/2 + 40;
               ctx.moveTo(hubN.x, hubN.y + hubN.height/2);
-              ctx.lineTo(hubN.x, busY);
-              ctx.lineTo(spokeN.x, busY);
+              ctx.lineTo(hubN.x, busY); ctx.lineTo(spokeN.x, busY);
               ctx.lineTo(spokeN.x, spokeN.y - spokeN.height/2);
-              midX = (hubN.x + spokeN.x) / 2;
-              midY = busY - 4;
+              midX = (hubN.x + spokeN.x) / 2; midY = busY - 4;
             } else {
               ctx.moveTo(n.x, n.y); ctx.lineTo(target.x, target.y);
               midX = (n.x + target.x) / 2; midY = (n.y + target.y) / 2 - 4;
@@ -913,40 +886,50 @@ function draw(){
             const dist = Math.abs(n.x - target.x);
             const curveY = Math.max(n.y, target.y) + n.height/2 + 40 + (dist * 0.1);
             ctx.quadraticCurveTo((n.x + target.x)/2, curveY, target.x, target.y + target.height/2);
-            midX = (n.x + target.x) / 2;
-            midY = 0.25*(n.y + n.height/2) + 0.5*curveY + 0.25*(target.y + target.height/2) - 4;
+            midX = (n.x + target.x) / 2; midY = 0.25*(n.y + n.height/2) + 0.5*curveY + 0.25*(target.y + target.height/2) - 4;
           }
         } else {
           ctx.moveTo(n.x, n.y); ctx.lineTo(target.x, target.y);
-          midX = (n.x + target.x) / 2;
-          midY = (n.y + target.y) / 2 - 4;
+          midX = (n.x + target.x) / 2; midY = (n.y + target.y) / 2 - 4;
         }
 
-        if (dw) {
-          ctx.strokeStyle = '#9CA3AF'; ctx.lineWidth = 2;
-        } else {
-          const g = ctx.createLinearGradient(n.x, n.y, target.x, target.y);
-          g.addColorStop(0, 'rgba(0,120,212,0.6)'); g.addColorStop(1, target.color + 'A0');
-          ctx.strokeStyle = g; ctx.lineWidth = 2;
-        }
+        if (dw) { ctx.strokeStyle = '#9CA3AF'; ctx.lineWidth = 2; } 
+        else { const g = ctx.createLinearGradient(n.x, n.y, target.x, target.y); g.addColorStop(0, 'rgba(0,120,212,0.6)'); g.addColorStop(1, target.color + 'A0'); ctx.strokeStyle = g; ctx.lineWidth = 2; }
         ctx.stroke();
 
-        if (dw) {
-          ctx.font = '8px JetBrains Mono'; ctx.fillStyle = '#9CA3AF';
-          ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-          ctx.fillText('Peering', midX, midY);
-        }
+        if (dw) { ctx.font = '8px JetBrains Mono'; ctx.fillStyle = '#9CA3AF'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText('Peering', midX, midY); }
       });
     }
   });
 
   // DRAW NODES
-  nodes.forEach(n=>drawNode(n));
+  // 1. Subnets
+  nodes.filter(n => n.isSubnet).forEach(n => drawSubnet(n, dw));
+  // 2. VNets & Resources
+  nodes.filter(n => !n.isSubnet).forEach(n => drawNode(n, dw));
+  
   ctx.restore();
 }
 
-function drawNode(n){
-  const isSel=state.selectedId===n.id,dw=state.theme==='drawio';
+function drawSubnet(n, dw) {
+  const isSel=state.selectedId===n.id;
+  ctx.save();
+  ctx.beginPath();safeRR(ctx,n.x-n.width/2,n.y-n.height/2,n.width,n.height,4);
+  if(dw){
+    ctx.fillStyle = 'rgba(0,0,0,0.02)'; ctx.fill();
+    ctx.setLineDash([4,4]); ctx.strokeStyle=isSel?'#0078D4':'#D1D5DB'; ctx.lineWidth=1; ctx.stroke(); ctx.setLineDash([]);
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fill();
+    ctx.setLineDash([4,4]); ctx.strokeStyle=isSel?n.color:(n.color+'40'); ctx.lineWidth=1; ctx.stroke(); ctx.setLineDash([]);
+  }
+  ctx.font='bold 9px JetBrains Mono'; ctx.fillStyle=dw?'#6B7280':'rgba(255,255,255,0.6)';
+  ctx.textAlign='left'; ctx.textBaseline='top';
+  ctx.fillText('⬚ '+n.label, n.x-n.width/2+6, n.y-n.height/2+6);
+  ctx.restore();
+}
+
+function drawNode(n, dw){
+  const isSel=state.selectedId===n.id;
   ctx.save();
   if(isSel){ctx.shadowColor=dw?'rgba(0,120,212,.4)':n.color||'#0078D4';ctx.shadowBlur=15;}
   
@@ -1003,11 +986,11 @@ function drawNode(n){
     if(state.layout==='grid'){
       ctx.beginPath();safeRR(ctx,n.x-n.width/2,n.y-n.height/2,n.width,n.height,12);
       if(dw){
-        ctx.fillStyle=n.id==='hub'?'rgba(0,120,212,0.03)':'rgba(255,255,255,0.7)';ctx.fill();
-        ctx.setLineDash([6,6]);ctx.strokeStyle=isSel?'#0078D4':n.color+'CC';ctx.lineWidth=isSel?2.5:2;ctx.stroke();ctx.setLineDash([]);
+        ctx.fillStyle=n.id==='hub'?'rgba(0,120,212,0.03)':'rgba(255,255,255,0.9)';ctx.fill();
+        ctx.strokeStyle=isSel?'#0078D4':n.color+'CC';ctx.lineWidth=isSel?2.5:2;ctx.stroke();
       }else{
         ctx.fillStyle=n.color+'10';ctx.fill();
-        ctx.setLineDash([6,6]);ctx.strokeStyle=isSel?n.color:n.color+'80';ctx.lineWidth=isSel?2.5:2;ctx.stroke();ctx.setLineDash([]);
+        ctx.strokeStyle=isSel?n.color:n.color+'80';ctx.lineWidth=isSel?2.5:2;ctx.stroke();
       }
       ctx.shadowBlur=0;
       ctx.font='bold 12px Syne';ctx.fillStyle=dw?'#111827':(n.id==='hub'?'#E8F4FD':n.color);
@@ -1020,11 +1003,11 @@ function drawNode(n){
       if(dw){
         ctx.fillStyle='#FFFFFF';if(!isSel){ctx.shadowColor='rgba(0,0,0,.06)';ctx.shadowBlur=8;}
         ctx.fill();ctx.shadowBlur=0;
-        ctx.setLineDash([6,6]);ctx.strokeStyle=isSel?'#0078D4':n.color+'CC';ctx.lineWidth=2.5;ctx.stroke();ctx.setLineDash([]);
+        ctx.strokeStyle=isSel?'#0078D4':n.color+'CC';ctx.lineWidth=2.5;ctx.stroke();
       }else{
         if(n.id==='hub'){const g=ctx.createRadialGradient(n.x-10,n.y-10,0,n.x,n.y,n.radius);g.addColorStop(0,'#1A8FE3');g.addColorStop(1,'#003A5C');ctx.fillStyle=g;}
         else ctx.fillStyle=n.color+'25';ctx.fill();
-        ctx.setLineDash([6,6]);ctx.strokeStyle=isSel?n.color:n.color+'80';ctx.lineWidth=2.5;ctx.stroke();ctx.setLineDash([]);
+        ctx.strokeStyle=isSel?n.color:n.color+'80';ctx.lineWidth=2.5;ctx.stroke();
       }
       ctx.shadowBlur=0;
       ctx.font='bold 12px Syne';ctx.fillStyle=dw?'#111827':(n.id==='hub'?'#E8F4FD':n.color);
@@ -1047,7 +1030,8 @@ canvas.addEventListener('mousedown',e=>{
   let hit=null;
   for(let i=nodes.length-1;i>=0;i--){
     const n=nodes[i];
-    if(!n.isVnet && !n.isOnPrem){if(Math.abs(px-n.x)<n.width/2&&Math.abs(py-n.y)<n.height/2){hit=n;break;}}
+    if(n.isSubnet){if(Math.abs(px-n.x)<n.width/2&&Math.abs(py-n.y)<n.height/2){hit=n;break;}}
+    else if(!n.isVnet && !n.isOnPrem){if(Math.abs(px-n.x)<n.width/2&&Math.abs(py-n.y)<n.height/2){hit=n;break;}}
     else if(state.layout==='grid' || n.isOnPrem){if(Math.abs(px-n.x)<n.width/2&&Math.abs(py-n.y)<n.height/2){hit=n;break;}}
     else{if(Math.sqrt((px-n.x)**2+(py-n.y)**2)<n.radius){hit=n;break;}}
   }
@@ -1071,7 +1055,8 @@ canvas.addEventListener('dblclick',e=>{
   for(let i=nodes.length-1;i>=0;i--){
     const n=nodes[i];
     if (n.isOnPrem) continue;
-    let hit=!n.isVnet?(Math.abs(px-n.x)<n.width/2&&Math.abs(py-n.y)<n.height/2):
+    let hit=n.isSubnet?(Math.abs(px-n.x)<n.width/2&&Math.abs(py-n.y)<n.height/2):
+      !n.isVnet?(Math.abs(px-n.x)<n.width/2&&Math.abs(py-n.y)<n.height/2):
       state.layout==='grid'?(Math.abs(px-n.x)<n.width/2&&Math.abs(py-n.y)<n.height/2):
       (Math.sqrt((px-n.x)**2+(py-n.y)**2)<n.radius);
     if(hit){startInlineRename(n,e.clientX,e.clientY);break;}
@@ -1086,7 +1071,13 @@ function startInlineRename(node,cx,cy){
     const v=inp.value.trim();
     if(v){
       if(node.isVnet)updateVnet(node.id,'name',v);
-      else if(node.parentId)updateResource(node.parentId,node.id,'name',v);
+      else if(node.isSubnet)updateSubnet(node.parentId,node.id,'name',v);
+      else if(node.parentId){
+        // find which vnet owns the subnet
+        let parentVnetId = null;
+        [state.hub,...state.spokes].forEach(vnet=>{ if(vnet.subnets.some(sn=>sn.id===node.parentId)) parentVnetId=vnet.id; });
+        if(parentVnetId) updateResource(parentVnetId,node.id,'name',v);
+      }
     }
     ov.style.display='none';inp.removeEventListener('blur',finish);inp.removeEventListener('keydown',kd);
   };
@@ -1098,11 +1089,9 @@ canvas.addEventListener('mousemove',e=>{
   if (state.dragNodeId) {
     const r=canvas.getBoundingClientRect();
     const px=(e.clientX-r.left-state.offset.x)/state.scale,py=(e.clientY-r.top-state.offset.y)/state.scale;
-    const dx = px - state.mouseStart.x;
-    const dy = py - state.mouseStart.y;
     state.customPos[state.dragNodeId] = {
-      x: state.dragNodeStart.x + dx,
-      y: state.dragNodeStart.y + dy
+      x: state.dragNodeStart.x + (px - state.mouseStart.x),
+      y: state.dragNodeStart.y + (py - state.mouseStart.y)
     };
     draw();
   } else if (state.dragging) {
@@ -1141,11 +1130,7 @@ function exportPng(){
 }
 
 function generatePowerShell(){
-  const lines=[];
-  lines.push(`# Azure PowerShell Deployment Script`);
-  lines.push(`# Generated: ${new Date().toISOString()}`);
-  lines.push(``);
-  
+  const lines=[`# Azure PowerShell Deployment Script\n# Generated: ${new Date().toISOString()}\n`];
   const allVnets = [state.hub, ...state.spokes];
 
   state.subscriptions.forEach(sub=>{
@@ -1157,9 +1142,14 @@ function generatePowerShell(){
       lines.push(`New-AzResourceGroup -Name "${rg.name}" -Location "${rg.location}" -ErrorAction SilentlyContinue\n`);
       getVnetsInRg(rg.id).forEach(vnet=>{
         const varN=`$vnet_${vnet.name.replace(/[^a-zA-Z0-9]/g,'_')}`;
-        lines.push(`${varN} = New-AzVirtualNetwork -Name "${vnet.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -AddressPrefix "${vnet.cidr}"`);
         
-        // Peerings
+        lines.push(`$subnets = @()`);
+        vnet.subnets.forEach(sn => {
+          lines.push(`$subnets += New-AzVirtualNetworkSubnetConfig -Name "${sn.name}" -AddressPrefix "${sn.cidr}"`);
+        });
+
+        lines.push(`${varN} = New-AzVirtualNetwork -Name "${vnet.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -AddressPrefix "${vnet.cidr}" -Subnet $subnets`);
+        
         if (vnet.peerings && vnet.peerings.length > 0) {
             vnet.peerings.forEach(pId => {
                 const target = allVnets.find(v => v.id === pId);
@@ -1169,9 +1159,11 @@ function generatePowerShell(){
             });
         }
 
-        vnet.resources.forEach(res=>{
-          const t=RES_TYPES[res.type]||{label:'Resource'};
-          lines.push(`# Deploying ${t.label}: ${res.name}`);
+        vnet.subnets.forEach(sn => {
+          sn.resources.forEach(res => {
+            const t=RES_TYPES[res.type]||{label:'Resource'};
+            lines.push(`# Deploying ${t.label}: ${res.name} (Subnet: ${sn.name})`);
+          });
         });
         lines.push('');
       });
@@ -1183,38 +1175,33 @@ function generatePowerShell(){
     lines.push(`# On-Premises Local Network Gateway`);
     lines.push(`New-AzLocalNetworkGateway -Name "lng-${state.onPrem.name.replace(/[^a-zA-Z0-9]/g,'')}" -ResourceGroupName "${state.resourceGroups[0].name}" -Location "eastus" -GatewayIpAddress "8.8.8.8" -AddressPrefix @("${state.onPrem.cidr}")`);
   }
-
   return lines.join('\n');
 }
 
 function generateBicep(){
-  const lines=[
-    `// Bicep Template — Azure Architecture Builder`,
-    `targetScope = 'subscription'\n`
-  ];
+  const lines=[`// Bicep Template — Azure Architecture Builder\ntargetScope = 'subscription'\n`];
   state.subscriptions.forEach(sub=>{
     lines.push(`// --- Subscription: ${sub.name} ---`);
     const subRgs=state.resourceGroups.filter(r=>r.subId===sub.id);
     subRgs.forEach(rg=>{
-      lines.push(`resource ${rg.id.replace(/-/g,'_')} 'Microsoft.Resources/resourceGroups@2021-04-01' = {`);
-      lines.push(`  name: '${rg.name}'\n  location: '${rg.location}'\n}\n`);
-      
+      lines.push(`resource ${rg.id.replace(/-/g,'_')} 'Microsoft.Resources/resourceGroups@2021-04-01' = {\n  name: '${rg.name}'\n  location: '${rg.location}'\n}\n`);
       getVnetsInRg(rg.id).forEach(vnet=>{
         lines.push(`// VNet: ${vnet.name}`);
-        vnet.resources.forEach(res => {
-          const t=RES_TYPES[res.type];
-          lines.push(`// module ${res.name.replace(/[^a-zA-Z0-9]/g,'_')} 'br/public:avm/res/...'`);
+        lines.push(`// Subnets: ` + vnet.subnets.map(s => s.name).join(', '));
+        vnet.subnets.forEach(sn => {
+          sn.resources.forEach(res => {
+            const t=RES_TYPES[res.type];
+            lines.push(`// module ${res.name.replace(/[^a-zA-Z0-9]/g,'_')} 'br/public:avm/res/...'`);
+          });
         });
         lines.push('');
       });
     });
   });
-
   if (state.onPrem.enabled) {
     lines.push(`// --- Hybrid Connectivity: ${state.onPrem.name} ---`);
     lines.push(`// Local Network Gateway for CIDR: ${state.onPrem.cidr}`);
   }
-
   return lines.join('\n');
 }
 

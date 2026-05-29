@@ -1129,6 +1129,7 @@ export function openJsonImportModal(){
   document.getElementById('json-import-error').textContent = '';
   document.getElementById('json-import-preview').textContent = '';
   document.getElementById('json-import-preview').style.display = 'none';
+  document.getElementById('json-import-merge').checked = false;
 }
 
 export function handleJsonFile(){
@@ -1199,12 +1200,18 @@ export function confirmJsonImport(){
     return;
   }
 
-  if (!confirm('This will replace your current diagram. Continue?')) return;
+  const isMerge = document.getElementById('json-import-merge').checked;
 
-  // Apply imported data onto state
-  for (const key of Object.keys(state)) {
-    if (!TRANSIENT_KEYS.includes(key) && data[key] !== undefined) {
-      state[key] = JSON.parse(JSON.stringify(data[key]));
+  if (isMerge) {
+    if (!confirm('This will merge imported resources into your current diagram. Continue?')) return;
+    _mergeJsonData(data);
+  } else {
+    if (!confirm('This will replace your current diagram. Continue?')) return;
+    // Apply imported data onto state
+    for (const key of Object.keys(state)) {
+      if (!TRANSIENT_KEYS.includes(key) && data[key] !== undefined) {
+        state[key] = JSON.parse(JSON.stringify(data[key]));
+      }
     }
   }
 
@@ -1221,6 +1228,98 @@ export function confirmJsonImport(){
   saveState();
   closeModal('json-import-modal');
   fullUpdate();
+}
+
+function _mergeJsonData(data) {
+  // Merge subscriptions (avoid duplicates by name)
+  const importedSubs = JSON.parse(JSON.stringify(data.subscriptions || []));
+  importedSubs.forEach(sub => {
+    const existing = state.subscriptions.find(s => s.name === sub.name);
+    if (!existing) {
+      state.subscriptions.push(sub);
+    }
+  });
+
+  // Merge resource groups (avoid duplicates by name)
+  const importedRgs = JSON.parse(JSON.stringify(data.resourceGroups || []));
+  importedRgs.forEach(rg => {
+    const existing = state.resourceGroups.find(r => r.name === rg.name);
+    if (!existing) {
+      state.resourceGroups.push(rg);
+    }
+  });
+
+  // Merge hub subnets and their resources
+  if (data.hub && data.hub.subnets) {
+    const importedHub = JSON.parse(JSON.stringify(data.hub));
+    importedHub.subnets.forEach(importedSn => {
+      const existingSn = state.hub.subnets.find(s => s.name === importedSn.name);
+      if (existingSn) {
+        // Merge resources into existing subnet (avoid duplicates by name+type)
+        (importedSn.resources || []).forEach(res => {
+          const dup = existingSn.resources.find(r => r.name === res.name && r.type === res.type);
+          if (!dup) existingSn.resources.push(res);
+        });
+      } else {
+        state.hub.subnets.push(importedSn);
+      }
+    });
+    // Merge hub peerings
+    if (importedHub.peerings) {
+      importedHub.peerings.forEach(p => {
+        const isDup = state.hub.peerings.some(ep => 
+          (typeof ep === 'string' && ep === p) || 
+          (typeof ep === 'object' && typeof p === 'object' && ep.id === p.id)
+        );
+        if (!isDup) {
+          state.hub.peerings.push(p);
+        }
+      });
+    }
+  }
+
+  // Merge spokes
+  const importedSpokes = JSON.parse(JSON.stringify(data.spokes || []));
+  importedSpokes.forEach(spoke => {
+    const existingSpoke = state.spokes.find(s => s.name === spoke.name);
+    if (existingSpoke) {
+      // Merge subnets within the existing spoke
+      (spoke.subnets || []).forEach(importedSn => {
+        const existingSn = existingSpoke.subnets.find(s => s.name === importedSn.name);
+        if (existingSn) {
+          (importedSn.resources || []).forEach(res => {
+            const dup = existingSn.resources.find(r => r.name === res.name && r.type === res.type);
+            if (!dup) existingSn.resources.push(res);
+          });
+        } else {
+          existingSpoke.subnets.push(importedSn);
+        }
+      });
+    } else {
+      state.spokes.push(spoke);
+    }
+  });
+
+  // Merge RG-level resources
+  const importedRgRes = JSON.parse(JSON.stringify(data.rgResources || []));
+  importedRgRes.forEach(res => {
+    const dup = (state.rgResources || []).find(r => r.name === res.name && r.type === res.type);
+    if (!dup) {
+      if (!state.rgResources) state.rgResources = [];
+      state.rgResources.push(res);
+    }
+  });
+
+  // Merge management groups if present
+  if (data.managementGroups && data.managementGroups.length > 0) {
+    const importedMgs = JSON.parse(JSON.stringify(data.managementGroups));
+    if (!state.managementGroups) state.managementGroups = [];
+    importedMgs.forEach(mg => {
+      const existing = state.managementGroups.find(m => m.name === mg.name);
+      if (!existing) state.managementGroups.push(mg);
+    });
+    if (data.mgEnabled) state.mgEnabled = true;
+  }
 }
 
 export function previewPastedJson(){
@@ -1282,6 +1381,7 @@ export function openAzureInventoryModal(){
   document.getElementById('inventory-import-error').textContent = '';
   document.getElementById('inventory-import-preview').textContent = '';
   document.getElementById('inventory-import-preview').style.display = 'none';
+  document.getElementById('inventory-import-merge').checked = false;
   setInventoryScope('mg'); // default to MG scope
 }
 
@@ -1449,7 +1549,13 @@ export function confirmInventoryImport(){
     return;
   }
 
-  if (!confirm('This will replace your current diagram with the imported inventory. Continue?')) return;
+  const isMerge = document.getElementById('inventory-import-merge').checked;
+
+  if (isMerge) {
+    if (!confirm('This will merge imported inventory into your current diagram. Continue?')) return;
+  } else {
+    if (!confirm('This will replace your current diagram with the imported inventory. Continue?')) return;
+  }
 
   // Extract MG/Sub data if available (MG-scope exports)
   const mgData = _extractMgData(parsed);
@@ -1613,13 +1719,76 @@ export function confirmInventoryImport(){
   }
 
   // Apply to state
-  state.mgEnabled = mgEnabled;
-  state.managementGroups = managementGroups;
-  state.subscriptions = subscriptions;
-  state.resourceGroups = resourceGroups;
-  state.hub = hub;
-  state.spokes = spokes;
-  state.rgResources = rgResourceList;
+  if (isMerge) {
+    // Merge subscriptions
+    subscriptions.forEach(sub => {
+      const existing = state.subscriptions.find(s => s.name === sub.name);
+      if (!existing) state.subscriptions.push(sub);
+    });
+    // Merge resource groups
+    resourceGroups.forEach(rg => {
+      const existing = state.resourceGroups.find(r => r.name === rg.name);
+      if (!existing) state.resourceGroups.push(rg);
+    });
+    // Merge hub subnets and resources
+    if (hub && hub.subnets) {
+      hub.subnets.forEach(importedSn => {
+        const existingSn = state.hub.subnets.find(s => s.name === importedSn.name);
+        if (existingSn) {
+          (importedSn.resources || []).forEach(res => {
+            const dup = existingSn.resources.find(r => r.name === res.name && r.type === res.type);
+            if (!dup) existingSn.resources.push(res);
+          });
+        } else {
+          state.hub.subnets.push(importedSn);
+        }
+      });
+    }
+    // Merge spokes
+    spokes.forEach(spoke => {
+      const existingSpoke = state.spokes.find(s => s.name === spoke.name);
+      if (existingSpoke) {
+        (spoke.subnets || []).forEach(importedSn => {
+          const existingSn = existingSpoke.subnets.find(s => s.name === importedSn.name);
+          if (existingSn) {
+            (importedSn.resources || []).forEach(res => {
+              const dup = existingSn.resources.find(r => r.name === res.name && r.type === res.type);
+              if (!dup) existingSn.resources.push(res);
+            });
+          } else {
+            existingSpoke.subnets.push(importedSn);
+          }
+        });
+      } else {
+        state.spokes.push(spoke);
+      }
+    });
+    // Merge RG-level resources
+    rgResourceList.forEach(res => {
+      const dup = (state.rgResources || []).find(r => r.name === res.name && r.type === res.type);
+      if (!dup) {
+        if (!state.rgResources) state.rgResources = [];
+        state.rgResources.push(res);
+      }
+    });
+    // Merge management groups
+    if (mgEnabled && managementGroups.length > 0) {
+      if (!state.managementGroups) state.managementGroups = [];
+      managementGroups.forEach(mg => {
+        const existing = state.managementGroups.find(m => m.name === mg.name);
+        if (!existing) state.managementGroups.push(mg);
+      });
+      state.mgEnabled = true;
+    }
+  } else {
+    state.mgEnabled = mgEnabled;
+    state.managementGroups = managementGroups;
+    state.subscriptions = subscriptions;
+    state.resourceGroups = resourceGroups;
+    state.hub = hub;
+    state.spokes = spokes;
+    state.rgResources = rgResourceList;
+  }
   state.onPrem = state.onPrem || { enabled: false, name: 'On-Premises', cidr: '192.168.0.0/16' };
 
   saveState();

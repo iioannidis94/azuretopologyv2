@@ -109,9 +109,18 @@
     </div>
     <div id="json-import-error" class="json-import-error"></div>
     <pre id="json-import-preview" class="json-import-preview" style="display:none;"></pre>
+    <div class="json-import-section" style="margin-top:8px;">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
+        <input type="checkbox" id="json-import-merge" style="width:16px;height:16px;">
+        <span>🔀 Merge with existing diagram (instead of replacing)</span>
+      </label>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;font-style:italic;">
+        When checked, imported resources will be added to your current diagram without removing existing ones.
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="modal-btn secondary" onclick="window._closeModal('json-import-modal')">✕ Close</button>
-      <button class="modal-btn primary" onclick="window._confirmJsonImport()">✅ Import & Replace</button>
+      <button class="modal-btn primary" onclick="window._confirmJsonImport()">✅ Import</button>
     </div>
   </div>
 </div>
@@ -190,6 +199,15 @@ Get-AzResource -ResourceGroupName "&lt;RG-NAME&gt;" | ConvertTo-Json -Depth 10 |
     </div>
     <div id="inventory-import-error" class="json-import-error"></div>
     <pre id="inventory-import-preview" class="json-import-preview" style="display:none;"></pre>
+    <div class="json-import-section" style="margin-top:8px;">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
+        <input type="checkbox" id="inventory-import-merge" style="width:16px;height:16px;">
+        <span>🔀 Merge with existing diagram (instead of replacing)</span>
+      </label>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;font-style:italic;">
+        When checked, imported resources will be added to your current diagram without removing existing ones.
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="modal-btn secondary" onclick="window._closeModal('azure-inventory-modal')">✕ Close</button>
       <button class="modal-btn primary" onclick="window._confirmInventoryImport()">✅ Import Inventory</button>

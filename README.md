@@ -124,6 +124,7 @@
 - εισάγεις diagram από **JSON file**
 - κάνεις import από pasted JSON
 - βλέπεις preview και validation πριν την αντικατάσταση του υπάρχοντος diagram
+- **merge** εισαγόμενα resources στο υπάρχον diagram (αντί για αντικατάσταση)
 
 ### 8. Azure inventory import
 
@@ -139,6 +140,7 @@
 - preview πριν την εισαγωγή
 - mapping Azure resource types σε supported visual resources
 - ανακατασκευή hierarchy με βάση subscriptions, resource groups και network context
+- **merge option** για προσθήκη resources στο υπάρχον diagram χωρίς αντικατάσταση
 
 ### 9. IaC & artifact generation
 

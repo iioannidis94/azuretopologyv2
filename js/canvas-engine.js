@@ -22,7 +22,7 @@ function pointToSegmentDist(px, py, x1, y1, x2, y2) {
 export function resize(){canvas.width=canvas.parentElement.clientWidth;canvas.height=canvas.parentElement.clientHeight;draw();}
 window.addEventListener('resize',resize);
 
-function getRenderNodes(){
+export function getRenderNodes(){
   const cx=canvas.width/2,cy=canvas.height/2,nodes=[];
   
   if(state.layout==='grid'){

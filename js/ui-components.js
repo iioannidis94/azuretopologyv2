@@ -224,7 +224,10 @@ export function updateOnPremCidr(val) { state.onPrem.cidr = val; fullUpdate(); }
 export function renderSidebar(){
   const el=document.getElementById('sidebar-left');
   
-  let h = `<div class="tree-section-title">// Hybrid Connectivity</div>`;
+  let h = `<div style="padding:8px 10px 4px;">
+    <button class="export-btn secondary" onclick="window._openTemplateGallery()" style="width:100%;">📋 Template Gallery</button>
+  </div>`;
+  h += `<div class="tree-section-title">// Hybrid Connectivity</div>`;
   h += `<div class="onprem-block">
           <div style="display:flex; align-items:center; gap:6px;">
             <span style="font-size:16px;">🏢</span>

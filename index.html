@@ -16,8 +16,10 @@
     <h1>Azure <span>Architecture</span> Builder</h1>
   </div>
   <div class="header-actions">
+    <button class="hdr-btn" onclick="window._undo()" title="Undo (Ctrl+Z)">↩ Undo</button>
+    <button class="hdr-btn" onclick="window._redo()" title="Redo (Ctrl+Y)">↪ Redo</button>
     <button class="hdr-btn" onclick="window._toggleLayout()">📐 Toggle Layout</button>
-    <button class="hdr-btn" onclick="window._toggleTheme()">�� Toggle Theme</button>
+    <button class="hdr-btn" onclick="window._toggleTheme()">🎨 Toggle Theme</button>
     <button class="hdr-btn" onclick="window._fitToScreen()">⊡ Fit to Screen</button>
     <div class="badge">● Live Mode</div>
     <button class="mobile-nav-toggle" onclick="window._toggleMobileMenu()" aria-label="Toggle Navigation Menu">☰</button>
@@ -46,11 +48,17 @@
       <div style="text-align:center;color:var(--muted);font-size:11px;margin-top:20px;line-height:1.9;">← Click a resource, subnet or VNet<br>to edit its properties</div>
     </div>
     
-    <div class="export-area">
-      <button class="export-btn secondary" onclick="window._exportPng()">⬇ Export as PNG</button>
-      <button class="export-btn secondary" onclick="window._openPsModal()">⚡ Deploy via PowerShell</button>
-      <button class="export-btn secondary" onclick="window._openBicepModal()">📄 Generate Bicep</button>
-      <div style="display:flex; gap:8px;">
+    <div class="sidebar-bottom-section">
+      <div class="tree-section-title" onclick="window._toggleExportPanel()">// Import / Export <span id="export-panel-toggle" style="font-size:8px;color:var(--muted);">▶</span></div>
+      <div class="export-area collapsed" id="export-panel">
+        <button class="export-btn secondary" onclick="window._exportPng()">⬇ Export as PNG</button>
+        <button class="export-btn secondary" onclick="window._exportJson()">📤 Export as JSON</button>
+        <button class="export-btn secondary" onclick="window._openJsonImportModal()">📥 Import JSON</button>
+        <button class="export-btn secondary" onclick="window._openAzureInventoryModal()">☁️ Import Azure Inventory</button>
+        <button class="export-btn secondary" onclick="window._openPsModal()">⚡ Deploy via PowerShell</button>
+        <button class="export-btn secondary" onclick="window._openBicepModal()">📄 Generate Bicep</button>
+      </div>
+      <div style="display:flex; gap:8px; padding:6px 10px;">
          <button class="export-btn reset" onclick="window._resetPositions()" style="flex:1" title="Clear Drag&Drop Changes">🧹 Positions</button>
          <button class="export-btn reset" onclick="window._resetDiagram()" style="flex:1" title="Delete everything">🔄 Reset</button>
       </div>
@@ -88,8 +96,99 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="json-import-modal">
+  <div class="modal">
+    <h2>📥 Import JSON Diagram</h2>
+    <div class="json-import-section">
+      <label for="json-file-input" class="json-import-label">Select a JSON file:</label>
+      <input type="file" id="json-file-input" accept=".json,application/json" onchange="window._handleJsonFile()">
+    </div>
+    <div class="json-import-section">
+      <label for="json-paste-input" class="json-import-label">Or paste JSON content:</label>
+      <textarea id="json-paste-input" rows="8" placeholder='{"_format":"AzureArchitectureBuilder", ...}' oninput="window._previewPastedJson()"></textarea>
+    </div>
+    <div id="json-import-error" class="json-import-error"></div>
+    <pre id="json-import-preview" class="json-import-preview" style="display:none;"></pre>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="window._closeModal('json-import-modal')">✕ Close</button>
+      <button class="modal-btn primary" onclick="window._confirmJsonImport()">✅ Import & Replace</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="azure-inventory-modal">
+  <div class="modal" style="max-width:700px;">
+    <h2>☁️ Import Azure Resource Inventory</h2>
+    <div class="json-import-section">
+      <label class="json-import-label">📋 Step 1: Run one of these PowerShell commands in Azure to export your inventory:</label>
+      <div style="margin:8px 0;">
+        <div style="font-size:11px;color:var(--accent);margin-bottom:4px;font-weight:600;">Option A — Az CLI (Resource List):</div>
+        <pre id="ps-cmd-azresource" class="inventory-ps-cmd">az resource list --output json > azure-inventory.json</pre>
+        <button class="modal-btn secondary" style="margin:4px 0;font-size:10px;padding:4px 10px;" onclick="window._copyText('ps-cmd-azresource')">📋 Copy</button>
+      </div>
+      <div style="margin:8px 0;">
+        <div style="font-size:11px;color:var(--accent);margin-bottom:4px;font-weight:600;">Option B — Az CLI (Resource Graph - recommended for large environments):</div>
+        <pre id="ps-cmd-azgraph" class="inventory-ps-cmd">az graph query -q "Resources | project id, name, type, location, resourceGroup, properties, sku, kind, tags" --first 1000 -o json > azure-inventory.json</pre>
+        <button class="modal-btn secondary" style="margin:4px 0;font-size:10px;padding:4px 10px;" onclick="window._copyText('ps-cmd-azgraph')">📋 Copy</button>
+      </div>
+      <div style="margin:8px 0;">
+        <div style="font-size:11px;color:var(--accent);margin-bottom:4px;font-weight:600;">Option C — PowerShell Module:</div>
+        <pre id="ps-cmd-psmodule" class="inventory-ps-cmd">Get-AzResource | ConvertTo-Json -Depth 10 | Out-File azure-inventory.json</pre>
+        <button class="modal-btn secondary" style="margin:4px 0;font-size:10px;padding:4px 10px;" onclick="window._copyText('ps-cmd-psmodule')">📋 Copy</button>
+      </div>
+    </div>
+    <div class="json-import-section">
+      <label for="inventory-file-input" class="json-import-label">📂 Step 2: Upload the exported JSON file:</label>
+      <input type="file" id="inventory-file-input" accept=".json,application/json" onchange="window._handleInventoryFile()">
+    </div>
+    <div class="json-import-section">
+      <label for="inventory-paste-input" class="json-import-label">Or paste the JSON output here:</label>
+      <textarea id="inventory-paste-input" rows="6" placeholder='[{"id":"/subscriptions/.../resourceGroups/.../providers/Microsoft.Compute/virtualMachines/myVM", ...}]' oninput="window._previewInventory()"></textarea>
+    </div>
+    <div id="inventory-import-error" class="json-import-error"></div>
+    <pre id="inventory-import-preview" class="json-import-preview" style="display:none;"></pre>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="window._closeModal('azure-inventory-modal')">✕ Close</button>
+      <button class="modal-btn primary" onclick="window._confirmInventoryImport()">✅ Import Inventory</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="template-gallery-modal">
+  <div class="modal" style="max-width:900px;">
+    <h2>📋 Template Gallery</h2>
+    <p style="color:var(--muted);font-size:11px;margin:-8px 0 8px;">Choose a pre-built architecture template to quick-start your diagram. This will replace the current diagram.</p>
+    <div class="template-gallery-grid" id="template-gallery-grid"></div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="window._closeTemplateGallery()">✕ Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="rename-overlay">
   <input id="rename-input" type="text">
+</div>
+
+<div class="modal-overlay" id="shortcuts-modal">
+  <div class="modal" style="max-width:480px;">
+    <h2>⌨️ Keyboard Shortcuts</h2>
+    <table class="shortcuts-table">
+      <tbody>
+        <tr><td class="shortcut-key">Delete / Backspace</td><td>Delete selected element</td></tr>
+        <tr><td class="shortcut-key">Escape</td><td>Deselect / Close modal</td></tr>
+        <tr><td class="shortcut-key">Arrow Keys</td><td>Nudge selected element</td></tr>
+        <tr><td class="shortcut-key">+ / =</td><td>Zoom in</td></tr>
+        <tr><td class="shortcut-key">-</td><td>Zoom out</td></tr>
+        <tr><td class="shortcut-key">Ctrl/⌘ + 0</td><td>Fit to screen</td></tr>
+        <tr><td class="shortcut-key">Ctrl/⌘ + Z</td><td>Undo</td></tr>
+        <tr><td class="shortcut-key">Ctrl/⌘ + Y</td><td>Redo</td></tr>
+        <tr><td class="shortcut-key">?</td><td>Show this help panel</td></tr>
+      </tbody>
+    </table>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="window._closeModal('shortcuts-modal')">✕ Close</button>
+    </div>
+  </div>
 </div>
 
 <script type="module" src="js/main.js"></script>

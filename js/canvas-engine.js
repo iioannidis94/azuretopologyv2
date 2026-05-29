@@ -19,8 +19,25 @@ function pointToSegmentDist(px, py, x1, y1, x2, y2) {
   return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);
 }
 
-export function resize(){canvas.width=canvas.parentElement.clientWidth;canvas.height=canvas.parentElement.clientHeight;draw();}
-window.addEventListener('resize',resize);
+// export function resize(){canvas.width=canvas.parentElement.clientWidth;canvas.height=canvas.parentElement.clientHeight;draw();}
+// window.addEventListener('resize',resize);
+//&&&&&&&&&&&&&&&&&&&&&&&&&&
+export function resize() {
+  if (!canvas || !canvas.parentElement) return;
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = canvas.parentElement.clientHeight;
+  draw();
+}
+
+window.addEventListener('resize', resize);
+
+const resizeObserver = new ResizeObserver(() => {
+  resize();
+});
+if (canvas && canvas.parentElement) {
+  resizeObserver.observe(canvas.parentElement);
+}
+//&&&&&&&&&&&&&&&&&&&&&&&&&&
 
 export function getRenderNodes(){
   const cx=canvas.width/2,cy=canvas.height/2,nodes=[];

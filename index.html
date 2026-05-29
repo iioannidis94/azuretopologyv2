@@ -15,13 +15,14 @@
     <div class="logo-icon">⬡</div>
     <h1>Azure <span>Architecture</span> Builder</h1>
   </div>
-  <div class="header-actions">
-    <button class="hdr-btn" onclick="window._undo()" title="Undo (Ctrl+Z)">↩ Undo</button>
-    <button class="hdr-btn" onclick="window._redo()" title="Redo (Ctrl+Y)">↪ Redo</button>
+<div class="header-actions">
+    <button class="hdr-btn" onclick="window._undo()" data-shortcut="Ctrl+Z">↩ Undo</button>
+    <button class="hdr-btn" onclick="window._redo()" data-shortcut="Ctrl+Y">↪ Redo</button>
     <button class="hdr-btn" id="full-view-btn" onclick="window._toggleFullView()" title="Toggle Full View (collapse/expand sidebars)">⛶ Full View</button>
     <button class="hdr-btn" onclick="window._toggleTheme()">🎨 Toggle Theme</button>
-    <button class="hdr-btn" onclick="window._fitToScreen()">⊡ Fit to Screen</button>
-    <div class="badge">● Live Mode</div>
+    <button class="hdr-btn" onclick="window._fitToScreen()" data-shortcut="Ctrl+0">⊡ Fit to Screen</button>
+    <button class="hdr-btn" onclick="window._openShortcutsModal()" data-shortcut="?">❔ Help</button>
+    
     <button class="mobile-nav-toggle" onclick="window._toggleMobileMenu()" aria-label="Toggle Navigation Menu">☰</button>
   </div>
 </header>

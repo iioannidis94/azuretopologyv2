@@ -31,6 +31,51 @@ header{position:relative;z-index:10;padding:12px 20px;display:flex;align-items:c
 
 .app{position:relative;z-index:1;display:grid;grid-template-columns:auto 1fr auto;height:calc(100vh - 57px);}
 
+
+/* =========================================
+   CUSTOM TOOLTIPS ΓΙΑ ΤΑ SHORTCUTS
+   ========================================= */
+[data-shortcut] {
+  position: relative;
+}
+
+[data-shortcut]::after {
+  content: attr(data-shortcut);
+  position: absolute;
+  top: 120%; /* Εμφάνιση ακριβώς κάτω από το κουμπί */
+  left: 50%;
+  transform: translateX(-50%) translateY(5px);
+  background: var(--bg2);
+  color: var(--azure-light);
+  border: 1px solid var(--azure-blue);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  pointer-events: none; /* Για να μην μπλοκάρει τα κλικ σου */
+}
+
+/* Εμφάνιση του tooltip όταν κάνεις hover */
+[data-shortcut]:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Χρώματα για το Light Theme (draw.io style) */
+body.theme-drawio [data-shortcut]::after {
+  color: var(--azure-blue);
+  background: var(--card-bg);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
 /* SIDEBARS */
 .sidebar{border-right:1px solid var(--border);overflow-y:auto;background:var(--card-bg);padding:16px;display:flex;flex-direction:column;gap:4px;transition:width .3s ease, padding .3s ease, opacity .3s ease, background .3s; padding-bottom: 80px;width:360px;min-width:0;} 
 .sidebar.right{border-right:none;border-left:1px solid var(--border);display:flex;flex-direction:column;padding:16px;gap:12px;padding-bottom:0;position:relative;width:310px;}

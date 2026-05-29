@@ -304,9 +304,44 @@ export function generatePowerShell(){
   const lines=[`# Azure PowerShell Deployment Script\n# Generated: ${new Date().toISOString()}\n`];
   const allVnets = [state.hub, ...state.spokes];
 
+  // Management Groups
+  if (state.mgEnabled && state.managementGroups && state.managementGroups.length > 0) {
+    lines.push(`# ============ MANAGEMENT GROUPS ============`);
+    // Create top-level MGs first, then children
+    const topMgs = state.managementGroups.filter(mg => !mg.parentId);
+    const childMgs = state.managementGroups.filter(mg => mg.parentId);
+    topMgs.forEach(mg => {
+      lines.push(`New-AzManagementGroup -GroupName "${mg.name}"`);
+    });
+    childMgs.forEach(mg => {
+      const parent = state.managementGroups.find(p => p.id === mg.parentId);
+      if (parent) {
+        lines.push(`New-AzManagementGroup -GroupName "${mg.name}" -ParentId "/providers/Microsoft.Management/managementGroups/${parent.name}"`);
+      } else {
+        lines.push(`New-AzManagementGroup -GroupName "${mg.name}"`);
+      }
+    });
+    lines.push('');
+    // Assign subscriptions to MGs
+    state.subscriptions.forEach(sub => {
+      if (sub.mgId) {
+        const mg = state.managementGroups.find(m => m.id === sub.mgId);
+        if (mg) {
+          const subIdRef = sub.subscriptionId || '<SUBSCRIPTION-ID>';
+          lines.push(`New-AzManagementGroupSubscription -GroupName "${mg.name}" -SubscriptionId "${subIdRef}"`);
+        }
+      }
+    });
+    lines.push('');
+  }
+
   state.subscriptions.forEach(sub=>{
     lines.push(`# ============ SUBSCRIPTION: ${sub.name} ============`);
-    lines.push(`# Set-AzContext -SubscriptionName "${sub.name}"\n`);
+    if (sub.subscriptionId && sub.subscriptionId !== 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx') {
+      lines.push(`Set-AzContext -SubscriptionId "${sub.subscriptionId}"\n`);
+    } else {
+      lines.push(`Set-AzContext -SubscriptionName "${sub.name}"\n`);
+    }
     const subRgs=state.resourceGroups.filter(r=>r.subId===sub.id);
     subRgs.forEach(rg=>{
       lines.push(`# -- Resource Group: ${rg.name} --`);
@@ -902,7 +937,56 @@ function generateBicepResource(res, rg, vnet, sn) {
 }
 
 export function generateBicep(){
-  const lines=[`// Bicep Template — Azure Architecture Builder\ntargetScope = 'subscription'\n`];
+  const lines=[];
+  
+  // Determine target scope based on MG/Sub structure
+  if (state.mgEnabled && state.managementGroups && state.managementGroups.length > 0) {
+    lines.push(`// Bicep Template — Azure Architecture Builder\ntargetScope = 'managementGroup'\n`);
+    // Management Group deployments
+    const topMgs = state.managementGroups.filter(mg => !mg.parentId);
+    const childMgs = state.managementGroups.filter(mg => mg.parentId);
+    topMgs.forEach(mg => {
+      const safeName = mg.name.replace(/[^a-zA-Z0-9]/g,'_');
+      lines.push(`resource mg_${safeName} 'Microsoft.Management/managementGroups@2021-04-01' = {`);
+      lines.push(`  name: '${mg.name}'`);
+      lines.push(`  properties: {`);
+      lines.push(`    displayName: '${mg.name}'`);
+      lines.push(`  }`);
+      lines.push(`}\n`);
+    });
+    childMgs.forEach(mg => {
+      const safeName = mg.name.replace(/[^a-zA-Z0-9]/g,'_');
+      const parent = state.managementGroups.find(p => p.id === mg.parentId);
+      const parentRef = parent ? `mg_${parent.name.replace(/[^a-zA-Z0-9]/g,'_')}.id` : '';
+      lines.push(`resource mg_${safeName} 'Microsoft.Management/managementGroups@2021-04-01' = {`);
+      lines.push(`  name: '${mg.name}'`);
+      lines.push(`  properties: {`);
+      lines.push(`    displayName: '${mg.name}'`);
+      if (parentRef) {
+        lines.push(`    details: { parent: { id: ${parentRef} } }`);
+      }
+      lines.push(`  }`);
+      lines.push(`}\n`);
+    });
+    // Subscription assignments
+    state.subscriptions.forEach(sub => {
+      if (sub.mgId) {
+        const mg = state.managementGroups.find(m => m.id === sub.mgId);
+        if (mg) {
+          const safeName = sub.name.replace(/[^a-zA-Z0-9]/g,'_');
+          const subIdRef = sub.subscriptionId || 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx';
+          lines.push(`resource sub_${safeName} 'Microsoft.Management/managementGroups/subscriptions@2021-04-01' = {`);
+          lines.push(`  parent: mg_${mg.name.replace(/[^a-zA-Z0-9]/g,'_')}`);
+          lines.push(`  name: '${subIdRef}'`);
+          lines.push(`}\n`);
+        }
+      }
+    });
+    lines.push('');
+  } else {
+    lines.push(`// Bicep Template — Azure Architecture Builder\ntargetScope = 'subscription'\n`);
+  }
+
   state.subscriptions.forEach(sub=>{
     lines.push(`// --- Subscription: ${sub.name} ---`);
     const subRgs=state.resourceGroups.filter(r=>r.subId===sub.id);
@@ -1198,6 +1282,24 @@ export function openAzureInventoryModal(){
   document.getElementById('inventory-import-error').textContent = '';
   document.getElementById('inventory-import-preview').textContent = '';
   document.getElementById('inventory-import-preview').style.display = 'none';
+  setInventoryScope('mg'); // default to MG scope
+}
+
+export function setInventoryScope(scope) {
+  const scopes = ['mg', 'sub', 'rg'];
+  const scopeInfo = {
+    mg: 'Exports all subscriptions and resources under a Management Group hierarchy.',
+    sub: 'Exports all resource groups and resources within a single subscription.',
+    rg: 'Exports all resources within a specific Resource Group.'
+  };
+  scopes.forEach(s => {
+    const btn = document.getElementById(`scope-btn-${s}`);
+    const section = document.getElementById(`inventory-scope-${s}`);
+    if (btn) btn.classList.toggle('active', s === scope);
+    if (section) section.style.display = s === scope ? 'block' : 'none';
+  });
+  const infoEl = document.getElementById('inventory-scope-info');
+  if (infoEl) infoEl.textContent = scopeInfo[scope] || '';
 }
 
 export function handleInventoryFile(){
@@ -1225,15 +1327,25 @@ function _previewInventoryData(raw){
   try {
     const parsed = JSON.parse(raw);
     const resources = _extractResourceArray(parsed);
+    const mgData = _extractMgData(parsed);
+    const subData = _extractSubscriptionData(parsed);
     const analysis = _analyzeInventory(resources);
-    const lines = [
-      `Total resources found: ${resources.length}`,
-      `Resource Groups: ${analysis.rgNames.size}`,
-      `VNets detected: ${analysis.vnets.length}`,
-      `Mappable resources: ${analysis.mapped}`,
-      `Unsupported (will skip): ${analysis.unsupported}`,
-      `Skipped (infra): ${analysis.skipped}`,
-    ];
+    const lines = [];
+    if (mgData) {
+      const mgCount = Array.isArray(mgData) ? mgData.length : (mgData.children ? mgData.children.length + 1 : 1);
+      lines.push(`Management Groups: ${mgCount}`);
+    }
+    if (subData) {
+      lines.push(`Subscriptions found: ${subData.length}`);
+    } else {
+      lines.push(`Subscriptions detected: ${analysis.subIds.size}`);
+    }
+    lines.push(`Total resources found: ${resources.length}`);
+    lines.push(`Resource Groups: ${analysis.rgNames.size}`);
+    lines.push(`VNets detected: ${analysis.vnets.length}`);
+    lines.push(`Mappable resources: ${analysis.mapped}`);
+    lines.push(`Unsupported (will skip): ${analysis.unsupported}`);
+    lines.push(`Skipped (infra): ${analysis.skipped}`);
     if (analysis.warnings.length > 0) {
       lines.push('');
       lines.push('⚠ Unsupported types:');
@@ -1252,11 +1364,26 @@ function _extractResourceArray(parsed) {
   if (Array.isArray(parsed)) return parsed;
   if (parsed.data && Array.isArray(parsed.data)) return parsed.data; // az graph query format
   if (parsed.value && Array.isArray(parsed.value)) return parsed.value; // ARM API response
+  // MG-scope export format: { managementGroups, subscriptions, resources }
+  if (parsed.resources && Array.isArray(parsed.resources)) return parsed.resources;
   return [];
+}
+
+function _extractMgData(parsed) {
+  // Extract management group hierarchy from MG-scope exports
+  if (parsed.managementGroups) return parsed.managementGroups;
+  return null;
+}
+
+function _extractSubscriptionData(parsed) {
+  // Extract subscription info from MG-scope exports
+  if (parsed.subscriptions && Array.isArray(parsed.subscriptions)) return parsed.subscriptions;
+  return null;
 }
 
 function _analyzeInventory(resources) {
   const rgNames = new Set();
+  const subIds = new Set();
   const vnets = [];
   let mapped = 0;
   let unsupported = 0;
@@ -1268,6 +1395,8 @@ function _analyzeInventory(resources) {
     const type = (r.type || '').toLowerCase();
     const rg = _extractRgFromId(r.id) || r.resourceGroup || r.ResourceGroupName || '';
     if (rg) rgNames.add(rg);
+    const subId = _extractSubFromId(r.id) || r.subscriptionId || '';
+    if (subId) subIds.add(subId);
 
     if (type === 'microsoft.network/virtualnetworks') {
       vnets.push(r);
@@ -1284,7 +1413,7 @@ function _analyzeInventory(resources) {
     }
   });
 
-  return { rgNames, vnets, mapped, unsupported, skipped, warnings };
+  return { rgNames, subIds, vnets, mapped, unsupported, skipped, warnings };
 }
 
 function _extractRgFromId(id) {
@@ -1321,6 +1450,10 @@ export function confirmInventoryImport(){
   }
 
   if (!confirm('This will replace your current diagram with the imported inventory. Continue?')) return;
+
+  // Extract MG/Sub data if available (MG-scope exports)
+  const mgData = _extractMgData(parsed);
+  const subData = _extractSubscriptionData(parsed);
 
   // Build the state from Azure inventory
   const subMap = new Map(); // subId -> { name, id }
@@ -1444,7 +1577,7 @@ export function confirmInventoryImport(){
   });
 
   // Build final state
-  const subscriptions = [...subMap.values()].map(s => ({ id: s.id, name: s.name }));
+  const subscriptions = [...subMap.values()].map(s => ({ id: s.id, name: s.name, subscriptionId: '', tenantId: '', tags: {}, mgId: null }));
   const resourceGroups = [...rgMap.values()];
   const allVnets = [...vnetMap.values()];
 
@@ -1456,7 +1589,32 @@ export function confirmInventoryImport(){
   if (!hub.rgId && resourceGroups.length > 0) hub.rgId = resourceGroups[0].id;
   spokes.forEach(s => { if (!s.rgId && resourceGroups.length > 0) s.rgId = resourceGroups[0].id; });
 
+  // Build Management Group hierarchy if MG data is available
+  let managementGroups = [];
+  let mgEnabled = false;
+  if (mgData) {
+    mgEnabled = true;
+    managementGroups = _buildMgHierarchy(mgData, subscriptions);
+  }
+
+  // If subData available, enrich subscription info
+  if (subData) {
+    subData.forEach(sd => {
+      const subId = sd.subscriptionId || sd.Id?.split('/')?.pop() || '';
+      // Match by subscription ID first, then by name
+      const existing = subscriptions.find(s => s.subscriptionId === subId) ||
+                       subscriptions.find(s => s.name === (sd.displayName || sd.Name)) ||
+                       subscriptions.find(s => subId && s.name.includes(subId.slice(0,8)));
+      if (existing) {
+        existing.name = sd.displayName || sd.Name || existing.name;
+        existing.subscriptionId = subId;
+      }
+    });
+  }
+
   // Apply to state
+  state.mgEnabled = mgEnabled;
+  state.managementGroups = managementGroups;
   state.subscriptions = subscriptions;
   state.resourceGroups = resourceGroups;
   state.hub = hub;
@@ -1467,6 +1625,52 @@ export function confirmInventoryImport(){
   saveState();
   closeModal('azure-inventory-modal');
   fullUpdate();
+}
+
+function _buildMgHierarchy(mgData, subscriptions) {
+  const mgs = [];
+  // Handle array of MGs (from az account management-group list)
+  const mgArray = Array.isArray(mgData) ? mgData : [mgData];
+
+  function _findSub(childName, childDisplayName) {
+    // Match by subscriptionId first, then exact name, then displayName
+    return subscriptions.find(s => s.subscriptionId === childName) ||
+           subscriptions.find(s => s.name === childDisplayName) ||
+           subscriptions.find(s => s.name === childName);
+  }
+
+  mgArray.forEach(mg => {
+    const mgId = _uid();
+    const mgObj = {
+      id: mgId,
+      name: mg.displayName || mg.name || mg.Name || 'Management Group',
+      parentId: null
+    };
+    mgs.push(mgObj);
+    // Assign subscriptions under this MG
+    const mgChildren = mg.children || [];
+    mgChildren.forEach(child => {
+      if (child.type === '/subscriptions' || child.type === 'Microsoft.Management/managementGroups/subscriptions') {
+        const sub = _findSub(child.name, child.displayName);
+        if (sub) sub.mgId = mgId;
+      } else if (child.type === 'Microsoft.Management/managementGroups') {
+        // Nested MG
+        const childMgId = _uid();
+        mgs.push({ id: childMgId, name: child.displayName || child.name, parentId: mgId });
+        (child.children || []).forEach(grandChild => {
+          if (grandChild.type === '/subscriptions' || grandChild.type === 'Microsoft.Management/managementGroups/subscriptions') {
+            const sub = _findSub(grandChild.name, grandChild.displayName);
+            if (sub) sub.mgId = childMgId;
+          }
+        });
+      }
+    });
+  });
+  // If no subs were assigned to MGs, assign all subs to first MG
+  if (mgs.length > 0 && subscriptions.every(s => !s.mgId)) {
+    subscriptions.forEach(s => { s.mgId = mgs[0].id; });
+  }
+  return mgs;
 }
 
 function _buildConfig(resource, type) {

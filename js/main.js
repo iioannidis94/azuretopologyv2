@@ -1,7 +1,7 @@
 import { state, saveState, updateCost, loadAzureIcons, setFullUpdate, setRenderAll, resetDiagram, resetPositions, undo, redo } from './state-management.js';
 import { draw, resize, selectNode, getRenderNodes } from './canvas-engine.js';
-import { renderSecurityPanel, renderSidebar, renderEditor, toggleTheme, toggleLayout, fitToScreen, toggleOnPrem, updateOnPremName, updateOnPremCidr, toggleMobileMenu, showMobilePanel, addSub, deleteSub, renameSub, addRg, deleteRg, renameRg, setRgLocation, updateSubProp, updateRgProp, addTag, updateTag, renameTag, deleteTag, addSpoke, addVnetToRg, deleteSpoke, updateVnet, togglePeering, updatePeeringConfig, selectPeering, addSubnet, deleteSubnet, updateSubnet, updateVnetProp, updateSubnetProp, toggleDropdown, filterResources, addResource, deleteResource, updateResource, updateResConfig, toggleSecurityPanel, toggleCostPanel, addRgResource, deleteRgResource, updateRgResource, addDnsRecord, deleteDnsRecord, updateDnsRecord, addVnetLink, deleteVnetLink, showDnsZoneDropdown, filterDnsZones, selectDnsZone, addAnotherDnsZone } from './ui-components.js';
-import { exportPng, openPsModal, openBicepModal, closeModal, copyText, downloadText, exportJson, openJsonImportModal, handleJsonFile, confirmJsonImport, previewPastedJson, openAzureInventoryModal, handleInventoryFile, previewInventory, confirmInventoryImport, toggleExportPanel } from './export-logic.js';
+import { renderSecurityPanel, renderSidebar, renderEditor, toggleTheme, fitToScreen, toggleOnPrem, updateOnPremName, updateOnPremCidr, toggleMgEnabled, addMg, deleteMg, renameMg, assignSubToMg, assignMgParent, addSubToMg, toggleMobileMenu, showMobilePanel, addSub, deleteSub, renameSub, addRg, deleteRg, renameRg, setRgLocation, updateSubProp, updateRgProp, addTag, updateTag, renameTag, deleteTag, addSpoke, addVnetToRg, deleteSpoke, updateVnet, togglePeering, updatePeeringConfig, selectPeering, addSubnet, deleteSubnet, updateSubnet, updateVnetProp, updateSubnetProp, toggleDropdown, filterResources, addResource, deleteResource, updateResource, updateResConfig, toggleSecurityPanel, toggleCostPanel, addRgResource, deleteRgResource, updateRgResource, addDnsRecord, deleteDnsRecord, updateDnsRecord, addVnetLink, deleteVnetLink, toggleVnetLink, selectVnetLink, updateVnetLinkConfig, showDnsZoneDropdown, filterDnsZones, selectDnsZone, addAnotherDnsZone } from './ui-components.js';
+import { exportPng, openPsModal, openBicepModal, closeModal, copyText, downloadText, exportJson, openJsonImportModal, handleJsonFile, confirmJsonImport, previewPastedJson, openAzureInventoryModal, handleInventoryFile, previewInventory, confirmInventoryImport, toggleExportPanel, setInventoryScope } from './export-logic.js';
 import { openTemplateGallery, closeTemplateGallery, applyTemplate } from './template-gallery.js';
 
 // ================================================================
@@ -31,8 +31,16 @@ function deleteSelectedElement() {
     togglePeering(parts[1], parts[2]);
     return;
   }
+  // Check if it's a VNet link
+  if (id.startsWith('vnetlink:')) {
+    const parts = id.split(':');
+    toggleVnetLink(parts[1], parts[2]);
+    return;
+  }
   // Check if it's on-prem
   if (id === 'onprem') { state.onPrem.enabled = false; state.selectedId = null; fullUpdateImpl(); return; }
+  // Check if it's a management group
+  if ((state.managementGroups||[]).find(mg => mg.id === id)) { deleteMg(id); return; }
   // Check if it's a subscription
   if (state.subscriptions.find(s => s.id === id)) { deleteSub(id); return; }
   // Check if it's a resource group
@@ -140,11 +148,17 @@ window._draw = draw;
 window._resize = resize;
 window._selectNode = selectNode;
 window._toggleTheme = toggleTheme;
-window._toggleLayout = toggleLayout;
 window._fitToScreen = fitToScreen;
 window._toggleOnPrem = toggleOnPrem;
 window._updateOnPremName = updateOnPremName;
 window._updateOnPremCidr = updateOnPremCidr;
+window._toggleMgEnabled = toggleMgEnabled;
+window._addMg = addMg;
+window._deleteMg = deleteMg;
+window._renameMg = renameMg;
+window._assignSubToMg = assignSubToMg;
+window._assignMgParent = assignMgParent;
+window._addSubToMg = addSubToMg;
 window._toggleMobileMenu = toggleMobileMenu;
 window._showMobilePanel = showMobilePanel;
 window._addSub = addSub;
@@ -186,6 +200,9 @@ window._deleteDnsRecord = deleteDnsRecord;
 window._updateDnsRecord = updateDnsRecord;
 window._addVnetLink = addVnetLink;
 window._deleteVnetLink = deleteVnetLink;
+window._toggleVnetLink = toggleVnetLink;
+window._selectVnetLink = selectVnetLink;
+window._updateVnetLinkConfig = updateVnetLinkConfig;
 window._showDnsZoneDropdown = showDnsZoneDropdown;
 window._filterDnsZones = filterDnsZones;
 window._selectDnsZone = selectDnsZone;
@@ -200,6 +217,7 @@ window._openAzureInventoryModal = openAzureInventoryModal;
 window._handleInventoryFile = handleInventoryFile;
 window._previewInventory = previewInventory;
 window._confirmInventoryImport = confirmInventoryImport;
+window._setInventoryScope = setInventoryScope;
 window._toggleExportPanel = toggleExportPanel;
 window._openPsModal = openPsModal;
 window._openBicepModal = openBicepModal;
@@ -214,6 +232,27 @@ window._openTemplateGallery = openTemplateGallery;
 window._closeTemplateGallery = closeTemplateGallery;
 window._applyTemplate = applyTemplate;
 window._openShortcutsModal = openShortcutsModal;
+
+// ================================================================
+// FULL VIEW TOGGLE (collapse/expand both sidebars)
+// ================================================================
+let _fullViewActive = false;
+window._toggleFullView = function() {
+  _fullViewActive = !_fullViewActive;
+  const left = document.getElementById('sidebar-left');
+  const right = document.getElementById('sidebar-right');
+  const btn = document.getElementById('full-view-btn');
+  if (_fullViewActive) {
+    left.classList.add('collapsed');
+    right.classList.add('collapsed');
+    btn.textContent = '⛶ Exit Full View';
+  } else {
+    left.classList.remove('collapsed');
+    right.classList.remove('collapsed');
+    btn.textContent = '⛶ Full View';
+  }
+  setTimeout(resize, 350);
+};
 
 // ================================================================
 // INIT & LOAD REAL ICONS

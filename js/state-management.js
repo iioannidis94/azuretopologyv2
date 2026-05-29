@@ -20,7 +20,7 @@ export const RES_TYPES={
   afd:{icon:'⚡', img:'front-doors.svg', color:'#FF8C00',label:'Azure Front Door',cat:'network', cost: 330, config:{sku:'Premium',endpoints:'default-endpoint',originGroups:'default-origin-group',wafPolicy:'',routingRules:'default-route'}},
   pe:{icon:'🔌', img:'private-endpoint.svg', color:'#8764B8',label:'Private Endpoint',cat:'network', cost: 10, config:{target:'Storage',groupId:'blob',privateDnsZoneId:'',connectionName:'',subResource:'blob'}},
   dns:{icon:'🌐', img:'dns-zones.svg', color:'#00B294',label:'Private DNS Zone',cat:'network', cost: 5, config:{zone:'privatelink.blob.core.windows.net',fullZoneName:'privatelink.blob.core.windows.net',vnetLinks:'',autoRegistration:'false'}, rgLevel:true, dnsType:'private'},
-  publicDns:{icon:'🌍', img:'dns-zones.svg', color:'#00BCF2',label:'Public DNS Zone',cat:'network', cost: 5, config:{zone:'example.com'}, rgLevel:true, dnsType:'public'},
+  publicDns:{icon:'🌍', img:'dns-zones.svg', color:'#00BCF2',label:'Public DNS Zone',cat:'network', cost: 5, config:{zone:'example.com', records:[]}, rgLevel:true, dnsType:'public'},
   nsg:{icon:'📋', img:'network-security-groups.svg', color:'#E81123',label:'Network Sec Group',cat:'network', cost: 0, config:{rules:'[{"name":"Allow-HTTP","priority":"100","direction":"Inbound","access":"Allow","protocol":"Tcp","srcPort":"*","dstPort":"80","srcAddr":"*","dstAddr":"*"},{"name":"Allow-HTTPS","priority":"110","direction":"Inbound","access":"Allow","protocol":"Tcp","srcPort":"*","dstPort":"443","srcAddr":"*","dstAddr":"*"}]'}},
   sql:{icon:'🗄️', img:'sql-databases.svg', color:'#00B294',label:'Azure SQL',cat:'data', cost: 380, config:{vcores:'4',tier:'GeneralPurpose',maxSizeGB:'32',collation:'SQL_Latin1_General_CP1_CI_AS',backupRetentionDays:'7',zoneRedundant:'false'}},
   cosmos:{icon:'🌌', img:'azure-cosmos-db.svg', color:'#00B294',label:'Cosmos DB',cat:'data', cost: 400, config:{api:'NoSQL',consistencyLevel:'Session',geoReplication:'false',maxRU:'4000',enableFreeTier:'false',serverless:'false'}},
@@ -102,9 +102,11 @@ export const VNET_COLORS=['#0078D4','#00BCF2','#00B294','#FF8C00','#8764B8','#10
 const defaultState={
   theme:'dark', layout:'grid',
   onPrem: { enabled: false, id: 'onprem', name: 'Corp Datacenter', cidr: '192.168.0.0/16' },
+  mgEnabled: false,
+  managementGroups: [],
   customPos: {}, 
   subscriptions:[
-    {id:'sub-1',name:'My Subscription',subscriptionId:'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',tenantId:'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',tags:{}}
+    {id:'sub-1',name:'My Subscription',subscriptionId:'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',tenantId:'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',tags:{},mgId:null}
   ],
   resourceGroups:[
     {id:'rg-1', name:'rg-main', location:'eastus', subId:'sub-1', tags:{}, lock:'None', budgetLimit:'', budgetAlertThreshold:'80'}
@@ -126,6 +128,9 @@ try{
   if(!state.rgResources) state.rgResources=[];
   if(!state.hub.peeringConfigs) state.hub.peeringConfigs={};
   state.spokes.forEach(s => { if(!s.peeringConfigs) s.peeringConfigs = {}; });
+  if(state.mgEnabled===undefined) state.mgEnabled=false;
+  if(!state.managementGroups) state.managementGroups=[];
+  state.subscriptions.forEach(s => { if(s.mgId===undefined) s.mgId=null; });
   if(state.theme==='dark') document.body.classList.remove('theme-drawio');
   else document.body.classList.add('theme-drawio');
 }catch(e){state=JSON.parse(JSON.stringify(defaultState));}

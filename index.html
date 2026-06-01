@@ -29,7 +29,13 @@
 
 <div class="app">
   <div class="sidebar" id="sidebar-left"></div>
-  <div class="canvas-area"><canvas id="diagram-canvas"></canvas></div>
+  <div class="canvas-area">
+    <canvas id="diagram-canvas"></canvas>
+    <div id="minimap-container">
+      <button id="minimap-toggle" onclick="window._toggleMinimap()" title="Hide Minimap">🗺</button>
+      <canvas id="minimap-canvas" width="200" height="150"></canvas>
+    </div>
+  </div>
   <div class="sidebar right" id="sidebar-right">
     
     <div class="tree-section-title cost-section-title" onclick="window._toggleCostPanel()">// Cost Estimator <span id="cost-panel-toggle" style="font-size:8px;color:var(--muted);">▶</span></div>

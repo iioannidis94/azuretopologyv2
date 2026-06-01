@@ -242,6 +242,13 @@ select.input-field{cursor:pointer;}
 #diagram-canvas{width:100%;height:100%;cursor:grab;}
 #diagram-canvas:active{cursor:grabbing;}
 
+/* MINIMAP */
+#minimap-container{position:absolute;bottom:16px;right:16px;z-index:20;display:flex;flex-direction:column;align-items:flex-end;gap:4px;user-select:none;}
+#minimap-toggle{font-size:14px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--card-bg);color:var(--text);cursor:pointer;line-height:1;opacity:.75;transition:opacity .2s;}
+#minimap-toggle:hover{opacity:1;}
+#minimap-canvas{display:block;border-radius:6px;cursor:crosshair;box-shadow:0 4px 18px rgba(0,0,0,.35);}
+body.theme-drawio #minimap-canvas{box-shadow:0 4px 18px rgba(0,0,0,.12);}
+
 /* EXPORT AREA */
 .export-area{padding-top:16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;flex-shrink:0;}
 .export-area.collapsed{display:none;}

@@ -302,7 +302,7 @@ The second option is practical because the project uses **ES modules**.
 
 ## 🧱 Technological Approach
 
-The project is a **zero-dependency static SPA**.
+The project is a **zero-dependency static SPA** (runtime) with a fully **modular architecture**.
 
 ### Stack
 
@@ -313,32 +313,86 @@ The project is a **zero-dependency static SPA**.
 - **localStorage**
 - external icon / font assets via CDN
 
-### File Structure
+### Modular File Structure (Current — Phase 3 Complete)
 
 ```text
 azureTopology
 ├── index.html
 ├── README.md
-├── nextsteps.md
+├── planning.md                    (detailed implementation guide)
+├── RoadMap.md                     (high-level roadmap)
+├── nextsteps.md                   (legacy: see planning.md)
+├── distributions.md               (legacy: see planning.md)
+│
 ├── js
-│   ├── main.js
-│   ├── state-management.js
-│   ├── canvas-engine.js
-│   ├── ui-components.js
-│   ├── export-logic.js
-│   └── template-gallery.js
+│   ├── main.js                    (entry point, bootstrapping, global bindings)
+│   ├── state-management.js        (barrel: re-exports from state/ subdirs)
+│   ├── template-gallery.js        (template UI and logic — to be split)
+│   │
+│   ├── state/                     (state & data layer)
+│   │   ├── resource-types.js      (RES_TYPES, pricing, icons)
+│   │   └── state-core.js          (state object, save/load, undo/redo)
+│   │
+│   ├── canvas/                    (canvas rendering & interaction — COMPLETE)
+│   │   ├── canvas-layout.js       (position calculations, layout engine)
+│   │   ├── canvas-render.js       (draw functions, rendering)
+│   │   ├── canvas-interaction.js  (mouse/touch events, drag, zoom, pan)
+│   │   └── canvas-minimap.js      (minimap rendering & navigation)
+│   │
+│   ├── ui/                        (UI components & panels — COMPLETE)
+│   │   ├── ui-security.js         (security posture panel)
+│   │   ├── ui-sidebar.js          (left sidebar, topology controls)
+│   │   ├── ui-editor.js           (properties panel)
+│   │   ├── ui-topology.js         (CRUD operations for topology)
+│   │   └── ui-mobile.js           (mobile menu & panel navigation)
+│   │
+│   └── exports/                   (export & import logic — COMPLETE)
+│       ├── export-utils.js        (modal helpers, copy, download)
+│       ├── export-png.js          (PNG export)
+│       ├── export-json.js         (JSON export/import)
+│       ├── export-powershell.js   (PowerShell generation)
+│       ├── export-bicep.js        (Bicep generation)
+│       └── export-inventory.js    (Azure inventory import)
+│
 └── styles
     └── main.css
 ```
 
-### What each module does
+### Module Responsibilities (Current Architecture)
 
-- **main.js**: application bootstrapping and global bindings
-- **state-management.js**: state, resource catalog, persistence, pricing data
-- **canvas-engine.js**: rendering and layout logic
-- **ui-components.js**: sidebars, editors, interactions, security panel, mobile behavior
-- **export-logic.js**: PNG / JSON / PowerShell / Bicep export and import flows
-- **template-gallery.js**: ready-made templates and quick-start architectures
+**Core Modules:**
+
+- **main.js**: Application entry point, event delegation, global window.* bindings
+- **state-core.js**: Centralized state object, localStorage persistence, undo/redo system
+- **resource-types.js**: Resource definitions, pricing data, Azure icons
+
+**Canvas Layer:**
+
+- **canvas-layout.js**: Position calculations (subscriptions, RGs, VNets, subnets, resources)
+- **canvas-render.js**: Drawing functions for nodes, containers, connections
+- **canvas-interaction.js**: Mouse/touch events, drag-drop, pan, zoom, inline rename
+- **canvas-minimap.js**: Minimap rendering and viewport navigation
+
+**UI Layer:**
+
+- **ui-topology.js**: Add/delete/edit subscriptions, RGs, VNets, subnets, resources
+- **ui-editor.js**: Properties panel for editing selected element
+- **ui-sidebar.js**: Sidebar controls (theme, layout, on-premises, management groups)
+- **ui-security.js**: Security posture analysis and panel rendering
+- **ui-mobile.js**: Mobile-specific navigation and responsive behavior
+
+**Export/Import Layer:**
+
+- **export-utils.js**: Modal management, copy/download utilities
+- **export-png.js**: Canvas to PNG screenshot
+- **export-json.js**: Export/import diagram as JSON
+- **export-powershell.js**: Generate Azure PowerShell deployment scripts
+- **export-bicep.js**: Generate Azure Bicep templates
+- **export-inventory.js**: Import Azure resources from CLI/PowerShell inventory
+
+**Templates:**
+
+- **template-gallery.js**: Pre-built architecture templates and gallery UI
 
 ---
 
@@ -358,32 +412,99 @@ The project is useful when you want to:
 
 ## ⚠️ Current Status of the Project
 
-### Already included
+### ✅ Already Implemented (Phase 1–3 Complete)
 
-- fully functional visual builder
-- import / export flows
-- template gallery
-- cost estimator
-- security posture panel
-- mobile navigation support
-- auto-save
-- PowerShell and Bicep generation
+**Core Features:**
 
-### Not yet included
+- ✅ Fully functional visual builder with drag-drop and canvas controls
+- ✅ Complete Azure hierarchy (Subscriptions → RGs → VNets → Subnets → Resources)
+- ✅ Hub & Spoke and hybrid topology modeling
+- ✅ 35+ Azure resource types with icons and pricing
+- ✅ Live cost estimator with pricing calculator links
+- ✅ Security posture analysis panel
+- ✅ Properties editor for all elements
+- ✅ VNet peering (any-to-any) and on-premises connectivity
+- ✅ DNS zones (private & public) at RG and other levels
+- ✅ Management groups with hierarchical structure
+- ✅ Auto-save to localStorage
 
-- backend or collaboration layer
-- CI/CD pipeline
-- automated test suite
-- package manager / build tooling
-- Terraform export
+**Export & Import:**
+
+- ✅ PNG export (2x resolution)
+- ✅ JSON export/import with merge capability
+- ✅ Azure inventory import (az resource list / az graph query)
+- ✅ PowerShell script generation
+- ✅ Bicep template generation
+- ✅ Template gallery (5 built-in templates)
+
+**UI/UX:**
+
+- ✅ Dual themes (Light/Dark)
+- ✅ Grid & Radial layout options
+- ✅ Responsive design with mobile panel navigation
+- ✅ Keyboard shortcuts (Ctrl+Z/Y, ?, arrow keys, etc.)
+- ✅ Undo/Redo with full history
+- ✅ Inline rename (double-click)
+- ✅ Pan & Zoom with minimap
+- ✅ Full View toggle (collapse sidebars)
+- ✅ Fit to screen
+- ✅ Mobile touch support (basic)
+
+**Code Quality & Architecture:**
+
+- ✅ **Phase 1 Complete:** `export-logic.js` split into 6 focused modules
+- ✅ **Phase 2 Complete:** `ui-components.js` split into 5 focused modules
+- ✅ **Phase 3 Complete:** `canvas-engine.js` split into 4 focused modules
+- ✅ Fully modular ES module structure with no external dependencies (runtime)
+- ✅ No build tool required — native ES modules in the browser
+
+### 🔴 Not Yet Implemented (Pending Phases)
+
+**Phase 4 — Critical:**
+
+- 🟡 Mobile experience improvements (touch events, pinch-to-zoom, long-press drag)
+- 🟡 Terraform HCL export
+- 🟡 Complete state-management.js split (pending)
+
+**Phase 5 — Important:**
+
+- 🟡 ARM Template import
+- 🟡 Terraform state import
+- 🟡 Template-gallery.js split
+- 🟡 Shareable URLs with compression
+- 🟡 Progressive Web App (PWA) support
+- 🟡 In-canvas search (Ctrl+F)
+
+**Phase 6 — Nice-to-Have:**
+
+- 🟢 Connection labels & annotations
+- 🟢 Custom resource types
+- 🟢 Diagram diff preview on import
+- 🟢 Draw.io XML import/export
+- 🟢 CSV / Excel import
+- 🟢 Bicep file import
+- 🟢 Pulumi state import
+- 🟢 Clipboard smart paste
+
+**Technical Debt:**
+
+- 🟢 Automated test suite
+- 🟢 ESLint & code formatting setup
+- 🟢 Performance optimization (large diagrams 50+)
+- 🟢 TypeScript migration (optional)
+- 🟢 IndexedDB migration (localStorage alternative)
 
 ---
 
-## 🗺️ Roadmap
+## 🗺️ Detailed Planning & Implementation
 
-For next steps:
+For **step-by-step implementation guides** with AI prompts, cost optimization, and token budgeting for each remaining task:
 
-- **[RoadMap.md](./RoadMap.md)**
+- **[planning.md](./planning.md)** — Actionable roadmap with detailed AI prompts, model recommendations, and token budgets for all pending tasks
+
+For **high-level phases** and timeline:
+
+- **[RoadMap.md](./RoadMap.md)** — Phase-by-phase overview of what comes next
 
 ---
 

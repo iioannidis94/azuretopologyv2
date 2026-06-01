@@ -319,10 +319,7 @@ The project is a **zero-dependency static SPA** (runtime) with a fully **modular
 azureTopology
 ├── index.html
 ├── README.md
-├── planning.md                    (detailed implementation guide)
 ├── RoadMap.md                     (high-level roadmap)
-├── nextsteps.md                   (legacy: see planning.md)
-├── distributions.md               (legacy: see planning.md)
 │
 ├── js
 │   ├── main.js                    (entry point, bootstrapping, global bindings)

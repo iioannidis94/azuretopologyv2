@@ -498,17 +498,13 @@ The project is useful when you want to:
 
 ## 🗺️ Detailed Planning & Implementation
 
-For **step-by-step implementation guides** with AI prompts, cost optimization, and token budgeting for each remaining task:
-
-- **[planning.md](./planning.md)** — Actionable roadmap with detailed AI prompts, model recommendations, and token budgets for all pending tasks
-
 For **high-level phases** and timeline:
 
 - **[RoadMap.md](./RoadMap.md)** — Phase-by-phase overview of what comes next
 
 ---
 
-## ❤️ Summary
+##  Summary
 
 The **Azure Architecture Builder** is a practical tool for taking an idea to an organized Azure topology with:
 

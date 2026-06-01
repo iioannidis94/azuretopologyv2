@@ -1,67 +1,67 @@
 # ☁️ Azure Architecture Builder
 
-Το **Azure Architecture Builder** είναι ένα αναλυτικό, οπτικό εργαλείο σχεδιασμού Azure αρχιτεκτονικών που τρέχει **100% client-side** μέσα στον browser. Σου επιτρέπει να χτίζεις γρήγορα διαγράμματα για **Hub & Spoke**, **Landing Zones**, **Hybrid topologies**, **application platforms** και **data / AI workloads**, ενώ ταυτόχρονα παράγει πρακτικά outputs όπως **PNG**, **JSON**, **Azure PowerShell** και **Bicep**.
+The **Azure Architecture Builder** is a comprehensive, visual Azure architecture design tool that runs **100% client-side** in the browser. It allows you to rapidly build diagrams for **Hub & Spoke**, **Landing Zones**, **Hybrid topologies**, **application platforms**, and **data / AI workloads**, while simultaneously generating practical outputs such as **PNG**, **JSON**, **Azure PowerShell**, and **Bicep**.
 
-Η εφαρμογή είναι φτιαγμένη με **Vanilla JavaScript**, **HTML5 Canvas**, **ES Modules** και **CSS3**, χωρίς backend και χωρίς build process. Ανοίγεις το project και ξεκινάς αμέσως.
-
----
-
-## 🎯 Τι λύνει αυτό το project
-
-Το project δημιουργήθηκε για να καλύψει ένα πολύ συγκεκριμένο κενό:
-
-- Ο παραδοσιακός σχεδιασμός σε Visio, Draw.io ή PowerPoint είναι καλός για documentation, αλλά δεν σε βοηθά να περάσεις εύκολα από το διάγραμμα στην υλοποίηση.
-- Σε πολύπλοκες Azure αρχιτεκτονικές είναι εύκολο να χαθεί η συνολική εικόνα ανάμεσα σε subscriptions, resource groups, VNets, subnets και services.
-- Η πρόχειρη εκτίμηση κόστους, η ασφάλεια και η επαναχρησιμοποίηση patterns συνήθως γίνονται αποσπασματικά και αργά.
-- Η εισαγωγή υφιστάμενων Azure resources σε ένα καθαρό diagram είναι συχνά χειροκίνητη και χρονοβόρα.
-
-### Με μία πρόταση
-Το Azure Architecture Builder συνδυάζει **visual design**, **Azure-aware modeling**, **cost awareness**, **security hints**, **template-based acceleration** και **IaC export** σε μία μόνο στατική εφαρμογή.
+The application is built with **Vanilla JavaScript**, **HTML5 Canvas**, **ES Modules**, and **CSS3**, with no backend and no build process. Just open the project and start immediately.
 
 ---
 
-## 👥 Σε ποιους απευθύνεται
+## 🎯 The Problem it Solves
 
-- **Cloud Architects** που θέλουν γρήγορο σχεδιασμό και παρουσίαση λύσεων
-- **DevOps / Platform Engineers** που θέλουν αρχικό deployment scaffold
-- **Presales / Solution Engineers** που θέλουν να δείξουν γρήγορα topology options
-- **Consultants / MSP teams** που δουλεύουν με πολλά subscriptions και landing zones
-- **Engineering teams** που θέλουν κοινή οπτική γλώσσα για Azure infrastructure
+This project was created to fill a very specific gap:
+
+- Traditional design in Visio, Draw.io, or PowerPoint is good for documentation, but doesn't help you transition easily from diagram to implementation.
+- In complex Azure architectures, it's easy to lose the big picture among subscriptions, resource groups, VNets, subnets, and services.
+- Rough cost estimation, security, and pattern reusability are usually done in a fragmented and slow manner.
+- Importing existing Azure resources into a clean diagram is often manual and time-consuming.
+
+### In a nutshell
+The Azure Architecture Builder combines **visual design**, **Azure-aware modeling**, **cost awareness**, **security hints**, **template-based acceleration**, and **IaC export** into a single static application.
 
 ---
 
-## 🧩 Τι μπορείς να μοντελοποιήσεις
+## 👥 Who is it for
 
-Η εφαρμογή οργανώνει την αρχιτεκτονική σε πραγματική Azure λογική:
+- **Cloud Architects** who want rapid design and presentation of solutions
+- **DevOps / Platform Engineers** looking for an initial deployment scaffold
+- **Presales / Solution Engineers** who need to quickly showcase topology options
+- **Consultants / MSP teams** working with multiple subscriptions and landing zones
+- **Engineering teams** that need a common visual language for Azure infrastructure
+
+---
+
+## 🧩 What you can model
+
+The application organizes the architecture according to actual Azure logic:
 
 - **Subscriptions**
 - **Resource Groups**
 - **Hub VNet**
 - **Spoke VNets**
 - **Subnets**
-- **Resources σε subnet επίπεδο**
-- **Resources σε resource-group επίπεδο**
+- **Subnet-level resources**
+- **Resource-group level resources**
 - **On-premises / hybrid connectivity**
 - **VNet peerings**
 
-Αυτό σημαίνει ότι δεν σχεδιάζεις απλώς κουτάκια, αλλά μια δομή που ακολουθεί πραγματικά το Azure operational model.
+This means you aren't just drawing boxes, but a structure that follows the true Azure operational model.
 
 ---
 
-## ✅ Βασικές δυνατότητες
+## ✅ Key Features
 
 ### 1. Visual Azure architecture design
 
-- Δημιουργία και διαχείριση **subscriptions**, **resource groups**, **VNets** και **subnets**
-- Υποστήριξη για **Hub & Spoke** αρχιτεκτονικές
-- Υποστήριξη για **hybrid scenarios** με on-premises datacenter
-- **Any-to-any peering** μεταξύ VNets
-- Επεξεργασία ονομάτων και ιδιοτήτων απευθείας μέσα από το UI
-- Επιλογή στοιχείων και γρήγορη ενημέρωση properties από τον δεξί editor
+- Create and manage **subscriptions**, **resource groups**, **VNets**, and **subnets**
+- Support for **Hub & Spoke** architectures
+- Support for **hybrid scenarios** with an on-premises datacenter
+- **Any-to-any peering** between VNets
+- Edit names and properties directly from the UI
+- Select elements and quickly update properties from the right editor
 
-### 2. Υποστήριξη πολλών Azure resource types
+### 2. Support for multiple Azure resource types
 
-Οι πόροι είναι οργανωμένοι σε κατηγορίες:
+Resources are organized into categories:
 
 - **Compute**: Virtual Machine, VM Scale Set, AKS, Function App, Container Apps
 - **Networking**: Azure Firewall, FortiGate NVA, App Gateway, Load Balancer, VPN Gateway, ExpressRoute Gateway, Azure Bastion, Front Door, Private Endpoint, Private DNS Zone, Public DNS Zone, NSG
@@ -71,91 +71,91 @@
 - **AI & Analytics**: AI Foundry, Azure OpenAI
 - **Management**: Azure Monitor
 
-Κάθε resource type συνοδεύεται από:
+Each resource type comes with:
 
 - default configuration
-- ενδεικτικό monthly cost
+- indicative monthly cost
 - icon mapping
 - category mapping
-- properties για editing από το UI
+- properties for UI editing
 
-### 3. Canvas interaction και productivity
+### 3. Canvas interaction and productivity
 
-- **Drag & drop** μετακίνηση στοιχείων
-- **Group drag** για μετακίνηση ολόκληρων containers μαζί με τα παιδιά τους
-- **Pan & zoom** στον καμβά
+- **Drag & drop** movement of elements
+- **Group drag** to move entire containers along with their children
+- **Pan & zoom** on the canvas
 - **Fit to screen**
-- **Grid layout** και **Radial layout**
+- **Grid layout** and **Radial layout**
 - **Inline rename**
 - **Theme toggle**
-- **Desktop και mobile panel navigation**
+- **Desktop and mobile panel navigation**
 
 ### 4. Undo / Redo history
 
-Η εφαρμογή περιλαμβάνει κανονικό history workflow:
+The application includes a standard history workflow:
 
 - **Undo**
 - **Redo**
 - keyboard shortcuts
-- υποστήριξη για αλλαγές όπως add, remove, move, rename και topology updates
+- support for changes like add, remove, move, rename, and topology updates
 
 ### 5. Cost awareness
 
-Υπάρχει ενσωματωμένο **Cost Estimator** που:
+There is a built-in **Cost Estimator** that:
 
-- υπολογίζει εκτιμώμενο μηνιαίο κόστος
-- ενημερώνεται δυναμικά καθώς αλλάζει το διάγραμμα
-- μπορεί να σε οδηγήσει στο **Azure Pricing Calculator**
+- calculates estimated monthly cost
+- dynamically updates as the diagram changes
+- can direct you to the **Azure Pricing Calculator**
 
 ### 6. Security posture visibility
 
-Το **Security Posture panel** δίνει άμεσο feedback για βασικά θέματα αρχιτεκτονικής, όπως:
+The **Security Posture panel** provides instant feedback on core architectural topics, such as:
 
-- πιθανές ελλείψεις σε network isolation
-- missing private connectivity όπου έχει νόημα
-- best-practice προτάσεις για ορισμένους πόρους
-- συνοπτικό security score / health view
+- potential gaps in network isolation
+- missing private connectivity where it makes sense
+- best-practice recommendations for specific resources
+- summary security score / health view
 
 ### 7. JSON import / export
 
-Μπορείς να:
+You can:
 
-- εξάγεις το τρέχον diagram σε **JSON**
-- εισάγεις diagram από **JSON file**
-- κάνεις import από pasted JSON
-- βλέπεις preview και validation πριν την αντικατάσταση του υπάρχοντος diagram
-- **merge** εισαγόμενα resources στο υπάρχον diagram (αντί για αντικατάσταση)
+- export the current diagram to **JSON**
+- import a diagram from a **JSON file**
+- import from pasted JSON
+- view a preview and validation before replacing the existing diagram
+- **merge** imported resources into the existing diagram (instead of replacing)
 
 ### 8. Azure inventory import
 
-Η εφαρμογή υποστηρίζει import από πραγματικό Azure inventory μέσω:
+The application supports importing from an actual Azure inventory via:
 
 - `az resource list`
 - `az graph query`
 - `Get-AzResource`
 
-Το import flow περιλαμβάνει:
+The import flow includes:
 
-- file upload ή paste JSON
-- preview πριν την εισαγωγή
-- mapping Azure resource types σε supported visual resources
-- ανακατασκευή hierarchy με βάση subscriptions, resource groups και network context
-- **merge option** για προσθήκη resources στο υπάρχον diagram χωρίς αντικατάσταση
+- file upload or JSON paste
+- preview before import
+- mapping Azure resource types to supported visual resources
+- reconstructing the hierarchy based on subscriptions, resource groups, and network context
+- **merge option** to add resources to the existing diagram without replacing it
 
 ### 9. IaC & artifact generation
 
-Μπορείς να παράγεις:
+You can generate:
 
-- **PNG** για documentation ή παρουσιάσεις
-- **JSON** για αποθήκευση / ανταλλαγή diagrams
+- **PNG** for documentation or presentations
+- **JSON** to save / exchange diagrams
 - **Azure PowerShell deployment script**
 - **Bicep template**
 
-Αυτό κάνει το εργαλείο χρήσιμο όχι μόνο για visualization αλλά και για **handover προς implementation**.
+This makes the tool useful not only for visualization but also for **handover to implementation**.
 
 ### 10. Template Gallery
 
-Η εφαρμογή περιλαμβάνει έτοιμα πρότυπα για γρήγορο ξεκίνημα:
+The application includes ready-made templates for a quick start:
 
 - **Hub & Spoke Basic**
 - **Multi-Region DR**
@@ -163,51 +163,51 @@
 - **AKS Networking**
 - **Landing Zone (CAF)**
 
-Τα templates επιταχύνουν το prototyping και δίνουν κοινά starting points για συχνά Azure patterns.
+Templates accelerate prototyping and provide common starting points for frequent Azure patterns.
 
-### 11. Auto-save και state persistence
+### 11. Auto-save and state persistence
 
-- Οι αλλαγές αποθηκεύονται αυτόματα στο **localStorage**
-- Το project θυμάται την κατάσταση του diagram χωρίς backend
-- Υπάρχουν actions για reset diagram και reset custom positions
+- Changes are automatically saved to **localStorage**
+- The project remembers the state of the diagram without a backend
+- Actions available to reset the diagram and reset custom positions
 
 ---
 
-## 🛠️ Αναλυτικό functional scope
+## 🛠️ Detailed Functional Scope
 
 ### Architecture hierarchy
 
-Το εργαλείο δεν σταματά σε απλά αντικείμενα. Σου επιτρέπει να εκφράσεις:
+The tool doesn't stop at simple objects. It allows you to express:
 
-- tenant-like organization μέσω πολλαπλών subscriptions
-- resource placement ανά RG
-- network boundaries ανά VNet / subnet
-- peerings μεταξύ isolated environments
-- hybrid entry points μέσω VPN / ExpressRoute
-- deployment segmentation για app, data, security και management layers
+- tenant-like organization via multiple subscriptions
+- resource placement per RG
+- network boundaries per VNet / subnet
+- peerings between isolated environments
+- hybrid entry points via VPN / ExpressRoute
+- deployment segmentation for app, data, security, and management layers
 
 ### Properties editor
 
-Από το δεξί panel μπορείς να παραμετροποιήσεις:
+From the right panel, you can configure:
 
-- ονόματα και metadata
+- names and metadata
 - Azure region / location
 - CIDR blocks
 - subnet definitions
 - peering configuration
 - tags
-- resource-specific properties όπως SKU, tier, version, replicas, TLS settings, identities, backup, retention, access policies και πολλά ακόμη
+- resource-specific properties such as SKU, tier, version, replicas, TLS settings, identities, backup, retention, access policies, and much more
 
 ### Resource-group level modeling
 
-Δεν περιορίζεσαι μόνο σε subnet-based resources. Υπάρχει υποστήριξη και για πόρους που είναι λογικό να ανήκουν σε επίπεδο **resource group**, όπως DNS zones.
+You aren't restricted to subnet-based resources. There is support for resources that logically belong at the **resource group** level, like DNS zones.
 
 ### Network-aware design
 
-Το project δίνει έμφαση σε αρχιτεκτονικές όπου η δικτύωση είναι κεντρικό κομμάτι:
+The project emphasizes architectures where networking is a central component:
 
 - hub-spoke segmentation
-- shared services στο hub
+- shared services in the hub
 - edge / ingress components
 - private connectivity
 - DNS dependencies
@@ -215,94 +215,94 @@
 
 ---
 
-## 📦 Τι outputs παίρνεις από το εργαλείο
+## 📦 What outputs you get
 
-### Για documentation
+### For documentation
 
-- diagram σε PNG
-- καθαρό visual topology για design reviews
-- artifact για proposals, HLDs και workshops
+- diagram in PNG
+- clean visual topology for design reviews
+- artifact for proposals, HLDs, and workshops
 
-### Για engineering handoff
+### For engineering handoff
 
-- JSON representation του diagram
-- αρχικό **PowerShell deployment script**
-- αρχικό **Bicep template**
+- JSON representation of the diagram
+- initial **PowerShell deployment script**
+- initial **Bicep template**
 
-### Για discovery / reverse modeling
+### For discovery / reverse modeling
 
-- import από Azure inventory
-- μετατροπή υπάρχοντος environment σε visual layout
+- import from Azure inventory
+- convert existing environment into a visual layout
 
 ---
 
-## 🚀 Γρήγορη εκκίνηση
+## 🚀 Quick Start
 
-Δεν χρειάζεται εγκατάσταση.
+No installation required.
 
-### Επιλογή 1: Άμεσο άνοιγμα
+### Option 1: Direct open
 
-Άνοιξε το αρχείο:
+Open the file:
 
 ```bash
 open index.html
 ```
 
-ή σε Linux:
+or on Linux:
 
 ```bash
 xdg-open index.html
 ```
 
-### Επιλογή 2: Τοπικό static server
+### Option 2: Local static server
 
 ```bash
 cd <project-directory>
 python -m http.server 8000
 ```
 
-Έπειτα άνοιξε το:
+Then open:
 
 ```text
 http://localhost:8000
 ```
 
-Η δεύτερη επιλογή είναι πρακτική επειδή το project χρησιμοποιεί **ES modules**.
+The second option is practical because the project uses **ES modules**.
 
 ---
 
-## 📚 Ενδεικτικό workflow χρήσης
+## 📚 Typical Usage Workflow
 
-1. Δημιουργείς ή οργανώνεις τα **Subscriptions**
-2. Προσθέτεις τα κατάλληλα **Resource Groups**
-3. Χτίζεις το **Hub VNet**
-4. Προσθέτεις **Spoke VNets**
-5. Ορίζεις **Subnets**
-6. Τοποθετείς **Azure resources**
-7. Ρυθμίζεις **peerings**, hybrid σύνδεση και resource properties
-8. Ελέγχεις **cost** και **security posture**
-9. Κάνεις refine το layout
-10. Εξάγεις **PNG / JSON / PowerShell / Bicep**
+1. Create or organize **Subscriptions**
+2. Add the appropriate **Resource Groups**
+3. Build the **Hub VNet**
+4. Add **Spoke VNets**
+5. Define **Subnets**
+6. Place **Azure resources**
+7. Configure **peerings**, hybrid connectivity, and resource properties
+8. Review **cost** and **security posture**
+9. Refine the layout
+10. Export **PNG / JSON / PowerShell / Bicep**
 
 ---
 
-## ⌨️ Keyboard shortcuts
+## ⌨️ Keyboard Shortcuts
 
-- **Delete / Backspace**: διαγραφή επιλεγμένου στοιχείου
-- **Escape**: αποεπιλογή ή κλείσιμο modal
-- **Arrow Keys**: μικρές μετακινήσεις
+- **Delete / Backspace**: delete selected element
+- **Escape**: deselect or close modal
+- **Arrow Keys**: nudge elements
 - **+ / =**: zoom in
 - **-**: zoom out
 - **Ctrl/⌘ + 0**: fit to screen
 - **Ctrl/⌘ + Z**: undo
 - **Ctrl/⌘ + Y**: redo
-- **?**: άνοιγμα shortcut help panel
+- **?**: open shortcut help panel
 
 ---
 
-## 🧱 Τεχνολογική προσέγγιση
+## 🧱 Technological Approach
 
-Το project είναι **zero-dependency static SPA**.
+The project is a **zero-dependency static SPA**.
 
 ### Stack
 
@@ -311,9 +311,9 @@ http://localhost:8000
 - **Vanilla JavaScript (ES Modules)**
 - **HTML5 Canvas**
 - **localStorage**
-- εξωτερικά icon / font assets μέσω CDN
+- external icon / font assets via CDN
 
-### Δομή αρχείων
+### File Structure
 
 ```text
 azureTopology
@@ -331,47 +331,47 @@ azureTopology
     └── main.css
 ```
 
-### Τι κάνει κάθε module
+### What each module does
 
-- **main.js**: application bootstrapping και global bindings
+- **main.js**: application bootstrapping and global bindings
 - **state-management.js**: state, resource catalog, persistence, pricing data
-- **canvas-engine.js**: rendering και layout logic
+- **canvas-engine.js**: rendering and layout logic
 - **ui-components.js**: sidebars, editors, interactions, security panel, mobile behavior
-- **export-logic.js**: PNG / JSON / PowerShell / Bicep export και import flows
-- **template-gallery.js**: έτοιμα templates και quick-start architectures
+- **export-logic.js**: PNG / JSON / PowerShell / Bicep export and import flows
+- **template-gallery.js**: ready-made templates and quick-start architectures
 
 ---
 
-## 🔍 Γιατί είναι χρήσιμο στην πράξη
+## 🔍 Why it's practically useful
 
-Το project είναι χρήσιμο όταν θέλεις:
+The project is useful when you want to:
 
-- να στήσεις γρήγορα ένα **Azure design workshop**
-- να μετατρέψεις requirements σε diagram χωρίς να ξεκινήσεις από λευκή σελίδα
-- να συζητήσεις architecture options με πελάτη ή ομάδα
-- να έχεις πρώτη εκδοχή **deployment artifacts**
-- να δεις αν μια λύση είναι λογική από πλευράς **network topology**
-- να καταγράψεις μια υπάρχουσα Azure εγκατάσταση σε πιο κατανοητή μορφή
-- να έχεις μια γρήγορη, φορητή λύση που ανοίγει παντού χωρίς setup
+- quickly set up an **Azure design workshop**
+- turn requirements into a diagram without starting from a blank page
+- discuss architecture options with a client or team
+- get a first draft of **deployment artifacts**
+- see if a solution makes sense from a **network topology** perspective
+- document an existing Azure deployment in a more understandable format
+- have a fast, portable solution that opens everywhere with zero setup
 
 ---
 
-## ⚠️ Τρέχουσα κατάσταση του project
+## ⚠️ Current Status of the Project
 
-### Υπάρχουν ήδη
+### Already included
 
-- πλήρως λειτουργικό visual builder
+- fully functional visual builder
 - import / export flows
 - template gallery
 - cost estimator
 - security posture panel
 - mobile navigation support
 - auto-save
-- PowerShell και Bicep generation
+- PowerShell and Bicep generation
 
-### Δεν υπάρχουν ακόμη
+### Not yet included
 
-- backend ή collaboration layer
+- backend or collaboration layer
 - CI/CD pipeline
 - automated test suite
 - package manager / build tooling
@@ -381,20 +381,20 @@ azureTopology
 
 ## 🗺️ Roadmap
 
-Για επόμενα βήματα και μελλοντικές επεκτάσεις, δες το:
+For next steps and future extensions, see:
 
 - **[nextsteps.md](./nextsteps.md)**
 
 ---
 
-## ❤️ Συνοπτικά
+## ❤️ Summary
 
-Το **Azure Architecture Builder** είναι ένα πρακτικό εργαλείο για να περάσεις από την ιδέα σε ένα οργανωμένο Azure topology με:
+The **Azure Architecture Builder** is a practical tool for taking an idea to an organized Azure topology with:
 
-- καθαρή οπτικοποίηση
-- γρήγορο experimentation
-- καλύτερη συζήτηση αρχιτεκτονικής
-- awareness για κόστος και ασφάλεια
-- αρχική παραγωγή deployment artifacts
+- clean visualization
+- rapid experimentation
+- better architecture discussions
+- awareness of cost and security
+- initial generation of deployment artifacts
 
-Αν ο στόχος είναι να σχεδιάζεις, να εξηγείς και να προετοιμάζεις Azure αρχιτεκτονικές πιο γρήγορα και πιο καθαρά, αυτό είναι ακριβώς το πρόβλημα που λύνει.
+If the goal is to design, explain, and prepare Azure architectures faster and more cleanly, this is exactly the problem it solves.

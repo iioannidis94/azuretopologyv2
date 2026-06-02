@@ -1,6 +1,23 @@
 import { state, esc, RES_TYPES, AZURE_ICON_BASE, saveState, fullUpdate, updateCost, getRecommendedDnsZones } from '../state-management.js';
 
 // ================================================================
+// HELPER: Render config fields with optional filter
+// ================================================================
+function renderConfigFields(objId, config, filterFn = null) {
+  let html = '';
+  Object.keys(config).forEach(k => {
+    if (filterFn && !filterFn(k)) return; // Skip filtered keys
+    const label = k.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase());
+    if(config[k]==='true'||config[k]==='false'){
+      html+=`<div class="editor-row"><span class="editor-label">${label}</span><select class="input-field" onchange="window._updateResConfig('${objId}','${k}',this.value)"><option value="true"${config[k]==='true'?' selected':''}>Yes</option><option value="false"${config[k]==='false'?' selected':''}>No</option></select></div>`;
+    } else {
+      html+=`<div class="editor-row"><span class="editor-label">${label}</span><input class="input-field" value="${esc(config[k])}" onchange="window._updateResConfig('${objId}','${k}',this.value)"></div>`;
+    }
+  });
+  return html;
+}
+
+// ================================================================
 // RIGHT EDITOR
 // ================================================================
 export function renderEditor(){
@@ -238,7 +255,35 @@ export function renderEditor(){
           ${rt.label}
         </div>
       <div class="editor-row"><span class="editor-label">Name</span><input class="input-field" value="${esc(obj.name)}" onchange="window._updateResource('${obj.id}','name',this.value)"></div>`;
-    
+     
+    // Special PE section with target resource selection
+    if(obj.type === 'pe'){
+      const { getPeTargetableResources, getPeTargetResource, PE_TARGET_DNS_RECOMMENDATIONS, getAllPrivateEndpoints } = window._state;
+      const targetableResources = getPeTargetableResources();
+      const currentTarget = getPeTargetResource(obj.id);
+       
+      h+=`<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🔗 Private Link Target</span></div>`;
+      h+=`<div class="editor-row"><span class="editor-label">Target Resource</span>
+        <select class="input-field" onchange="window._updateResConfig('${obj.id}','targetResourceId',this.value)">
+          <option value="">-- Select target resource --</option>
+          ${targetableResources.map(r => `<option value="${r.id}"${obj.config.targetResourceId === r.id ? ' selected' : ''}>${esc(r.name)} (${RES_TYPES[r.type]?.label || r.type})</option>`).join('')}
+        </select>
+      </div>`;
+       
+      if(currentTarget) {
+        h+=`<div class="editor-row"><span class="editor-label">Target Info</span><span style="font-size:11px;color:var(--muted);">🎯 ${esc(currentTarget.name)} in ${RES_TYPES[currentTarget.type]?.label || 'Resource'}</span></div>`;
+         
+        // Show recommended DNS zones for this target
+        const recommendedZones = PE_TARGET_DNS_RECOMMENDATIONS[obj.config.target] || [];
+        if(recommendedZones.length > 0) {
+          h+=`<div class="editor-row" style="flex-direction:column;align-items:stretch;margin-top:8px;padding:8px;background:rgba(0,176,148,0.05);border-radius:4px;">
+            <span style="font-size:10px;font-weight:bold;color:var(--azure-green);margin-bottom:6px;">💡 Required DNS Zones:</span>
+            ${recommendedZones.map(z => `<div style="font-size:9px;color:var(--text);margin-bottom:3px;padding:4px;background:rgba(0,120,212,0.1);border-radius:2px;">${esc(z)}</div>`).join('')}
+          </div>`;
+        }
+      }
+    }
+     
     if(obj.type === 'vm'){
       // VM: Structured sections for full configuration
       const cfg = obj.config;
@@ -269,15 +314,12 @@ export function renderEditor(){
       Object.keys(cfg).filter(k=>!allSectionKeys.includes(k)).forEach(k=>{
         h+=`<div class="editor-row"><span class="editor-label">${k}</span><input class="input-field" value="${esc(cfg[k])}" onchange="window._updateResConfig('${obj.id}','${k}',this.value)"></div>`;
       });
-    } else {
-      Object.keys(obj.config).forEach(k=>{
-        const label = k.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase());
-        if(obj.config[k]==='true'||obj.config[k]==='false'){
-          h+=`<div class="editor-row"><span class="editor-label">${label}</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','${k}',this.value)"><option value="true"${obj.config[k]==='true'?' selected':''}>Yes</option><option value="false"${obj.config[k]==='false'?' selected':''}>No</option></select></div>`;
-        } else {
-          h+=`<div class="editor-row"><span class="editor-label">${label}</span><input class="input-field" value="${esc(obj.config[k])}" onchange="window._updateResConfig('${obj.id}','${k}',this.value)"></div>`;
-        }
-      });
+    } else if(obj.type !== 'pe') {
+      h += renderConfigFields(obj.id, obj.config);
+    } else if(obj.type === 'pe') {
+      // For PE, render remaining config fields (target, groupId, etc.) skipping PE-specific fields
+      // Note: Special PE UI (target selection, DNS recommendations) already rendered above
+      h += renderConfigFields(obj.id, obj.config, k => !['targetResourceId', 'targetResourceName'].includes(k));
     }
     h+=`<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="window._deleteResource('${obj.id}')">🗑 Delete Resource</button>`;
   } else if (typeObj === 'rgResource') {
@@ -345,14 +387,31 @@ export function renderEditor(){
     if(obj.type === 'dns' && obj.config.vnetLinks !== undefined) {
       const allVnetsForLink = [state.hub, ...state.spokes];
       const linkedIds = (obj.config.vnetLinks||[]).map(l => l.vnetId);
+      const { getRecommendedVnetLinksForDnsZone } = window._state;
+      const recommendedLinks = getRecommendedVnetLinksForDnsZone(obj.id);
+      
       h+=`<div class="editor-row" style="margin-top:10px;"><span class="editor-label" style="font-weight:bold;">VNet Links</span></div>`;
+      if(recommendedLinks.length > 0) {
+        h+=`<div style="padding:8px;background:rgba(0,120,212,0.05);border-radius:4px;margin-bottom:8px;border-left:3px solid var(--azure-blue);">
+          <span style="font-size:9px;font-weight:bold;color:var(--azure-blue);display:block;margin-bottom:4px;">💡 Recommended based on Private Endpoints:</span>
+          ${recommendedLinks.map(r => `<div style="font-size:9px;color:var(--text);margin-bottom:2px;">✓ ${esc(r.vnetName)} (${r.peCount} PE${r.peCount !== 1 ? 's' : ''})</div>`).join('')}
+        </div>`;
+      }
+      
       h+=`<div style="display:flex; flex-direction:column; gap:4px; margin-top:4px;">`;
       allVnetsForLink.forEach(v => {
         const isLinked = linkedIds.includes(v.id);
+        const isRecommended = recommendedLinks.some(r => r.vnetId === v.id);
+        const linkStyle = isLinked 
+          ? "border:1px solid #00B294;background:rgba(0,178,148,.1);color:#00B294;"
+          : isRecommended 
+          ? "border:1px solid #FF8C00;background:rgba(255,140,0,.1);color:#FF8C00;"
+          : "border:1px solid var(--border);background:transparent;color:var(--text);";
+        
         if (isLinked) {
-          h+=`<div style="display:flex;gap:4px;"><button style="flex:1;padding:8px;border-radius:4px;cursor:pointer;font-family:JetBrains Mono;font-size:10px;font-weight:bold;border:1px solid #00B294;background:rgba(0,178,148,.1);color:#00B294;transition:0.2s;" onclick="window._selectVnetLink('${obj.id}','${v.id}')">🔗 ${esc(v.name)}</button><button style="padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px solid var(--danger);background:transparent;color:var(--danger);" onclick="window._toggleVnetLink('${obj.id}','${v.id}')" title="Remove link">✕</button></div>`;
+          h+=`<div style="display:flex;gap:4px;"><button style="flex:1;padding:8px;border-radius:4px;cursor:pointer;font-family:JetBrains Mono;font-size:10px;font-weight:bold;${linkStyle}transition:0.2s;" onclick="window._selectVnetLink('${obj.id}','${v.id}')">🔗 ${esc(v.name)}</button><button style="padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px solid var(--danger);background:transparent;color:var(--danger);" onclick="window._toggleVnetLink('${obj.id}','${v.id}')" title="Remove link">✕</button></div>`;
         } else {
-          h+=`<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-family:JetBrains Mono;font-size:10px;font-weight:bold;border:1px solid var(--border);background:transparent;color:var(--text);transition:0.2s;" onclick="window._toggleVnetLink('${obj.id}','${v.id}')">🔌 ${esc(v.name)}</button>`;
+          h+=`<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-family:JetBrains Mono;font-size:10px;font-weight:bold;${linkStyle}transition:0.2s;" onclick="window._toggleVnetLink('${obj.id}','${v.id}')">${isRecommended ? '⚡' : '🔌'} ${esc(v.name)}</button>`;
         }
       });
       h+=`</div>`;

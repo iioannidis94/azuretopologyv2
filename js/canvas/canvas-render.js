@@ -1,9 +1,12 @@
 import { state, RES_TYPES, SUB_COLORS, RG_COLORS, loadedImages } from '../state-management.js';
 import { getRenderNodes, getSubBounds, getRgBounds, getMgBounds } from './canvas-layout.js';
 import { drawMinimap, setMinimapDrawFn } from './canvas-minimap.js';
+import { ViewportCuller, PeeringCache } from './canvas-viewport.js';
 
 const canvas = document.getElementById('diagram-canvas');
 const ctx = canvas.getContext('2d');
+const culler = new ViewportCuller(canvas);
+const peeringCache = new PeeringCache();
 
 function safeRR(c,x,y,w,h,r){if(typeof c.roundRect==='function')c.roundRect(x,y,w,h,r);else c.rect(x,y,w,h);}
 
@@ -39,6 +42,13 @@ export function draw(){
   const nodes=getRenderNodes();
   const map={};nodes.forEach(n=>map[n.id]=n);
   const dw=state.theme==='drawio';
+  
+  // Calculate viewport bounds for culling
+  const viewport = culler.getViewportBounds(state.offset.x, state.offset.y, state.scale, state.scale);
+  const showDetailPeerings = peeringCache.shouldShowDetail(state.scale);
+  
+  // Filter visible nodes for large datasets
+  const visibleNodes = culler.filterVisibleNodes(nodes, viewport);
 
   if(state.layout==='grid'){
     // Draw Management Group bounds (if enabled)
@@ -46,6 +56,7 @@ export function draw(){
       state.managementGroups.forEach((mg) => {
         const b = getMgBounds(mg.id, nodes);
         if (!b) return;
+        if (!culler.isNodeVisible({ x: b.x + b.w/2, y: b.y + b.h/2, width: b.w, height: b.h }, viewport)) return;
         ctx.beginPath(); safeRR(ctx, b.x, b.y, b.w, b.h, 20);
         ctx.fillStyle = dw ? 'rgba(0,120,212,0.04)' : 'rgba(0,120,212,0.03)'; ctx.fill();
         ctx.setLineDash([12, 6]); ctx.strokeStyle = dw ? 'rgba(0,120,212,0.6)' : 'rgba(0,120,212,0.4)'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]);
@@ -58,6 +69,7 @@ export function draw(){
     state.subscriptions.forEach((sub,si)=>{
       const b=getSubBounds(sub.id,nodes);
       if(!b)return;
+      if (!culler.isNodeVisible({ x: b.x + b.w/2, y: b.y + b.h/2, width: b.w, height: b.h }, viewport)) return;
       const col=SUB_COLORS[si%SUB_COLORS.length];
       ctx.beginPath();safeRR(ctx,b.x,b.y,b.w,b.h,16);
       ctx.fillStyle=dw?`rgba(255,185,0,0.08)`:`rgba(255,185,0,0.05)`;ctx.fill();
@@ -69,6 +81,7 @@ export function draw(){
     state.resourceGroups.forEach((rg,ri)=>{
       const b=getRgBounds(rg.id,nodes);
       if(!b)return;
+      if (!culler.isNodeVisible({ x: b.x + b.w/2, y: b.y + b.h/2, width: b.w, height: b.h }, viewport)) return;
       const col=RG_COLORS[ri%RG_COLORS.length];
       ctx.beginPath();safeRR(ctx,b.x,b.y,b.w,b.h,10);
       ctx.fillStyle=dw?'rgba(135,100,184,0.08)':'rgba(135,100,184,0.08)';ctx.fill();
@@ -84,6 +97,7 @@ export function draw(){
   nodes.forEach(n => {
     if (n.isOnPrem && n.parentId && map[n.parentId]) {
       const target = map[n.parentId];
+      if (!culler.isLineVisible(n.x + n.width/2, n.y, target.x, target.y, viewport)) return;
       ctx.beginPath();
       ctx.moveTo(n.x + n.width/2, n.y); ctx.lineTo(target.x - (target.width?target.width/2:target.radius), target.y);
       ctx.strokeStyle = dw ? '#107C10' : '#107C10'; ctx.lineWidth = 3; ctx.setLineDash([6,6]);
@@ -97,6 +111,10 @@ export function draw(){
         if (!target) return;
         const lineKey = [n.id, target.id].sort().join('|');
         if (drawnLines.has(lineKey)) return;
+        
+        // Skip rendering distant peerings at far zoom - check visibility before expensive gradient calculations
+        if (!showDetailPeerings && !culler.isLineVisible(n.x, n.y, target.x, target.y, viewport)) return;
+        
         drawnLines.add(lineKey);
 
         ctx.beginPath();
@@ -128,11 +146,29 @@ export function draw(){
           midX = (n.x + target.x) / 2; midY = (n.y + target.y) / 2 - 4;
         }
 
+        // Simplify rendering for non-selected peerings at low zoom
         if (dw) { ctx.strokeStyle = '#9CA3AF'; ctx.lineWidth = 2; } 
-        else { const g = ctx.createLinearGradient(n.x, n.y, target.x, target.y); g.addColorStop(0, 'rgba(0,120,212,0.6)'); g.addColorStop(1, target.color + 'A0'); ctx.strokeStyle = g; ctx.lineWidth = 2; }
+        else { 
+          if (showDetailPeerings) {
+            const g = ctx.createLinearGradient(n.x, n.y, target.x, target.y); 
+            g.addColorStop(0, 'rgba(0,120,212,0.6)'); 
+            g.addColorStop(1, target.color + 'A0'); 
+            ctx.strokeStyle = g;
+          } else {
+            ctx.strokeStyle = 'rgba(0,120,212,0.4)'; // Simpler color at low zoom
+          }
+          ctx.lineWidth = 2; 
+        }
         ctx.stroke();
 
-        if (dw) { ctx.font = '8px JetBrains Mono'; ctx.fillStyle = '#9CA3AF'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText('Peering', midX, midY); }
+        // Only show text labels when zoomed in
+        if (showDetailPeerings && dw) { 
+          ctx.font = '8px JetBrains Mono'; 
+          ctx.fillStyle = '#9CA3AF'; 
+          ctx.textAlign = 'center'; 
+          ctx.textBaseline = 'bottom'; 
+          ctx.fillText('Peering', midX, midY); 
+        }
       });
     }
   });
@@ -145,6 +181,7 @@ export function draw(){
     (res.config.vnetLinks).forEach(link => {
       const target = map[link.vnetId];
       if(!target) return;
+      if (!culler.isLineVisible(dnsNode.x, dnsNode.y, target.x, target.y, viewport)) return;
       ctx.beginPath();
       ctx.moveTo(dnsNode.x, dnsNode.y);
       ctx.lineTo(target.x, target.y);
@@ -166,9 +203,9 @@ export function draw(){
     });
   });
 
-  // DRAW NODES
-  nodes.filter(n => n.isSubnet).forEach(n => drawSubnet(n, dw));
-  nodes.filter(n => !n.isSubnet).forEach(n => drawNode(n, dw));
+  // DRAW NODES (filtered by visibility)
+  visibleNodes.filter(n => n.isSubnet).forEach(n => drawSubnet(n, dw));
+  visibleNodes.filter(n => !n.isSubnet).forEach(n => drawNode(n, dw));
   
   ctx.restore();
   drawMinimap();
@@ -285,6 +322,15 @@ function drawNode(n, dw){
     }
   }
   ctx.restore();
+}
+
+// Cache management exports
+export function clearPeeringCache() {
+  peeringCache.clear();
+}
+
+export function getPeeringCacheStats() {
+  return peeringCache.getStats();
 }
 
 // Register draw with the minimap module so it can pan the main canvas without a circular import

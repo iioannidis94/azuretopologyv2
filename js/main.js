@@ -8,6 +8,7 @@ import { closeModal, copyText, downloadText, toggleExportPanel } from './exports
 import { exportJson, openJsonImportModal, handleJsonFile, confirmJsonImport, previewPastedJson } from './exports/export-json.js';
 import { openAzureInventoryModal, handleInventoryFile, previewInventory, confirmInventoryImport, setInventoryScope } from './exports/export-inventory.js';
 import { openTemplateGallery, closeTemplateGallery, applyTemplate } from './template-gallery.js';
+import { getPeTargetableResources, getPeTargetResource, getAllPrivateEndpoints, getPesForResource, getRecommendedVnetLinksForDnsZone, getRecommendedDnsZones, PE_TARGET_DNS_RECOMMENDATIONS } from './state/state-helpers.js';
 
 // ================================================================
 // WIRE UP fullUpdate
@@ -258,6 +259,20 @@ window._toggleFullView = function() {
     btn.textContent = '⛶ Full View';
   }
   setTimeout(resize, 350);
+};
+
+// ================================================================
+// EXPOSE STATE HELPERS FOR UI & SECURITY PANEL
+// ================================================================
+window._state = {
+  state,
+  getPeTargetableResources,
+  getPeTargetResource,
+  getAllPrivateEndpoints,
+  getPesForResource,
+  getRecommendedVnetLinksForDnsZone,
+  getRecommendedDnsZones,
+  PE_TARGET_DNS_RECOMMENDATIONS
 };
 
 // ================================================================

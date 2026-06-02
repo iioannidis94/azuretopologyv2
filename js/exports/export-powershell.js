@@ -158,6 +158,9 @@ function generatePowerShellResource(res, rg, varN, sn) {
     case 'pe': {
       const peConnectionName = c.connectionName || `${res.name}-connection`;
       const peGroupId = c.groupId || c.subResource || c.target || 'blob';
+      const targetInfo = c.targetResourceName ? `(${c.targetResourceName})` : '';
+      lines.push(`# Private Endpoint: ${res.name} ${targetInfo}`);
+      lines.push(`# NOTE: Replace "<target-resource-id>" with actual resource ID. Target should be: ${c.targetResourceId ? 'Selected' : 'NOT SELECTED'}`);
       lines.push(`$privateEndpointConnection = New-AzPrivateLinkServiceConnection -Name "${peConnectionName}" -PrivateLinkServiceId "<target-resource-id>" -GroupId "${peGroupId}"`);
       lines.push(`New-AzPrivateEndpoint -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Subnet (Get-AzVirtualNetworkSubnetConfig -Name "${sn.name}" -VirtualNetwork ${varN}) -PrivateLinkServiceConnection $privateEndpointConnection`);
       if (c.privateDnsZoneId) {

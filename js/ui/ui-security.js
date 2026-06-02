@@ -145,6 +145,66 @@ function analyzeSecurityPosture() {
     }
   });
 
+  // PE-SPECIFIC CHECKS (new)
+  const { getPeTargetableResources, getPeTargetResource, PE_TARGET_DNS_RECOMMENDATIONS, getAllPrivateEndpoints, getRecommendedVnetLinksForDnsZone } = window._state || {};
+  
+  if (getAllPrivateEndpoints) {
+    // 9. PE without target resource selected
+    const allPes = getAllPrivateEndpoints();
+    allPes.forEach(pe => {
+      if (!pe.config.targetResourceId) {
+        findings.push({ severity: 'error', icon: '🚫', message: `Private Endpoint "${pe.name}" has no target resource selected. Link it to a resource (Storage, SQL, Key Vault, etc.).`, resId: pe.id });
+      }
+    });
+    
+    // 10. PE with non-existent target resource
+    allPes.forEach(pe => {
+      if (pe.config.targetResourceId) {
+        const targetRes = getPeTargetResource(pe.id);
+        if (!targetRes) {
+          findings.push({ severity: 'error', icon: '🚫', message: `Private Endpoint "${pe.name}" targets a non-existent resource. Update the target.`, resId: pe.id });
+        }
+      }
+    });
+    
+    // 11. PE without required DNS zones
+    allPes.forEach(pe => {
+      if (pe.config.target && pe.config.targetResourceId && PE_TARGET_DNS_RECOMMENDATIONS) {
+        const recommendedZones = PE_TARGET_DNS_RECOMMENDATIONS[pe.config.target] || [];
+        const existingZones = (state.rgResources || []).filter(r => r.type === 'dns' && r.config.zone).map(r => r.config.zone);
+        const missingZones = recommendedZones.filter(z => !existingZones.includes(z));
+        
+        if (missingZones.length > 0) {
+          findings.push({ 
+            severity: 'warning', 
+            icon: '⚠️', 
+            message: `Private Endpoint "${pe.name}" requires DNS zones (${missingZones.slice(0, 2).join(', ')}${missingZones.length > 2 ? '...' : ''}). Create them for proper name resolution.`, 
+            resId: pe.id 
+          });
+        }
+      }
+    });
+  }
+  
+  // 12. Private DNS zones without required VNET links
+  const allDnsZones = (state.rgResources || []).filter(r => r.type === 'dns');
+  allDnsZones.forEach(dnsZone => {
+    if (getRecommendedVnetLinksForDnsZone) {
+      const recommendedLinks = getRecommendedVnetLinksForDnsZone(dnsZone.id);
+      const currentLinks = (dnsZone.config.vnetLinks || []).map(l => l.vnetId);
+      const missingLinks = recommendedLinks.filter(r => !currentLinks.includes(r.vnetId));
+      
+      if (missingLinks.length > 0) {
+        findings.push({ 
+          severity: 'warning', 
+          icon: '⚠️', 
+          message: `Private DNS Zone "${dnsZone.name}" (${dnsZone.config.zone}) is missing VNET links to ${missingLinks.map(l => l.vnetName).join(', ')}. Add them for DNS resolution in those VNets.`, 
+          resId: dnsZone.id 
+        });
+      }
+    }
+  });
+
   return findings;
 }
 

@@ -1,4 +1,19 @@
 import { state, uid, fullUpdate } from './state-management.js';
+import { RES_TYPES } from './state-management.js';
+
+// ================================================================
+// TEMPLATE CONFIG HELPER - Ensures all template resources have full configs
+// ================================================================
+/**
+ * Merges partial config with full default config to ensure consistency.
+ * This ensures template resources have the same config structure as manually created ones.
+ */
+function _mergeWithDefaults(type, partialConfig) {
+  if (RES_TYPES[type] && RES_TYPES[type].config) {
+    return { ...RES_TYPES[type].config, ...partialConfig };
+  }
+  return partialConfig || {};
+}
 
 // ================================================================
 // TEMPLATE GALLERY - Architecture Templates
@@ -341,6 +356,36 @@ function generateLandingZoneCAFTemplate() {
 // TEMPLATE APPLICATION
 // ================================================================
 
+/**
+ * Post-process template to ensure all resources have full default configs.
+ * This ensures templates follow the same config consistency principle as manual creation and imports.
+ */
+function _ensureFullConfigsInTemplate(templateData) {
+  const processVnet = (vnet) => {
+    if (vnet.subnets) {
+      vnet.subnets.forEach(subnet => {
+        if (subnet.resources) {
+          subnet.resources.forEach(res => {
+            res.config = _mergeWithDefaults(res.type, res.config);
+          });
+        }
+      });
+    }
+  };
+  
+  if (templateData.hub) processVnet(templateData.hub);
+  if (templateData.spokes) {
+    templateData.spokes.forEach(spoke => processVnet(spoke));
+  }
+  if (templateData.rgResources && Array.isArray(templateData.rgResources)) {
+    templateData.rgResources.forEach(res => {
+      res.config = _mergeWithDefaults(res.type, res.config);
+    });
+  }
+  
+  return templateData;
+}
+
 function applyTemplate(templateId) {
   let templateData;
   
@@ -352,6 +397,9 @@ function applyTemplate(templateId) {
     case 'landing-zone-caf': templateData = generateLandingZoneCAFTemplate(); break;
     default: return;
   }
+  
+  // Ensure all template resources have full default configs
+  templateData = _ensureFullConfigsInTemplate(templateData);
   
   // Apply template to state
   state.hub = templateData.hub;

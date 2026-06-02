@@ -236,6 +236,9 @@ function generateBicepResource(res, rg, vnet, sn) {
     case 'pe': {
       const peGroupId = c.groupId || c.subResource || c.target || 'blob';
       const peConnectionName = c.connectionName || `${res.name}-connection`;
+      const targetInfo = c.targetResourceName ? ` (${c.targetResourceName})` : '';
+      lines.push(`// Private Endpoint: ${res.name}${targetInfo}`);
+      lines.push(`// NOTE: Replace '<target-resource-id>' with actual resource ID. Target should be: ${c.targetResourceId ? 'Selected' : 'NOT SELECTED'}`);
       lines.push(`module ${safeName} 'br/public:avm/res/network/private-endpoint:0.4.0' = {`);
       lines.push(`  name: '${res.name}'`);
       lines.push(`  scope: ${rgRef}`);

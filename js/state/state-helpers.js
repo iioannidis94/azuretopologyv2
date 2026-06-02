@@ -142,3 +142,109 @@ export function getRecommendedDnsZones() {
   });
   return [...recommended];
 }
+
+// ================================================================
+// PRIVATE ENDPOINT DEPENDENCY HELPERS
+// ================================================================
+
+// Get all resources that can be PE targets (exclude peering resources)
+export function getPeTargetableResources() {
+  const peTargetTypes = ['sa', 'sql', 'kv', 'cosmos', 'redis', 'app', 'apim', 'sb', 'evh', 'aks', 'fa', 'monitor'];
+  return getAllDiagramResources().filter(r => peTargetTypes.includes(r.type));
+}
+
+// Get all Private Endpoints in the diagram
+export function getAllPrivateEndpoints() {
+  const allVnets = [state.hub, ...state.spokes];
+  return allVnets.flatMap(vnet => 
+    vnet.subnets.flatMap(sn => 
+      sn.resources.filter(r => r.type === 'pe')
+    )
+  );
+}
+
+// Get target resource for a PE by its ID
+export function getPeTargetResource(peId) {
+  const pe = getAllPrivateEndpoints().find(p => p.id === peId);
+  if (!pe || !pe.config.targetResourceId) return null;
+  return getAllDiagramResources().find(r => r.id === pe.config.targetResourceId);
+}
+
+// Get all PEs targeting a specific resource
+export function getPesForResource(resourceId) {
+  return getAllPrivateEndpoints().filter(pe => 
+    pe.config && pe.config.targetResourceId === resourceId
+  );
+}
+
+// Get VNets that contain Private Endpoints
+export function getVnetsWithPrivateEndpoints() {
+  const allVnets = [state.hub, ...state.spokes];
+  return allVnets.filter(vnet =>
+    vnet.subnets.some(sn =>
+      sn.resources.some(r => r.type === 'pe')
+    )
+  );
+}
+
+// Get recommended VNET links for a private DNS zone based on PE placement
+export function getRecommendedVnetLinksForDnsZone(dnsZoneId) {
+  const dnsZone = (state.rgResources || []).find(r => r.id === dnsZoneId && r.type === 'dns');
+  if (!dnsZone || !dnsZone.config.zone) return [];
+  
+  const zone = dnsZone.config.zone;
+  const allVnets = [state.hub, ...state.spokes];
+  const recommendedVnets = [];
+  
+  // Find all VNets that contain PEs targeting resources that need this DNS zone
+  allVnets.forEach(vnet => {
+    const hasRelevantPe = vnet.subnets.some(sn =>
+      sn.resources.some(r => {
+        if (r.type !== 'pe' || !r.config || !r.config.target) return false;
+        const recommendedZones = PE_TARGET_DNS_RECOMMENDATIONS[r.config.target] || [];
+        return recommendedZones.includes(zone);
+      })
+    );
+    
+    if (hasRelevantPe) {
+      recommendedVnets.push({
+        vnetId: vnet.id,
+        vnetName: vnet.name,
+        peCount: vnet.subnets.reduce((sum, sn) => 
+          sum + sn.resources.filter(r => r.type === 'pe').length, 0)
+      });
+    }
+  });
+  
+  return recommendedVnets;
+}
+
+// Validate PE configuration
+export function validatePeConfiguration(peId) {
+  const pe = getAllPrivateEndpoints().find(p => p.id === peId);
+  if (!pe) return { valid: false, error: 'PE not found' };
+  
+  const targetResource = getPeTargetResource(peId);
+  if (!pe.config.targetResourceId) {
+    return { valid: false, error: 'Target resource not selected' };
+  }
+  if (!targetResource) {
+    return { valid: false, error: 'Target resource does not exist' };
+  }
+  
+  // Check if PE and target are in same RG
+  if (pe.rgId !== targetResource.rgId) {
+    return { valid: false, warning: 'PE and target resource are in different RGs' };
+  }
+  
+  // Check DNS zone configuration
+  const recommendedZones = PE_TARGET_DNS_RECOMMENDATIONS[pe.config.target] || [];
+  const existingZones = (state.rgResources || []).filter(r => r.type === 'dns' && r.config.zone).map(r => r.config.zone);
+  const missingZones = recommendedZones.filter(z => !existingZones.includes(z));
+  
+  if (missingZones.length > 0) {
+    return { valid: true, warning: `Missing DNS zones: ${missingZones.join(', ')}` };
+  }
+  
+  return { valid: true };
+}

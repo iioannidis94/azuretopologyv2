@@ -1,8 +1,10 @@
 import { state, saveState, fullUpdate } from '../state-management.js';
 import { getRenderNodes, getSubBounds, getRgBounds } from './canvas-layout.js';
 import { draw, pointToSegmentDist } from './canvas-render.js';
+import { ViewportCuller } from './canvas-viewport.js';
 
 const canvas = document.getElementById('diagram-canvas');
+const culler = new ViewportCuller(canvas);
 
 // ================================================================
 // CANVAS INTERACTIONS (DRAG & DROP)
@@ -57,11 +59,22 @@ canvas.addEventListener('mousedown',e=>{
     // Check if clicking on a peering line
     let peeringHit = null;
     const map = {}; nodes.forEach(n => map[n.id] = n);
+    
+    // Calculate viewport for early termination
+    const viewport = culler.getViewportBounds(state.offset.x, state.offset.y, state.scale, state.scale);
+    
     const allVnetsForPeering = [state.hub, ...state.spokes];
     for (const vnet of allVnetsForPeering) {
+      const n = map[vnet.id];
+      if (!n) continue;
+      
+      // Early termination: if VNet is far from click, skip its peerings
+      if (!culler.isNodeVisible(n, viewport)) continue;
+      
       for (const peerId of (vnet.peerings || [])) {
-        const n = map[vnet.id], target = map[peerId];
-        if (!n || !target) continue;
+        const target = map[peerId];
+        if (!target) continue;
+        
         // Check distance from point to line segment
         const dist = pointToSegmentDist(px, py, n.x, n.y, target.x, target.y);
         if (dist < 12) { peeringHit = { id1: vnet.id, id2: peerId }; break; }
@@ -79,6 +92,10 @@ canvas.addEventListener('mousedown',e=>{
       if(res.type !== 'dns' || !res.config || !res.config.vnetLinks) continue;
       const dnsNode = map[res.id];
       if(!dnsNode) continue;
+      
+      // Early termination: if DNS zone is far from click, skip its links
+      if (!culler.isNodeVisible(dnsNode, viewport)) continue;
+      
       for (const link of res.config.vnetLinks) {
         const target = map[link.vnetId];
         if(!target) continue;
@@ -224,7 +241,38 @@ canvas.addEventListener('mouseleave',()=>{
   if(state.dragging){state.dragging=false;saveState();}
   canvas.style.cursor='grab';
 });
-canvas.addEventListener('wheel',e=>{e.preventDefault();state.scale=Math.max(.2,Math.min(3,state.scale*(e.deltaY<0?1.1:.9)));saveState();draw();},{passive:false});
+
+// Zoom throttling for performance optimization using requestAnimationFrame
+let drawScheduled = false;
+let saveStateTimeout = null;
+
+function scheduleRender() {
+  if (!drawScheduled) {
+    drawScheduled = true;
+    requestAnimationFrame(() => {
+      draw();
+      drawScheduled = false;
+    });
+  }
+}
+
+function throttleSaveState() {
+  if (saveStateTimeout) clearTimeout(saveStateTimeout);
+  saveStateTimeout = setTimeout(() => {
+    saveState();
+    saveStateTimeout = null;
+  }, 100); // Debounce state saving: persist 100ms after zoom stops
+}
+
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const oldScale = state.scale;
+  state.scale=Math.max(.2,Math.min(3,state.scale*(e.deltaY<0?1.1:.9)));
+  if (oldScale !== state.scale) {
+    scheduleRender();
+    throttleSaveState();
+  }
+},{passive:false});
 
 // TOUCH EVENTS FOR MOBILE
 let lastPinchDist = 0;
@@ -242,9 +290,13 @@ canvas.addEventListener('touchmove',e=>{
     e.preventDefault();
     const dist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
     if(lastPinchDist > 0){
+      const oldScale = state.scale;
       const factor = dist / lastPinchDist;
       state.scale = Math.max(.2, Math.min(3, state.scale * factor));
-      draw();
+      if (oldScale !== state.scale) {
+        scheduleRender();
+        throttleSaveState();
+      }
     }
     lastPinchDist = dist;
     return;

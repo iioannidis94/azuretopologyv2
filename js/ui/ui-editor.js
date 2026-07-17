@@ -8,13 +8,13 @@ import { renderRgResourceSection } from './editor/editor-rgresource.js';
 function renderValidationBadge(resource) {
   if (!resource || !resource.type) return '';
   const validation = validateResource(resource);
-  if (validation.status === 'valid') {
+  if (validation.status === 'complete') {
     return '<span class="validation-badge valid" title="All required fields present">✓</span>';
   } else if (validation.status === 'errors') {
-    const criticalFields = validation.critical.map(c => c.field).join(', ');
-    return `<span class="validation-badge error" title="Missing required: ${criticalFields}">⚠️ ${validation.critical.length}</span>`;
+    const criticalFields = validation.errors.join(', ');
+    return `<span class="validation-badge error" title="Missing required: ${criticalFields}">⚠️ ${validation.errors.length}</span>`;
   } else if (validation.status === 'warnings') {
-    const warningFields = validation.warnings.map(w => w.field).join(', ');
+    const warningFields = validation.warnings.join(', ');
     return `<span class="validation-badge warning" title="Review recommended: ${warningFields}">⚡ ${validation.warnings.length}</span>`;
   }
   return '';
@@ -26,16 +26,16 @@ function renderValidationBadge(resource) {
 function renderValidationSection(resource) {
   if (!resource || !resource.type) return '';
   const validation = validateResource(resource);
-  if (validation.status === 'valid') return '';
+  if (validation.status === 'complete') return '';
   
   let html = '<div class="editor-section validation-section">';
   html += '<div class="editor-section-header">Validation Status</div>';
   
-  if (validation.critical.length > 0) {
+  if (validation.errors.length > 0) {
     html += '<div class="validation-errors">';
     html += '<div class="validation-label">⚠️ Required for deployment:</div>';
-    validation.critical.forEach(c => {
-      html += `<div class="validation-item error">• ${c.field}: ${c.message}</div>`;
+    validation.errors.forEach(e => {
+      html += `<div class="validation-item error">• ${e}</div>`;
     });
     html += '</div>';
   }
@@ -44,7 +44,7 @@ function renderValidationSection(resource) {
     html += '<div class="validation-warnings">';
     html += '<div class="validation-label">⚡ Recommended to review:</div>';
     validation.warnings.forEach(w => {
-      html += `<div class="validation-item warning">• ${w.field}: ${w.message}</div>`;
+      html += `<div class="validation-item warning">• ${w}</div>`;
     });
     html += '</div>';
   }

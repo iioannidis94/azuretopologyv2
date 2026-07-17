@@ -4,7 +4,62 @@ import { state, esc, uid, fullUpdate, saveState, getVnetsInRg, getRgResources, R
 // TOGGLES & ON PREM
 // ================================================================
 export function toggleTheme(){ state.theme=state.theme==='drawio'?'dark':'drawio'; document.body.classList.toggle('theme-drawio',state.theme==='drawio'); fullUpdate(); }
-export function fitToScreen(){state.offset={x:0,y:0};state.scale=1;saveState();window._draw();}
+export function fitToScreen(){
+  // Get the canvas element
+  const canvas = document.getElementById('diagram-canvas');
+  if (!canvas) return;
+  
+  // Get all render nodes to calculate bounds
+  const nodes = window._getRenderNodes ? window._getRenderNodes() : [];
+  if (nodes.length === 0) {
+    // No nodes - just reset to center
+    state.offset={x:0,y:0};
+    state.scale=1;
+    saveState();
+    window._draw();
+    return;
+  }
+  
+  // Calculate bounds of all nodes
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  nodes.forEach(n => {
+    const halfW = (n.width || n.radius || 60) / 2;
+    const halfH = (n.height || n.radius || 60) / 2;
+    minX = Math.min(minX, n.x - halfW);
+    minY = Math.min(minY, n.y - halfH);
+    maxX = Math.max(maxX, n.x + halfW);
+    maxY = Math.max(maxY, n.y + halfH);
+  });
+  
+  // Add padding
+  const padding = 80;
+  minX -= padding;
+  minY -= padding;
+  maxX += padding;
+  maxY += padding;
+  
+  const contentWidth = maxX - minX;
+  const contentHeight = maxY - minY;
+  const contentCenterX = (minX + maxX) / 2;
+  const contentCenterY = (minY + maxY) / 2;
+  
+  // Calculate scale to fit content
+  const canvasWidth = canvas.width;
+  const canvasHeight = canvas.height;
+  const scaleX = canvasWidth / contentWidth;
+  const scaleY = canvasHeight / contentHeight;
+  const newScale = Math.min(scaleX, scaleY, 1.5); // Don't zoom in more than 1.5x
+  
+  // Calculate offset to center content
+  state.scale = newScale;
+  state.offset = {
+    x: canvasWidth / 2 - contentCenterX * newScale,
+    y: canvasHeight / 2 - contentCenterY * newScale
+  };
+  
+  saveState();
+  window._draw();
+}
 export function toggleOnPrem() { state.onPrem.enabled = !state.onPrem.enabled; fullUpdate(); }
 export function updateOnPremName(val) { state.onPrem.name = val; fullUpdate(); }
 export function updateOnPremCidr(val) { state.onPrem.cidr = val; fullUpdate(); }

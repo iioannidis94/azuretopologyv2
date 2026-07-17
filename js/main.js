@@ -153,6 +153,7 @@ window._redo = redo;
 window._draw = draw;
 window._resize = resize;
 window._selectNode = selectNode;
+window._getRenderNodes = getRenderNodes;
 window._toggleTheme = toggleTheme;
 window._fitToScreen = fitToScreen;
 window._toggleOnPrem = toggleOnPrem;

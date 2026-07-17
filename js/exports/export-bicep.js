@@ -1,4 +1,4 @@
-import { state, RES_TYPES, getVnetsInRg } from '../state-management.js';
+import { state, RES_TYPES, getVnetsInRg, validateAllResources, generateValidationSummary, REQUIRED_FIELDS } from '../state-management.js';
 import { _iacSafe } from './export-utils.js';
 
 function generateBicepResource(res, rg, vnet, sn) {
@@ -69,8 +69,11 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`    runtimeVersion: '${c.runtimeVersion||'20'}'`);
       lines.push(`    osType: '${c.osType||'Linux'}'`);
       lines.push(`    alwaysOn: ${c.alwaysOn === 'true'}`);
-      if (c.storageAccountName) lines.push(`    storageAccountResourceId: resourceId('Microsoft.Storage/storageAccounts', '${c.storageAccountName}') // same subscription + RG; cross-RG: resourceId(rgName, type, name); cross-subscription: resourceId(sub, rgName, type, name)`);
-      else lines.push(`    // storageAccountResourceId: '<storage-account-resource-id>' // required for Function Apps`);
+      if (c.storageAccountName) {
+        lines.push(`    storageAccountResourceId: resourceId('Microsoft.Storage/storageAccounts', '${c.storageAccountName}')`);
+      } else {
+        lines.push(`    storageAccountResourceId: '<REQUIRED:storageAccountName>' // ⚠️ Required for Function Apps`);
+      }
       lines.push(`  }`);
       lines.push(`}\n`);
       break;
@@ -81,8 +84,11 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${res.name}'`);
-      if (c.environmentName) lines.push(`    environmentResourceId: resourceId('Microsoft.App/managedEnvironments', '${c.environmentName}') // same subscription + RG; cross-RG: resourceId(rgName, type, name); cross-subscription: resourceId(sub, rgName, type, name)`);
-      else lines.push(`    // environmentResourceId: '<container-apps-environment-resource-id>' // required`);
+      if (c.environmentName) {
+        lines.push(`    environmentResourceId: resourceId('Microsoft.App/managedEnvironments', '${c.environmentName}')`);
+      } else {
+        lines.push(`    environmentResourceId: '<REQUIRED:environmentName>' // ⚠️ Required - Container Apps Environment`);
+      }
       lines.push(`    containers: [{ image: '${c.image||'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'}', resources: { cpu: ${c.cpu||'0.5'}, memory: '${c.memory||'1.0Gi'}' } }]`);
       lines.push(`    scale: { minReplicas: ${c.minReplicas||1}, maxReplicas: ${c.replicas||10} }`);
       lines.push(`    ingress: { external: ${c.ingress === 'external'}, targetPort: ${c.targetPort||80} }`);
@@ -237,15 +243,18 @@ function generateBicepResource(res, rg, vnet, sn) {
       const peGroupId = c.groupId || c.subResource || c.target || 'blob';
       const peConnectionName = c.connectionName || `${res.name}-connection`;
       const targetInfo = c.targetResourceName ? ` (${c.targetResourceName})` : '';
+      const targetResourceId = c.targetResourceId || '<REQUIRED:targetResourceId>';
       lines.push(`// Private Endpoint: ${res.name}${targetInfo}`);
-      lines.push(`// NOTE: Replace '<target-resource-id>' with actual resource ID. Target should be: ${c.targetResourceId ? 'Selected' : 'NOT SELECTED'}`);
+      if (!c.targetResourceId) {
+        lines.push(`// ⚠️ REQUIRED: targetResourceId - Target resource ID for Private Endpoint`);
+      }
       lines.push(`module ${safeName} 'br/public:avm/res/network/private-endpoint:0.4.0' = {`);
       lines.push(`  name: '${res.name}'`);
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${res.name}'`);
       lines.push(`    subnetResourceId: ${subnetRef}`);
-      lines.push(`    privateLinkServiceConnections: [{ name: '${peConnectionName}', privateLinkServiceId: '<target-resource-id>', groupIds: ['${peGroupId}'] }]`);
+      lines.push(`    privateLinkServiceConnections: [{ name: '${peConnectionName}', privateLinkServiceId: '${targetResourceId}', groupIds: ['${peGroupId}'] }]`);
       if (c.privateDnsZoneId) {
         lines.push(`    privateDnsZoneGroup: { privateDnsZoneGroupConfigs: [{ privateDnsZoneResourceId: '${c.privateDnsZoneId}' }] }`);
       }
@@ -279,14 +288,17 @@ function generateBicepResource(res, rg, vnet, sn) {
     case 'sql': {
       const sqlTier = c.tier || 'GeneralPurpose';
       const sqlSkuName = sqlTier === 'BusinessCritical' ? 'BC_Gen5' : 'GP_Gen5';
-      const sqlServerName = c.serverName || `${res.name}-server`;
+      const sqlServerName = c.serverName || '<REQUIRED:serverName>';
+      if (!c.serverName) {
+        lines.push(`// ⚠️ REQUIRED: serverName - SQL Server name`);
+      }
       lines.push(`module ${safeName}_server 'br/public:avm/res/sql/server:0.4.0' = {`);
       lines.push(`  name: '${sqlServerName}'`);
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${sqlServerName}'`);
       lines.push(`    administratorLogin: 'sqladmin'`);
-      lines.push(`    administratorLoginPassword: '<password>'`);
+      lines.push(`    administratorLoginPassword: '<REQUIRED:password>'`);
       lines.push(`    databases: [{ name: '${res.name}', sku: { name: '${sqlSkuName}', tier: '${sqlTier}', capacity: ${c.vcores||4} }, maxSizeBytes: ${(parseInt(c.maxSizeGB)||32)*1073741824}, collation: '${c.collation||'SQL_Latin1_General_CP1_CI_AS'}', zoneRedundant: ${c.zoneRedundant==='true'} }]`);
       lines.push(`    backupRetentionDays: ${c.backupRetentionDays||7}`);
       lines.push(`  }`);
@@ -505,6 +517,19 @@ function generateBicepResource(res, rg, vnet, sn) {
 
 export function generateBicep(){
   const lines=[];
+  
+  // Run validation and add summary as Bicep comments
+  const validation = validateAllResources(state);
+  const summaryLines = generateValidationSummary(validation).split('\n').map(l => `// ${l.replace(/^# ?/, '')}`);
+  lines.push(...summaryLines);
+  lines.push('');
+  
+  // Add warning if there are validation errors
+  if (validation.errors > 0) {
+    lines.push(`// ⚠️ WARNING: ${validation.errors} resource(s) have missing required fields.`);
+    lines.push(`// ⚠️ Look for <REQUIRED:...> placeholders and fill in the values before deploying.`);
+    lines.push('');
+  }
   
   // Determine target scope based on MG/Sub structure
   if (state.mgEnabled && state.managementGroups && state.managementGroups.length > 0) {

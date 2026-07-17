@@ -1,4 +1,4 @@
-import { state, RES_TYPES, getVnetsInRg } from '../state-management.js';
+import { state, RES_TYPES, getVnetsInRg, validateAllResources, generateValidationSummary, REQUIRED_FIELDS } from '../state-management.js';
 import { _iacSafe } from './export-utils.js';
 
 // App Service Plan SKU → Tier/WorkerSize lookup tables
@@ -55,7 +55,11 @@ function generatePowerShellResource(res, rg, varN, sn) {
       break;
     }
     case 'fa': {
-      lines.push(`New-AzFunctionApp -ResourceGroupName "${rg.name}" -Name "${res.name}" -Location "${rg.location}" -Runtime "${c.runtime||'node'}" -RuntimeVersion "${c.runtimeVersion||'20'}" -FunctionsVersion 4 -OSType "${c.osType||'Linux'}" -StorageAccountName "${c.storageAccountName||'<storage-account-name>'}"`);
+      const storageAcct = c.storageAccountName || '<REQUIRED:storageAccountName>';
+      lines.push(`New-AzFunctionApp -ResourceGroupName "${rg.name}" -Name "${res.name}" -Location "${rg.location}" -Runtime "${c.runtime||'node'}" -RuntimeVersion "${c.runtimeVersion||'20'}" -FunctionsVersion 4 -OSType "${c.osType||'Linux'}" -StorageAccountName "${storageAcct}"`);
+      if (!c.storageAccountName) {
+        lines.push(`# ⚠️ REQUIRED: storageAccountName - Storage account for Function App`);
+      }
       if (c.plan !== 'Consumption' && c.alwaysOn === 'true') {
         lines.push(`# AlwaysOn enabled for ${c.plan} plan`);
       }
@@ -64,8 +68,11 @@ function generatePowerShellResource(res, rg, varN, sn) {
     case 'aca': {
       const acaEnvRef = c.environmentName
         ? `(Get-AzContainerAppManagedEnv -ResourceGroupName "${rg.name}" -EnvName "${c.environmentName}").Id`
-        : '"<container-apps-environment-id>"';
+        : '"<REQUIRED:environmentName>"';
       lines.push(`# Container Apps Environment required. Provide environmentName in config or replace the placeholder.`);
+      if (!c.environmentName) {
+        lines.push(`# ⚠️ REQUIRED: environmentName - Container Apps Environment ID`);
+      }
       lines.push(`# NOTE: The environment is assumed to be in the same resource group ("${rg.name}"). Update -ResourceGroupName if it differs.`);
       lines.push(`$acaEnvId = ${acaEnvRef}`);
       lines.push(`New-AzContainerApp -ResourceGroupName "${rg.name}" -Name "${res.name}" -Location "${rg.location}" -ManagedEnvironmentId $acaEnvId -Image "${c.image||'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'}" -Cpu ${c.cpu||'0.5'} -Memory "${c.memory||'1.0Gi'}" -MinReplicas ${c.minReplicas||1} -MaxReplicas ${c.replicas||10} -TargetPort ${c.targetPort||80} -IngressType "${c.ingress||'external'}"`);
@@ -159,9 +166,12 @@ function generatePowerShellResource(res, rg, varN, sn) {
       const peConnectionName = c.connectionName || `${res.name}-connection`;
       const peGroupId = c.groupId || c.subResource || c.target || 'blob';
       const targetInfo = c.targetResourceName ? `(${c.targetResourceName})` : '';
+      const targetResourceId = c.targetResourceId || '<REQUIRED:targetResourceId>';
       lines.push(`# Private Endpoint: ${res.name} ${targetInfo}`);
-      lines.push(`# NOTE: Replace "<target-resource-id>" with actual resource ID. Target should be: ${c.targetResourceId ? 'Selected' : 'NOT SELECTED'}`);
-      lines.push(`$privateEndpointConnection = New-AzPrivateLinkServiceConnection -Name "${peConnectionName}" -PrivateLinkServiceId "<target-resource-id>" -GroupId "${peGroupId}"`);
+      if (!c.targetResourceId) {
+        lines.push(`# ⚠️ REQUIRED: targetResourceId - Target resource ID for Private Endpoint`);
+      }
+      lines.push(`$privateEndpointConnection = New-AzPrivateLinkServiceConnection -Name "${peConnectionName}" -PrivateLinkServiceId "${targetResourceId}" -GroupId "${peGroupId}"`);
       lines.push(`New-AzPrivateEndpoint -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Subnet (Get-AzVirtualNetworkSubnetConfig -Name "${sn.name}" -VirtualNetwork ${varN}) -PrivateLinkServiceConnection $privateEndpointConnection`);
       if (c.privateDnsZoneId) {
         lines.push(`$privateDnsZoneConfig = New-AzPrivateDnsZoneConfig -Name "default" -PrivateDnsZoneId "${c.privateDnsZoneId}"`);
@@ -188,7 +198,10 @@ function generatePowerShellResource(res, rg, varN, sn) {
     case 'sql': {
       const sqlTier = c.tier || 'GeneralPurpose';
       const sqlSkuPrefix = sqlTier === 'BusinessCritical' ? 'BC_Gen5' : 'GP_Gen5';
-      const sqlServerName = c.serverName || `${res.name}-server`;
+      const sqlServerName = c.serverName || '<REQUIRED:serverName>';
+      if (!c.serverName) {
+        lines.push(`# ⚠️ REQUIRED: serverName - SQL Server name`);
+      }
       lines.push(`New-AzSqlServer -ServerName "${sqlServerName}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -SqlAdministratorCredentials $cred`);
       lines.push(`New-AzSqlDatabase -DatabaseName "${res.name}" -ServerName "${sqlServerName}" -ResourceGroupName "${rg.name}" -Edition "${sqlTier}" -VCore ${c.vcores||4} -ComputeGeneration "Gen5" -MaxSizeBytes ${(parseInt(c.maxSizeGB)||32)*1073741824} -Collation "${c.collation||'SQL_Latin1_General_CP1_CI_AS'}" -BackupStorageRedundancy "${c.zoneRedundant==='true'?'Zone':'Local'}" -ZoneRedundant:$${c.zoneRedundant==='true'?'true':'false'}`);
       if(c.backupRetentionDays && c.backupRetentionDays !== '7') lines.push(`Set-AzSqlDatabaseBackupShortTermRetentionPolicy -ServerName "${sqlServerName}" -DatabaseName "${res.name}" -ResourceGroupName "${rg.name}" -RetentionDays ${c.backupRetentionDays}`);
@@ -300,6 +313,18 @@ function generatePowerShellResource(res, rg, varN, sn) {
 export function generatePowerShell(){
   const lines=[`# Azure PowerShell Deployment Script\n# Generated: ${new Date().toISOString()}\n`];
   const allVnets = [state.hub, ...state.spokes];
+
+  // Run validation and add summary
+  const validation = validateAllResources(state);
+  lines.push(generateValidationSummary(validation));
+  lines.push('');
+  
+  // Add warning if there are validation errors
+  if (validation.errors > 0) {
+    lines.push(`# ⚠️ WARNING: ${validation.errors} resource(s) have missing required fields.`);
+    lines.push(`# ⚠️ Look for <REQUIRED:...> placeholders and fill in the values before running.`);
+    lines.push('');
+  }
 
   // Management Groups
   if (state.mgEnabled && state.managementGroups && state.managementGroups.length > 0) {

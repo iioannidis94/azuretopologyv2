@@ -79,7 +79,7 @@ export function updateVnetProp(id,key,val){
 export function updateSubnetProp(vnetId,snId,key,val){
   const v=[state.hub,...state.spokes].find(v=>v.id===vnetId);
   if(!v) return;
-  const sn = v.subnets.find(s=>s.id===snId);
+  const sn = (v.subnets || []).find(s=>s.id===snId);
   if(!sn) return;
   sn[key]=val; saveState(); renderEditor();
 }
@@ -110,15 +110,20 @@ export function selectPeering(id1, id2) {
 
 export function addSubnet(vnetId){
   const vnet=[state.hub,...state.spokes].find(v=>v.id===vnetId);
-  if(vnet) { const cidr = nextAvailableSubnetCidr(vnetId); vnet.subnets.push({id:uid(), name:`subnet-${vnet.subnets.length+1}`, cidr, resources:[]}); fullUpdate(); }
+  if(vnet) { 
+    if (!vnet.subnets) vnet.subnets = [];
+    const cidr = nextAvailableSubnetCidr(vnetId); 
+    vnet.subnets.push({id:uid(), name:`subnet-${vnet.subnets.length+1}`, cidr, resources:[]}); 
+    fullUpdate(); 
+  }
 }
 export function deleteSubnet(vnetId, snId){
   const vnet=[state.hub,...state.spokes].find(v=>v.id===vnetId);
-  if(vnet) { vnet.subnets = vnet.subnets.filter(s => s.id !== snId); state.selectedId=null; fullUpdate(); }
+  if(vnet && vnet.subnets) { vnet.subnets = vnet.subnets.filter(s => s.id !== snId); state.selectedId=null; fullUpdate(); }
 }
 export function updateSubnet(vnetId, snId, key, val) {
   const vnet=[state.hub,...state.spokes].find(v=>v.id===vnetId);
-  const sn = vnet?.subnets.find(s=>s.id===snId);
+  const sn = (vnet?.subnets || []).find(s=>s.id===snId);
   if(!sn) return;
   if(key==='cidr'){
     if(!isValidCidr(val)){ alert('Invalid CIDR format. Use format like 10.0.1.0/24'); return; }
@@ -192,13 +197,15 @@ export function addResource(vnetId, snId, resType){
   }
   // Clear custom positions for existing resources in this subnet so they re-layout together
   if(state.customPos){
-    sn.resources.forEach(r => { delete state.customPos[r.id]; });
+    (sn.resources || []).forEach(r => { delete state.customPos[r.id]; });
   }
+  if (!sn.resources) sn.resources = [];
   const nr={id:uid(),type:resType,name:`${sn.name.split('-')[0]}-${resType}`,config:{...rT.config}};
   sn.resources.push(nr); document.querySelectorAll('.res-dropdown').forEach(d=>d.classList.remove('show')); selectNode(nr.id);
 }
 export function deleteResource(resId){
-  [state.hub,...state.spokes].forEach(v => v.subnets.forEach(sn => {
+  [state.hub,...state.spokes].forEach(v => (v.subnets || []).forEach(sn => {
+    if (!sn.resources) return;
     if(sn.resources.some(r => r.id === resId)){
       // Clear custom positions for sibling resources so they re-layout properly
       if(state.customPos) sn.resources.forEach(r => { delete state.customPos[r.id]; });
@@ -210,12 +217,12 @@ export function deleteResource(resId){
   state.selectedId=null; fullUpdate();
 }
 export function updateResource(resId,key,val){
-  [state.hub,...state.spokes].forEach(v => v.subnets.forEach(sn => { const r=sn.resources.find(r=>r.id===resId); if(r)r[key]=val; }));
+  [state.hub,...state.spokes].forEach(v => (v.subnets || []).forEach(sn => { const r=(sn.resources || []).find(r=>r.id===resId); if(r)r[key]=val; }));
   const rgR = (state.rgResources||[]).find(r => r.id === resId); if(rgR) rgR[key] = val;
   fullUpdate();
 }
 export function updateResConfig(resId,configKey,val){
-  [state.hub,...state.spokes].forEach(v => v.subnets.forEach(sn => { const r=sn.resources.find(r=>r.id===resId); if(r)r.config[configKey]=val; }));
+  [state.hub,...state.spokes].forEach(v => (v.subnets || []).forEach(sn => { const r=(sn.resources || []).find(r=>r.id===resId); if(r)r.config[configKey]=val; }));
   // Also check RG-level resources
   const rgRes = (state.rgResources||[]).find(r => r.id === resId);
   if(rgRes) rgRes.config[configKey] = val;

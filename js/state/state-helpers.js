@@ -4,7 +4,7 @@ import { state } from './state-core.js';
 // STATE HELPER FUNCTIONS
 // ================================================================
 export function getAllDiagramResources(){
-  const vnetRes = [state.hub, ...state.spokes].flatMap(vnet => vnet.subnets.flatMap(sn => sn.resources));
+  const vnetRes = [state.hub, ...state.spokes].flatMap(vnet => (vnet.subnets || []).flatMap(sn => (sn.resources || [])));
   return [...vnetRes, ...(state.rgResources || [])];
 }
 
@@ -129,8 +129,8 @@ export function getRecommendedDnsZones() {
   const allVnets = [state.hub, ...state.spokes];
   const peTargets = new Set();
   allVnets.forEach(vnet => {
-    vnet.subnets.forEach(sn => {
-      sn.resources.filter(r => r.type === 'pe').forEach(r => {
+    (vnet.subnets || []).forEach(sn => {
+      (sn.resources || []).filter(r => r.type === 'pe').forEach(r => {
         if(r.config && r.config.target) peTargets.add(r.config.target);
       });
     });
@@ -157,8 +157,8 @@ export function getPeTargetableResources() {
 export function getAllPrivateEndpoints() {
   const allVnets = [state.hub, ...state.spokes];
   return allVnets.flatMap(vnet => 
-    vnet.subnets.flatMap(sn => 
-      sn.resources.filter(r => r.type === 'pe')
+    (vnet.subnets || []).flatMap(sn => 
+      (sn.resources || []).filter(r => r.type === 'pe')
     )
   );
 }
@@ -181,8 +181,8 @@ export function getPesForResource(resourceId) {
 export function getVnetsWithPrivateEndpoints() {
   const allVnets = [state.hub, ...state.spokes];
   return allVnets.filter(vnet =>
-    vnet.subnets.some(sn =>
-      sn.resources.some(r => r.type === 'pe')
+    (vnet.subnets || []).some(sn =>
+      (sn.resources || []).some(r => r.type === 'pe')
     )
   );
 }
@@ -198,8 +198,8 @@ export function getRecommendedVnetLinksForDnsZone(dnsZoneId) {
   
   // Find all VNets that contain PEs targeting resources that need this DNS zone
   allVnets.forEach(vnet => {
-    const hasRelevantPe = vnet.subnets.some(sn =>
-      sn.resources.some(r => {
+    const hasRelevantPe = (vnet.subnets || []).some(sn =>
+      (sn.resources || []).some(r => {
         if (r.type !== 'pe' || !r.config || !r.config.target) return false;
         const recommendedZones = PE_TARGET_DNS_RECOMMENDATIONS[r.config.target] || [];
         return recommendedZones.includes(zone);
@@ -210,8 +210,8 @@ export function getRecommendedVnetLinksForDnsZone(dnsZoneId) {
       recommendedVnets.push({
         vnetId: vnet.id,
         vnetName: vnet.name,
-        peCount: vnet.subnets.reduce((sum, sn) => 
-          sum + sn.resources.filter(r => r.type === 'pe').length, 0)
+        peCount: (vnet.subnets || []).reduce((sum, sn) => 
+          sum + (sn.resources || []).filter(r => r.type === 'pe').length, 0)
       });
     }
   });

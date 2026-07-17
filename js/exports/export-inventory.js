@@ -533,6 +533,33 @@ export function confirmInventoryImport(){
   }
   state.onPrem = state.onPrem || { enabled: false, name: 'On-Premises', cidr: '192.168.0.0/16' };
 
+  // Normalize all resource configs to include default fields for proper editor display
+  // This ensures imported resources have full configuration options like manually-added resources
+  [state.hub, ...state.spokes].forEach(vnet => {
+    if (!vnet || !vnet.subnets) return;
+    vnet.subnets.forEach(sn => {
+      if (!sn.resources) return;
+      sn.resources = sn.resources.map(res => {
+        const rT = RES_TYPES[res.type];
+        if (!rT) return res;
+        return {
+          ...res,
+          config: { ...rT.config, ...res.config }
+        };
+      });
+    });
+  });
+  if (state.rgResources) {
+    state.rgResources = state.rgResources.map(res => {
+      const rT = RES_TYPES[res.type];
+      if (!rT) return res;
+      return {
+        ...res,
+        config: { ...rT.config, ...res.config }
+      };
+    });
+  }
+
   saveState();
   closeModal('azure-inventory-modal');
   

@@ -119,7 +119,7 @@ function renderRgBlocksHtml(rgs) {
           ${!isHub?`<button class="icon-btn danger" title="Delete Spoke" onclick="window._deleteSpoke('${vnet.id}')">🗑</button>`:''}
         </div>`;
 
-      vnet.subnets.forEach(sn => {
+      (vnet.subnets || []).forEach(sn => {
         const isSelSn = state.selectedId === sn.id;
         h += `<div class="subnet-card" style="${isSelSn?'border-color:var(--azure-blue);':''}">
                 <div class="subnet-header">
@@ -128,7 +128,7 @@ function renderRgBlocksHtml(rgs) {
                   <input class="subnet-cidr-input" value="${esc(sn.cidr)}" onchange="window._updateSubnet('${vnet.id}','${sn.id}','cidr',this.value)" onclick="window._selectNode('${sn.id}')">
                 </div>
                 <div class="resource-chips">`;
-        sn.resources.forEach(res=>{
+        (sn.resources || []).forEach(res=>{
           const rt=RES_TYPES[res.type] || RES_TYPES.vm;
           const isSelRes=state.selectedId===res.id;
           h+=`<div class="chip${isHub?' hub-chip':''}" style="${isSelRes?'background:var(--azure-blue);color:white;border-color:var(--azure-blue);':''}" onclick="window._selectNode('${res.id}')">

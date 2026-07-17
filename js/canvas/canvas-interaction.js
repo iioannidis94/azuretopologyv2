@@ -223,11 +223,13 @@ canvas.addEventListener('mousemove',e=>{
         state.customPos[c.id] = { x: c.start.x + dx, y: c.start.y + dy };
       });
     }
-    draw();
+    // Use throttled render for smoother drag performance
+    scheduleRender();
   } else if (state.dragging) {
     state.offset.x=state.offsetStart.x+(e.clientX-state.dragStart.x);
     state.offset.y=state.offsetStart.y+(e.clientY-state.dragStart.y);
-    draw();
+    // Use throttled render for smoother pan performance
+    scheduleRender();
   }
 });
 

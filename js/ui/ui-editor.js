@@ -1,8 +1,55 @@
-import { state, esc, RES_TYPES, AZURE_ICON_BASE, saveState, fullUpdate, updateCost, getRecommendedDnsZones } from '../state-management.js';
+import { state, esc, RES_TYPES, AZURE_ICON_BASE, saveState, fullUpdate, updateCost, getRecommendedDnsZones, validateResource } from '../state-management.js';
 
 // ================================================================
-// HELPER: Render config fields with optional filter
+// HELPER: Render validation status badge
 // ================================================================
+function renderValidationBadge(resource) {
+  if (!resource || !resource.type) return '';
+  const validation = validateResource(resource);
+  if (validation.status === 'valid') {
+    return '<span class="validation-badge valid" title="All required fields present">✓</span>';
+  } else if (validation.status === 'errors') {
+    const criticalFields = validation.critical.map(c => c.field).join(', ');
+    return `<span class="validation-badge error" title="Missing required: ${criticalFields}">⚠️ ${validation.critical.length}</span>`;
+  } else if (validation.status === 'warnings') {
+    const warningFields = validation.warnings.map(w => w.field).join(', ');
+    return `<span class="validation-badge warning" title="Review recommended: ${warningFields}">⚡ ${validation.warnings.length}</span>`;
+  }
+  return '';
+}
+
+// ================================================================
+// HELPER: Render validation summary section
+// ================================================================
+function renderValidationSection(resource) {
+  if (!resource || !resource.type) return '';
+  const validation = validateResource(resource);
+  if (validation.status === 'valid') return '';
+  
+  let html = '<div class="editor-section validation-section">';
+  html += '<div class="editor-section-header">Validation Status</div>';
+  
+  if (validation.critical.length > 0) {
+    html += '<div class="validation-errors">';
+    html += '<div class="validation-label">⚠️ Required for deployment:</div>';
+    validation.critical.forEach(c => {
+      html += `<div class="validation-item error">• ${c.field}: ${c.message}</div>`;
+    });
+    html += '</div>';
+  }
+  
+  if (validation.warnings.length > 0) {
+    html += '<div class="validation-warnings">';
+    html += '<div class="validation-label">⚡ Recommended to review:</div>';
+    validation.warnings.forEach(w => {
+      html += `<div class="validation-item warning">• ${w.field}: ${w.message}</div>`;
+    });
+    html += '</div>';
+  }
+  
+  html += '</div>';
+  return html;
+}
 function renderConfigFields(objId, config, filterFn = null) {
   let html = '';
   Object.keys(config).forEach(k => {
@@ -249,12 +296,16 @@ export function renderEditor(){
       <button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="window._deleteSubnet('${parent.id}','${obj.id}')">🗑 Delete Subnet</button>`;
   } else if (typeObj === 'resource') {
     const rt=RES_TYPES[obj.type]||{color:'#888',label:'Resource', icon:'❓'};
+    const validationBadge = renderValidationBadge(obj);
     h+=`<div class="editor-header">
           <img src="${AZURE_ICON_BASE}${rt.img}" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
           <span style="display:none">${rt.icon}</span> 
-          ${rt.label}
+          ${rt.label} ${validationBadge}
         </div>
       <div class="editor-row"><span class="editor-label">Name</span><input class="input-field" value="${esc(obj.name)}" onchange="window._updateResource('${obj.id}','name',this.value)"></div>`;
+    
+    // Show validation section at the top
+    h += renderValidationSection(obj);
      
     // Special PE section with target resource selection
     if(obj.type === 'pe'){
@@ -324,12 +375,16 @@ export function renderEditor(){
     h+=`<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="window._deleteResource('${obj.id}')">🗑 Delete Resource</button>`;
   } else if (typeObj === 'rgResource') {
     const rt = RES_TYPES[obj.type]||{color:'#888',label:'Resource', icon:'❓', img:''};
+    const validationBadge = renderValidationBadge(obj);
     h+=`<div class="editor-header">
           <img src="${AZURE_ICON_BASE}${rt.img}" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
           <span style="display:none">${rt.icon}</span> 
-          ${rt.label}
+          ${rt.label} ${validationBadge}
         </div>
       <div class="editor-row"><span class="editor-label">Name</span><input class="input-field" value="${esc(obj.name)}" onchange="window._updateRgResource('${obj.id}','name',this.value)"></div>`;
+    
+    // Show validation section at the top
+    h += renderValidationSection(obj);
     
     // Zone selection - searchable dropdown for Private DNS zones
     if(obj.type === 'dns') {

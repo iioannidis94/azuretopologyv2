@@ -1,4 +1,4 @@
-import { state, RES_TYPES, getVnetsInRg } from '../state-management.js';
+import { state, RES_TYPES, getVnetsInRg, validateAllResources, generateValidationSummary, REQUIRED_FIELDS } from '../state-management.js';
 import { _iacSafe } from './export-utils.js';
 
 function generateBicepResource(res, rg, vnet, sn) {
@@ -11,21 +11,41 @@ function generateBicepResource(res, rg, vnet, sn) {
   const subnetRef = `vnet_${vnetSafeName}.outputs.subnetResourceIds['${sn.name}']`;
   switch (res.type) {
     case 'vm': {
+      const osType = (c.os||'').toLowerCase().includes('windows') ? 'Windows' : 'Linux';
+      const imageRef = osType === 'Windows' 
+        ? `{ publisher: 'MicrosoftWindowsServer', offer: 'WindowsServer', sku: '2022-datacenter-g2', version: 'latest' }`
+        : `{ publisher: 'Canonical', offer: '0001-com-ubuntu-server-jammy', sku: '22_04-lts-gen2', version: 'latest' }`;
       lines.push(`module ${safeName} 'br/public:avm/res/compute/virtual-machine:0.5.0' = {`);
       lines.push(`  name: '${res.name}'`);
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${res.name}'`);
       lines.push(`    vmSize: '${c.size||'Standard_D2s_v3'}'`);
-      lines.push(`    osType: '${(c.os||'').toLowerCase().includes('windows') ? 'Windows' : 'Linux'}'`);
-      lines.push(`    osDisk: { diskSizeGB: ${c.osDiskSizeGB||128}, managedDisk: { storageAccountType: '${c.osDiskType||'Premium_LRS'}' } }`);
-      lines.push(`    zone: ${c.availabilityZone && c.availabilityZone !== 'None' ? c.availabilityZone : '0'}`);
-      lines.push(`    nicConfigurations: [{ enableAcceleratedNetworking: ${c.acceleratedNetworking||'true'} }]`);
+      lines.push(`    osType: '${osType}'`);
+      lines.push(`    imageReference: ${imageRef}`);
+      lines.push(`    osDisk: { diskSizeGB: ${c.osDiskSizeGB||128}, managedDisk: { storageAccountType: '${c.osDiskType||'Premium_LRS'}' }, createOption: 'FromImage' }`);
+      if (c.availabilityZone && c.availabilityZone !== 'None') {
+        lines.push(`    zone: ${parseInt(c.availabilityZone)}`);
+      }
+      lines.push(`    adminUsername: 'azureuser'`);
+      lines.push(`    nicConfigurations: [{`);
+      lines.push(`      nicSuffix: '-nic'`);
+      lines.push(`      enableAcceleratedNetworking: ${c.acceleratedNetworking === 'true'}`);
+      lines.push(`      ipConfigurations: [{`);
+      lines.push(`        name: 'ipconfig1'`);
+      lines.push(`        subnetResourceId: ${subnetRef}`);
+      lines.push(`      }]`);
+      lines.push(`    }]`);
       lines.push(`  }`);
       lines.push(`}\n`);
       break;
     }
     case 'vmss': {
+      const vmssOsType = (c.os||'').toLowerCase().includes('windows') ? 'Windows' : 'Linux';
+      const vmssImageRef = vmssOsType === 'Windows' 
+        ? `{ publisher: 'MicrosoftWindowsServer', offer: 'WindowsServer', sku: '2022-datacenter-g2', version: 'latest' }`
+        : `{ publisher: 'Canonical', offer: '0001-com-ubuntu-server-jammy', sku: '22_04-lts-gen2', version: 'latest' }`;
+      const vmssZones = (c.zones||'1,2,3').split(',').map(z => parseInt(z.trim()));
       lines.push(`module ${safeName} 'br/public:avm/res/compute/virtual-machine-scale-set:0.4.0' = {`);
       lines.push(`  name: '${res.name}'`);
       lines.push(`  scope: ${rgRef}`);
@@ -33,27 +53,51 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`    name: '${res.name}'`);
       lines.push(`    skuName: '${c.size||'Standard_D2s_v3'}'`);
       lines.push(`    skuCapacity: ${c.instances||2}`);
+      lines.push(`    osType: '${vmssOsType}'`);
+      lines.push(`    imageReference: ${vmssImageRef}`);
       lines.push(`    upgradePolicy: '${c.upgradePolicy||'Rolling'}'`);
-      lines.push(`    zones: [${(c.zones||'1,2,3').split(',').map(z => `'${z.trim()}'`).join(', ')}]`);
-      lines.push(`    autoScaleSettings: { minCount: ${c.minInstances||2}, maxCount: ${c.maxInstances||10} }`);
+      lines.push(`    zones: [${vmssZones.join(', ')}]`);
+      lines.push(`    adminUsername: 'azureuser'`);
+      lines.push(`    nicConfigurations: [{`);
+      lines.push(`      nicSuffix: '-nic'`);
+      lines.push(`      enableAcceleratedNetworking: ${c.acceleratedNetworking === 'true'}`);
+      lines.push(`      ipConfigurations: [{`);
+      lines.push(`        name: 'ipconfig1'`);
+      lines.push(`        subnetResourceId: ${subnetRef}`);
+      lines.push(`      }]`);
+      lines.push(`    }]`);
+      if (c.minInstances || c.maxInstances) {
+        lines.push(`    // Auto scaling: min=${c.minInstances||2}, max=${c.maxInstances||10}`);
+      }
       lines.push(`  }`);
       lines.push(`}\n`);
       break;
     }
     case 'aks': {
+      const aksZones = c.availabilityZones ? c.availabilityZones.split(',').map(z => parseInt(z.trim())) : [1, 2, 3];
       lines.push(`module ${safeName} 'br/public:avm/res/container-service/managed-cluster:0.3.0' = {`);
       lines.push(`  name: '${res.name}'`);
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${res.name}'`);
       lines.push(`    kubernetesVersion: '${c.version||'1.29'}'`);
-      lines.push(`    agentPoolProfiles: [{ count: ${c.nodes||3}, vmSize: '${c.nodeSize||'Standard_D2s_v3'}' }]`);
+      lines.push(`    managedIdentities: { systemAssigned: true }`);
+      lines.push(`    primaryAgentPoolProfile: [{`);
+      lines.push(`      name: 'agentpool'`);
+      lines.push(`      count: ${c.nodes||3}`);
+      lines.push(`      vmSize: '${c.nodeSize||'Standard_D2s_v3'}'`);
+      lines.push(`      mode: 'System'`);
+      lines.push(`      availabilityZones: [${aksZones.join(', ')}]`);
+      lines.push(`      vnetSubnetID: ${subnetRef}`);
+      lines.push(`    }]`);
       lines.push(`    networkPlugin: '${c.networkPlugin||'azure'}'`);
-      lines.push(`    podCidr: '${c.podCidr||'10.244.0.0/16'}'`);
+      if (c.networkPlugin !== 'kubenet') {
+        lines.push(`    podCidr: '${c.podCidr||'10.244.0.0/16'}'`);
+      }
       lines.push(`    serviceCidr: '${c.serviceCidr||'10.0.0.0/16'}'`);
       lines.push(`    dnsServiceIP: '${c.dnsServiceIp||'10.0.0.10'}'`);
       lines.push(`    enablePrivateCluster: ${c.privateCluster === 'true'}`);
-      lines.push(`    sku: { name: 'Base', tier: '${c.tier||'Standard'}' }`);
+      lines.push(`    skuTier: '${c.tier||'Standard'}'`);
       lines.push(`  }`);
       lines.push(`}\n`);
       break;
@@ -69,8 +113,11 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`    runtimeVersion: '${c.runtimeVersion||'20'}'`);
       lines.push(`    osType: '${c.osType||'Linux'}'`);
       lines.push(`    alwaysOn: ${c.alwaysOn === 'true'}`);
-      if (c.storageAccountName) lines.push(`    storageAccountResourceId: resourceId('Microsoft.Storage/storageAccounts', '${c.storageAccountName}') // same subscription + RG; cross-RG: resourceId(rgName, type, name); cross-subscription: resourceId(sub, rgName, type, name)`);
-      else lines.push(`    // storageAccountResourceId: '<storage-account-resource-id>' // required for Function Apps`);
+      if (c.storageAccountName) {
+        lines.push(`    storageAccountResourceId: resourceId('Microsoft.Storage/storageAccounts', '${c.storageAccountName}')`);
+      } else {
+        lines.push(`    storageAccountResourceId: '<REQUIRED:storageAccountName>' // ⚠️ Required for Function Apps`);
+      }
       lines.push(`  }`);
       lines.push(`}\n`);
       break;
@@ -81,8 +128,11 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${res.name}'`);
-      if (c.environmentName) lines.push(`    environmentResourceId: resourceId('Microsoft.App/managedEnvironments', '${c.environmentName}') // same subscription + RG; cross-RG: resourceId(rgName, type, name); cross-subscription: resourceId(sub, rgName, type, name)`);
-      else lines.push(`    // environmentResourceId: '<container-apps-environment-resource-id>' // required`);
+      if (c.environmentName) {
+        lines.push(`    environmentResourceId: resourceId('Microsoft.App/managedEnvironments', '${c.environmentName}')`);
+      } else {
+        lines.push(`    environmentResourceId: '<REQUIRED:environmentName>' // ⚠️ Required - Container Apps Environment`);
+      }
       lines.push(`    containers: [{ image: '${c.image||'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'}', resources: { cpu: ${c.cpu||'0.5'}, memory: '${c.memory||'1.0Gi'}' } }]`);
       lines.push(`    scale: { minReplicas: ${c.minReplicas||1}, maxReplicas: ${c.replicas||10} }`);
       lines.push(`    ingress: { external: ${c.ingress === 'external'}, targetPort: ${c.targetPort||80} }`);
@@ -91,18 +141,20 @@ function generateBicepResource(res, rg, vnet, sn) {
       break;
     }
     case 'fw': {
-      const fwZones = c.availabilityZones ? c.availabilityZones.split(',').map(z => z.trim()) : ['1','2','3'];
+      const fwZones = c.availabilityZones ? c.availabilityZones.split(',').map(z => parseInt(z.trim())) : [1, 2, 3];
       lines.push(`module ${safeName} 'br/public:avm/res/network/azure-firewall:0.3.0' = {`);
       lines.push(`  name: '${res.name}'`);
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${res.name}'`);
-      lines.push(`    skuTier: '${c.sku||'Premium'}'`);
+      lines.push(`    azureSkuTier: '${c.sku||'Premium'}'`);
       lines.push(`    threatIntelMode: '${c.threatIntelMode||'Alert'}'`);
-      lines.push(`    hubIPAddresses: { publicIPs: { count: 1 } }`);
-      lines.push(`    zones: [${fwZones.map(z => `'${z}'`).join(', ')}]`);
+      lines.push(`    virtualNetworkResourceId: vnet_${vnetSafeName}.outputs.resourceId`);
+      lines.push(`    publicIPAddressObject: { name: '${res.name}-pip' }`);
+      lines.push(`    zones: [${fwZones.join(', ')}]`);
       if (c.dnsProxy === 'true') {
-        lines.push(`    additionalProperties: { 'Network.DNS.EnableProxy': 'true' }`);
+        lines.push(`    additionalPublicIpConfigurations: []`);
+        lines.push(`    // DNS Proxy enabled via Firewall Policy`);
       }
       if (c.policyName) {
         lines.push(`    firewallPolicyId: '${c.policyName}'`);
@@ -237,15 +289,18 @@ function generateBicepResource(res, rg, vnet, sn) {
       const peGroupId = c.groupId || c.subResource || c.target || 'blob';
       const peConnectionName = c.connectionName || `${res.name}-connection`;
       const targetInfo = c.targetResourceName ? ` (${c.targetResourceName})` : '';
+      const targetResourceId = c.targetResourceId || '<REQUIRED:targetResourceId>';
       lines.push(`// Private Endpoint: ${res.name}${targetInfo}`);
-      lines.push(`// NOTE: Replace '<target-resource-id>' with actual resource ID. Target should be: ${c.targetResourceId ? 'Selected' : 'NOT SELECTED'}`);
+      if (!c.targetResourceId) {
+        lines.push(`// ⚠️ REQUIRED: targetResourceId - Target resource ID for Private Endpoint`);
+      }
       lines.push(`module ${safeName} 'br/public:avm/res/network/private-endpoint:0.4.0' = {`);
       lines.push(`  name: '${res.name}'`);
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${res.name}'`);
       lines.push(`    subnetResourceId: ${subnetRef}`);
-      lines.push(`    privateLinkServiceConnections: [{ name: '${peConnectionName}', privateLinkServiceId: '<target-resource-id>', groupIds: ['${peGroupId}'] }]`);
+      lines.push(`    privateLinkServiceConnections: [{ name: '${peConnectionName}', privateLinkServiceId: '${targetResourceId}', groupIds: ['${peGroupId}'] }]`);
       if (c.privateDnsZoneId) {
         lines.push(`    privateDnsZoneGroup: { privateDnsZoneGroupConfigs: [{ privateDnsZoneResourceId: '${c.privateDnsZoneId}' }] }`);
       }
@@ -279,14 +334,17 @@ function generateBicepResource(res, rg, vnet, sn) {
     case 'sql': {
       const sqlTier = c.tier || 'GeneralPurpose';
       const sqlSkuName = sqlTier === 'BusinessCritical' ? 'BC_Gen5' : 'GP_Gen5';
-      const sqlServerName = c.serverName || `${res.name}-server`;
+      const sqlServerName = c.serverName || '<REQUIRED:serverName>';
+      if (!c.serverName) {
+        lines.push(`// ⚠️ REQUIRED: serverName - SQL Server name`);
+      }
       lines.push(`module ${safeName}_server 'br/public:avm/res/sql/server:0.4.0' = {`);
       lines.push(`  name: '${sqlServerName}'`);
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${sqlServerName}'`);
       lines.push(`    administratorLogin: 'sqladmin'`);
-      lines.push(`    administratorLoginPassword: '<password>'`);
+      lines.push(`    administratorLoginPassword: '<REQUIRED:password>'`);
       lines.push(`    databases: [{ name: '${res.name}', sku: { name: '${sqlSkuName}', tier: '${sqlTier}', capacity: ${c.vcores||4} }, maxSizeBytes: ${(parseInt(c.maxSizeGB)||32)*1073741824}, collation: '${c.collation||'SQL_Latin1_General_CP1_CI_AS'}', zoneRedundant: ${c.zoneRedundant==='true'} }]`);
       lines.push(`    backupRetentionDays: ${c.backupRetentionDays||7}`);
       lines.push(`  }`);
@@ -505,6 +563,19 @@ function generateBicepResource(res, rg, vnet, sn) {
 
 export function generateBicep(){
   const lines=[];
+  
+  // Run validation and add summary as Bicep comments
+  const validation = validateAllResources(state);
+  const summaryLines = generateValidationSummary(validation).split('\n').map(l => `// ${l.replace(/^# ?/, '')}`);
+  lines.push(...summaryLines);
+  lines.push('');
+  
+  // Add warning if there are validation errors
+  if (validation.errors > 0) {
+    lines.push(`// ⚠️ WARNING: ${validation.errors} resource(s) have missing required fields.`);
+    lines.push(`// ⚠️ Look for <REQUIRED:...> placeholders and fill in the values before deploying.`);
+    lines.push('');
+  }
   
   // Determine target scope based on MG/Sub structure
   if (state.mgEnabled && state.managementGroups && state.managementGroups.length > 0) {

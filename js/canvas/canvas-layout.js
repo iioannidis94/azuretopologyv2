@@ -11,11 +11,11 @@ export function getRenderNodes(){
     const VPT=45, VPB=18, VGAP=60, SGAP=15;
     const RG_GAP=80, SUB_GAP=120;
     
-    const sw = (sn) => Math.max(140, sn.resources.length * (RW+RP) + SPL*2 - RP);
+    const sw = (sn) => Math.max(140, (sn.resources || []).length * (RW+RP) + SPL*2 - RP);
     const sh = () => SPT + RH + SPB;
 
     const vw = (v) => {
-      if(v.subnets.length===0) return 200;
+      if(!v.subnets || v.subnets.length===0) return 200;
       return v.subnets.reduce((sum, sn) => sum + sw(sn), 0) + (v.subnets.length-1)*SGAP + SPL*2;
     };
     const vh = () => VPT + sh() + VPB;
@@ -53,13 +53,13 @@ export function getRenderNodes(){
           nodes.push({id:vnet.id, isVnet:true, x:vx, y:vy, width:vWidth, height:vh(), label:vnet.name, sub:vnet.cidr, color:vnet.color, peerings:vnet.peerings||[], rgId:rg.id, subId:sub.id});
           
           let snX = vnetX + SPL;
-          vnet.subnets.forEach((sn, j) => {
+          (vnet.subnets || []).forEach((sn, j) => {
             const snW = sw(sn);
             const cxSn = snX + snW/2;
             nodes.push({id:sn.id, isSubnet:true, parentId:vnet.id, x:cxSn, y:vy+VPT+sh()/2 - (vh()/2), width:snW, height:sh(), label:sn.name, sub:sn.cidr, color:vnet.color});
             
-            sn.resources.forEach((res,k)=>{
-              const tot=sn.resources.length,tw=tot*RW+(tot-1)*RP;
+            (sn.resources || []).forEach((res,k)=>{
+              const tot=(sn.resources || []).length,tw=tot*RW+(tot-1)*RP;
               nodes.push({id:res.id, isVnet:false, parentId:sn.id, x:cxSn-tw/2+RW/2+k*(RW+RP), y:vy+VPT+SPT+RH/2 - (vh()/2), label:res.name, type:res.type, color:RES_TYPES[res.type]?.color||'#FFF', width:RW, height:RH});
             });
             snX += snW + SGAP;
@@ -84,7 +84,7 @@ export function getRenderNodes(){
     const r=Math.min(canvas.width,canvas.height)*.34;
     nodes.push({id:state.hub.id,isVnet:true,x:cx,y:cy,label:state.hub.name,sub:state.hub.cidr,color:state.hub.color,radius:70,peerings:state.hub.peerings||[],rgId:state.hub.rgId});
     
-    let hRes = []; state.hub.subnets.forEach(sn => hRes.push(...sn.resources));
+    let hRes = []; (state.hub.subnets || []).forEach(sn => hRes.push(...(sn.resources || [])));
     hRes.forEach((res,i)=>{
       const angle=(i/Math.max(hRes.length,1))*Math.PI*2-Math.PI/2;
       nodes.push({id:res.id,isVnet:false,parentId:state.hub.id,x:cx+Math.cos(angle)*135,y:cy+Math.sin(angle)*135,label:res.name,type:res.type,color:RES_TYPES[res.type]?.color||'#FFF',width:84,height:64});
@@ -96,7 +96,7 @@ export function getRenderNodes(){
       const perp={x:-Math.sin(angle),y:Math.cos(angle)};
       nodes.push({id:sp.id,isVnet:true,x:sx,y:sy,label:sp.name,sub:sp.cidr,color:sp.color,radius:55,peerings:sp.peerings||[],rgId:sp.rgId});
       
-      let sRes = []; sp.subnets.forEach(sn => sRes.push(...sn.resources));
+      let sRes = []; (sp.subnets || []).forEach(sn => sRes.push(...(sn.resources || [])));
       sRes.forEach((res,j)=>{
         const t=sRes.length>1?(j*90-(sRes.length-1)*45):0;
         nodes.push({id:res.id,isVnet:false,parentId:sp.id,x:sx+Math.cos(angle)*125+perp.x*t,y:sy+Math.sin(angle)*125+perp.y*t,label:res.name,type:res.type,color:RES_TYPES[res.type]?.color||'#FFF',width:84,height:64});

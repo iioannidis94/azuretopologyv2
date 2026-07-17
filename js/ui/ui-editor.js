@@ -193,10 +193,11 @@ export function renderEditor(){
       obj = rgRes; typeObj = 'rgResource';
     } else {
       for (let v of allVnets) {
+        if (!v) continue;
         if (v.id === state.selectedId) { obj=v; typeObj='vnet'; break; }
-        for (let sn of v.subnets) {
+        for (let sn of (v.subnets || [])) {
           if (sn.id === state.selectedId) { obj=sn; parent=v; typeObj='subnet'; break; }
-          for (let r of sn.resources) {
+          for (let r of (sn.resources || [])) {
             if (r.id === state.selectedId) { obj=r; parent=sn; typeObj='resource'; break; }
           }
           if (obj) break;

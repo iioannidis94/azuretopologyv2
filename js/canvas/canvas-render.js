@@ -8,6 +8,29 @@ const ctx = canvas.getContext('2d');
 const culler = new ViewportCuller(canvas);
 const peeringCache = new PeeringCache();
 
+// Performance optimization: cache image readiness
+const imageReadyCache = new Map();
+let lastImageCheckTime = 0;
+const IMAGE_CHECK_INTERVAL = 100; // Check image loading every 100ms
+
+function isImageReady(type) {
+  const now = Date.now();
+  if (now - lastImageCheckTime > IMAGE_CHECK_INTERVAL) {
+    imageReadyCache.clear();
+    lastImageCheckTime = now;
+  }
+  
+  if (!imageReadyCache.has(type)) {
+    const img = loadedImages[type];
+    imageReadyCache.set(type, img && img.complete && img.naturalWidth > 0);
+  }
+  return imageReadyCache.get(type);
+}
+
+// Performance optimization: throttle minimap updates
+let lastMinimapUpdate = 0;
+const MINIMAP_UPDATE_INTERVAL = 100; // Update minimap max every 100ms
+
 function safeRR(c,x,y,w,h,r){if(typeof c.roundRect==='function')c.roundRect(x,y,w,h,r);else c.rect(x,y,w,h);}
 
 export function pointToSegmentDist(px, py, x1, y1, x2, y2) {
@@ -49,6 +72,14 @@ export function draw(){
   
   // Filter visible nodes for large datasets
   const visibleNodes = culler.filterVisibleNodes(nodes, viewport);
+  
+  // Separate visible nodes by type once (optimization)
+  const visibleSubnets = [];
+  const visibleOtherNodes = [];
+  for (const n of visibleNodes) {
+    if (n.isSubnet) visibleSubnets.push(n);
+    else visibleOtherNodes.push(n);
+  }
 
   if(state.layout==='grid'){
     // Draw Management Group bounds (if enabled)
@@ -203,12 +234,18 @@ export function draw(){
     });
   });
 
-  // DRAW NODES (filtered by visibility)
-  visibleNodes.filter(n => n.isSubnet).forEach(n => drawSubnet(n, dw));
-  visibleNodes.filter(n => !n.isSubnet).forEach(n => drawNode(n, dw));
+  // DRAW NODES (using pre-separated arrays - optimization)
+  visibleSubnets.forEach(n => drawSubnet(n, dw));
+  visibleOtherNodes.forEach(n => drawNode(n, dw));
   
   ctx.restore();
-  drawMinimap();
+  
+  // Throttle minimap updates during rapid zoom/pan
+  const now = Date.now();
+  if (now - lastMinimapUpdate > MINIMAP_UPDATE_INTERVAL) {
+    drawMinimap();
+    lastMinimapUpdate = now;
+  }
 }
 
 function drawSubnet(n, dw) {
@@ -235,6 +272,8 @@ function drawSubnet(n, dw) {
 function drawNode(n, dw){
   const isSel=state.selectedId===n.id;
   ctx.save();
+  
+  // Only apply shadow for selected items to reduce GPU load
   if(isSel){ctx.shadowColor=dw?'rgba(0,120,212,.4)':n.color||'#0078D4';ctx.shadowBlur=15;}
   
   if (n.isOnPrem) {
@@ -261,7 +300,8 @@ function drawNode(n, dw){
     ctx.beginPath();safeRR(ctx,n.x-n.width/2,n.y-n.height/2,n.width,n.height,8);
     if(dw){
       ctx.fillStyle='#FFFFFF';
-      if(!isSel){ctx.shadowColor='rgba(0,0,0,.15)';ctx.shadowBlur=10;ctx.shadowOffsetY=3;}
+      // Only apply subtle shadow at zoom > 0.5 to reduce GPU load
+      if(!isSel && state.scale > 0.5){ctx.shadowColor='rgba(0,0,0,.15)';ctx.shadowBlur=10;ctx.shadowOffsetY=3;}
       ctx.fill();
       ctx.strokeStyle=isSel?'#0078D4':(rt.color||'#0078D4')+'88';ctx.lineWidth=isSel?2.5:1.8;ctx.stroke();
       ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
@@ -273,10 +313,11 @@ function drawNode(n, dw){
     }
     ctx.shadowBlur=0;
     
-    const img = loadedImages[n.type];
-    if(img && img.complete && img.naturalWidth > 0){
+    const img = isImageReady(n.type) ? loadedImages[n.type] : null;
+    if(img){
       ctx.drawImage(img, n.x - 14, n.y - 20, 28, 28);
     } else {
+      const rt=RES_TYPES[n.type]||{icon:'❓'};
       ctx.font='24px serif';ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText(rt.icon, n.x, n.y - 8);
     }
@@ -306,7 +347,8 @@ function drawNode(n, dw){
       ctx.beginPath();ctx.arc(n.x,n.y,n.radius,0,Math.PI*2);
       if(dw){
         const gDw=ctx.createRadialGradient(n.x-10,n.y-10,0,n.x,n.y,n.radius);gDw.addColorStop(0,n.color+'30');gDw.addColorStop(1,n.color+'12');ctx.fillStyle=gDw;
-        if(!isSel){ctx.shadowColor='rgba(0,0,0,.06)';ctx.shadowBlur=8;}
+        // Only apply subtle shadow at zoom > 0.5 to reduce GPU load
+        if(!isSel && state.scale > 0.5){ctx.shadowColor='rgba(0,0,0,.06)';ctx.shadowBlur=8;}
         ctx.fill();ctx.shadowBlur=0;
         ctx.strokeStyle=isSel?'#0078D4':n.color+'CC';ctx.lineWidth=2.5;ctx.stroke();
       }else{

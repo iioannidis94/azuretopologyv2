@@ -27,6 +27,11 @@ setRenderAll(renderAllImpl);
 // ================================================================
 // KEYBOARD SHORTCUTS
 // ================================================================
+
+// Throttle zoom shortcuts for better performance
+let lastKeyboardZoomTime = 0;
+const KEYBOARD_ZOOM_THROTTLE = 50; // 50ms between zoom keypress actions
+
 function deleteSelectedElement() {
   if (!state.selectedId) return;
   const id = state.selectedId;
@@ -128,14 +133,22 @@ document.addEventListener('keydown', (e) => {
   // + / = → zoom in
   else if ((key === '+' || key === '=') && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
-    state.scale = Math.min(3, state.scale * 1.1);
-    saveState(); draw();
+    const now = Date.now();
+    if (now - lastKeyboardZoomTime > KEYBOARD_ZOOM_THROTTLE) {
+      state.scale = Math.min(3, state.scale * 1.1);
+      saveState(); draw();
+      lastKeyboardZoomTime = now;
+    }
   }
   // - / _ → zoom out
   else if ((key === '-' || key === '_') && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
-    state.scale = Math.max(0.2, state.scale * 0.9);
-    saveState(); draw();
+    const now = Date.now();
+    if (now - lastKeyboardZoomTime > KEYBOARD_ZOOM_THROTTLE) {
+      state.scale = Math.max(0.2, state.scale * 0.9);
+      saveState(); draw();
+      lastKeyboardZoomTime = now;
+    }
   }
   // ? → help panel
   else if (key === '?') {

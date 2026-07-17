@@ -79,6 +79,22 @@ export const REQUIRED_FIELDS = {
     critical: [],
     warning: ['rules']
   },
+  udr: {
+    critical: [],
+    warning: ['routes']
+  },
+  natgw: {
+    critical: ['sku'],
+    warning: ['publicIpName', 'idleTimeoutMinutes']
+  },
+  asg: {
+    critical: [],
+    warning: ['description']
+  },
+  pip: {
+    critical: ['sku', 'allocationMethod'],
+    warning: ['tier', 'domainNameLabel']
+  },
   sql: {
     critical: ['serverName', 'tier'],
     warning: ['vcores', 'maxSizeGB', 'collation']
@@ -249,6 +265,30 @@ export const IMPORT_MAPPINGS = {
       srcAddr: r.properties?.sourceAddressPrefix || '*',
       dstAddr: r.properties?.destinationAddressPrefix || '*'
     })) || []) }
+  },
+  udr: {
+    'properties.disableBgpRoutePropagation': { key: 'disableBgpRoutePropagation', transform: (v) => v ? 'true' : 'false' },
+    'properties.routes': { key: 'routes', transform: (routes) => (routes || []).map(r => ({
+      name: r.name,
+      addressPrefix: r.properties?.addressPrefix || '',
+      nextHopType: r.properties?.nextHopType || 'VirtualAppliance',
+      nextHopIpAddress: r.properties?.nextHopIpAddress || ''
+    })) }
+  },
+  natgw: {
+    'sku.name': 'sku',
+    'properties.idleTimeoutInMinutes': { key: 'idleTimeoutMinutes', transform: (v) => String(v || 4) },
+    'zones': { key: 'zones', transform: (z) => (z || []).join(',') }
+  },
+  asg: {
+    'properties.description': 'description'
+  },
+  pip: {
+    'sku.name': 'sku',
+    'sku.tier': 'tier',
+    'properties.publicIPAllocationMethod': 'allocationMethod',
+    'zones': { key: 'zones', transform: (z) => (z || []).join(',') },
+    'properties.dnsSettings.domainNameLabel': 'domainNameLabel'
   },
   sql: {
     'sku.tier': 'tier',
@@ -495,7 +535,8 @@ export function extractConfigFromAzure(azureResource, type) {
           // Transform function
           const transformed = mapping.transform(value, azureResource);
           if (mapping.key) {
-            extracted[mapping.key] = String(transformed);
+            // Preserve arrays/objects as-is (e.g. route lists); only stringify scalars
+            extracted[mapping.key] = (transformed !== null && typeof transformed === 'object') ? transformed : String(transformed);
           }
         } else if (mapping.value !== undefined) {
           // Static value when path exists

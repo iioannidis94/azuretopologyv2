@@ -148,8 +148,28 @@ You can generate:
 
 - **PNG** for documentation or presentations
 - **JSON** to save / exchange diagrams
-- **Azure PowerShell deployment script**
+- **Azure PowerShell deployment script** with built-in validation
 - **Bicep template**
+
+This makes the tool useful not only for visualization but also for **handover to implementation**.
+
+#### PowerShell Deployment Validation (New!)
+
+The PowerShell export includes comprehensive validation to ensure **100% deployability**:
+
+- **Automatic validation** runs when generating the script
+- **Deployment readiness status** shown at the top of the generated script
+- **Required field detection** highlights missing configurations with `<REQUIRED:...>` placeholders
+- **Standalone validation tool** (`Validate-AzureDeployment.ps1`) for pre-deployment checks
+- **Detailed deployment guide** (`DEPLOYMENT-GUIDE.md`) with step-by-step instructions
+
+The generated PowerShell script includes:
+- Validation summary (total resources, errors, warnings)
+- Clear deployment status (READY or NOT READY)
+- Step-by-step deployment instructions
+- Pre-deployment checklist
+
+For complete deployment instructions, see [DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md).
 
 This makes the tool useful not only for visualization but also for **handover to implementation**.
 

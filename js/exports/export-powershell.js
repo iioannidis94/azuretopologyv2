@@ -11,36 +11,50 @@ function generatePowerShellResource(res, rg, varN, sn) {
 
   switch (res.type) {
     case 'vm': {
+      const osType = (c.os||'').toLowerCase().includes('windows') ? 'Windows' : 'Linux';
+      const imageRef = osType === 'Windows' 
+        ? { publisher: 'MicrosoftWindowsServer', offer: 'WindowsServer', sku: '2022-datacenter-g2' }
+        : { publisher: 'Canonical', offer: '0001-com-ubuntu-server-jammy', sku: '22_04-lts-gen2' };
       lines.push(`# VM Size: ${c.size||'Standard_D2s_v3'}, OS: ${c.os||'Ubuntu 22.04'}`);
-      lines.push(`$vmConfig = New-AzVMConfig -VMName "${res.name}" -VMSize "${c.size||'Standard_D2s_v3'}"`);
-      if ((c.os||'').toLowerCase().includes('windows')) {
-        lines.push(`$vmConfig = Set-AzVMOperatingSystem -VM $vmConfig -Windows -ComputerName "${res.name}" -Credential $cred`);
-      } else {
-        lines.push(`$vmConfig = Set-AzVMOperatingSystem -VM $vmConfig -Linux -ComputerName "${res.name}" -Credential $cred`);
-      }
-      lines.push(`$vmConfig = Set-AzVMOSDisk -VM $vmConfig -DiskSizeInGB ${c.osDiskSizeGB||128} -CreateOption FromImage -StorageAccountType "${c.osDiskType||'Premium_LRS'}"`);
       const nicAccelNet = c.acceleratedNetworking === 'true' ? ' -EnableAcceleratedNetworking' : '';
       lines.push(`$nic = New-AzNetworkInterface -Name "${res.name}-nic" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -SubnetId (Get-AzVirtualNetworkSubnetConfig -Name "${sn.name}" -VirtualNetwork ${varN}).Id${nicAccelNet}`);
       if (c.publicIp === 'true') {
         lines.push(`$pip = New-AzPublicIpAddress -Name "${res.name}-pip" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -AllocationMethod Static -Sku Standard`);
+        lines.push(`$nic.IpConfigurations[0].PublicIpAddress = $pip`);
+        lines.push(`Set-AzNetworkInterface -NetworkInterface $nic`);
       }
+      lines.push(`$vmConfig = New-AzVMConfig -VMName "${res.name}" -VMSize "${c.size||'Standard_D2s_v3'}"`);
+      if (osType === 'Windows') {
+        lines.push(`$vmConfig = Set-AzVMOperatingSystem -VM $vmConfig -Windows -ComputerName "${res.name}" -Credential $cred`);
+        lines.push(`$vmConfig = Set-AzVMSourceImage -VM $vmConfig -PublisherName "${imageRef.publisher}" -Offer "${imageRef.offer}" -Skus "${imageRef.sku}" -Version "latest"`);
+      } else {
+        lines.push(`$vmConfig = Set-AzVMOperatingSystem -VM $vmConfig -Linux -ComputerName "${res.name}" -Credential $cred`);
+        lines.push(`$vmConfig = Set-AzVMSourceImage -VM $vmConfig -PublisherName "${imageRef.publisher}" -Offer "${imageRef.offer}" -Skus "${imageRef.sku}" -Version "latest"`);
+      }
+      lines.push(`$vmConfig = Set-AzVMOSDisk -VM $vmConfig -DiskSizeInGB ${c.osDiskSizeGB||128} -CreateOption FromImage -StorageAccountType "${c.osDiskType||'Premium_LRS'}"`);
+      lines.push(`$vmConfig = Add-AzVMNetworkInterface -VM $vmConfig -Id $nic.Id`);
       if (c.availabilityZone && c.availabilityZone !== 'None') {
-        lines.push(`New-AzVM -ResourceGroupName "${rg.name}" -Location "${rg.location}" -VM $vmConfig -Zone "${c.availabilityZone}"`);
+        lines.push(`New-AzVM -ResourceGroupName "${rg.name}" -Location "${rg.location}" -VM $vmConfig -Zone ${parseInt(c.availabilityZone)}`);
       } else {
         lines.push(`New-AzVM -ResourceGroupName "${rg.name}" -Location "${rg.location}" -VM $vmConfig`);
       }
       break;
     }
     case 'vmss': {
+      const vmssOsType = (c.os||'').toLowerCase().includes('windows') ? 'Windows' : 'Linux';
+      const vmssZones = (c.zones||'1,2,3').split(',').map(z => parseInt(z.trim()));
       lines.push(`$vmssConfig = New-AzVmssConfig -Location "${rg.location}" -SkuCapacity ${c.instances||2} -SkuName "${c.size||'Standard_D2s_v3'}" -UpgradePolicyMode "${c.upgradePolicy||'Rolling'}"`);
-      if (c.zones) {
-        lines.push(`$vmssConfig.Zones = @(${c.zones.split(',').map(z => `"${z.trim()}"`).join(',')})`);
+      if (vmssZones.length > 0) {
+        lines.push(`$vmssConfig.Zones = @(${vmssZones.join(',')})`);
       }
-      if ((c.os||'').toLowerCase().includes('windows')) {
+      if (vmssOsType === 'Windows') {
         lines.push(`$vmssConfig = Set-AzVmssOsProfile -VirtualMachineScaleSet $vmssConfig -ComputerNamePrefix "${res.name}" -AdminUsername "azureuser" -AdminPassword $password -Windows`);
+        lines.push(`$vmssConfig = Set-AzVmssStorageProfile -VirtualMachineScaleSet $vmssConfig -ImageReferencePublisher "MicrosoftWindowsServer" -ImageReferenceOffer "WindowsServer" -ImageReferenceSku "2022-datacenter-g2" -ImageReferenceVersion "latest"`);
       } else {
         lines.push(`$vmssConfig = Set-AzVmssOsProfile -VirtualMachineScaleSet $vmssConfig -ComputerNamePrefix "${res.name}" -AdminUsername "azureuser" -AdminPassword $password -Linux`);
+        lines.push(`$vmssConfig = Set-AzVmssStorageProfile -VirtualMachineScaleSet $vmssConfig -ImageReferencePublisher "Canonical" -ImageReferenceOffer "0001-com-ubuntu-server-jammy" -ImageReferenceSku "22_04-lts-gen2" -ImageReferenceVersion "latest"`);
       }
+      lines.push(`$vmssConfig = Add-AzVmssNetworkInterfaceConfiguration -VirtualMachineScaleSet $vmssConfig -Name "nic-config" -Primary $true -IpConfiguration (New-AzVmssIpConfig -Name "ipconfig1" -SubnetId (Get-AzVirtualNetworkSubnetConfig -Name "${sn.name}" -VirtualNetwork ${varN}).Id)`);
       lines.push(`# Autoscale: Min=${c.minInstances||2}, Max=${c.maxInstances||10}`);
       lines.push(`New-AzVmss -ResourceGroupName "${rg.name}" -VMScaleSetName "${res.name}" -VirtualMachineScaleSet $vmssConfig`);
       break;

@@ -11,21 +11,41 @@ function generateBicepResource(res, rg, vnet, sn) {
   const subnetRef = `vnet_${vnetSafeName}.outputs.subnetResourceIds['${sn.name}']`;
   switch (res.type) {
     case 'vm': {
+      const osType = (c.os||'').toLowerCase().includes('windows') ? 'Windows' : 'Linux';
+      const imageRef = osType === 'Windows' 
+        ? `{ publisher: 'MicrosoftWindowsServer', offer: 'WindowsServer', sku: '2022-datacenter-g2', version: 'latest' }`
+        : `{ publisher: 'Canonical', offer: '0001-com-ubuntu-server-jammy', sku: '22_04-lts-gen2', version: 'latest' }`;
       lines.push(`module ${safeName} 'br/public:avm/res/compute/virtual-machine:0.5.0' = {`);
       lines.push(`  name: '${res.name}'`);
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${res.name}'`);
       lines.push(`    vmSize: '${c.size||'Standard_D2s_v3'}'`);
-      lines.push(`    osType: '${(c.os||'').toLowerCase().includes('windows') ? 'Windows' : 'Linux'}'`);
-      lines.push(`    osDisk: { diskSizeGB: ${c.osDiskSizeGB||128}, managedDisk: { storageAccountType: '${c.osDiskType||'Premium_LRS'}' } }`);
-      lines.push(`    zone: ${c.availabilityZone && c.availabilityZone !== 'None' ? c.availabilityZone : '0'}`);
-      lines.push(`    nicConfigurations: [{ enableAcceleratedNetworking: ${c.acceleratedNetworking||'true'} }]`);
+      lines.push(`    osType: '${osType}'`);
+      lines.push(`    imageReference: ${imageRef}`);
+      lines.push(`    osDisk: { diskSizeGB: ${c.osDiskSizeGB||128}, managedDisk: { storageAccountType: '${c.osDiskType||'Premium_LRS'}' }, createOption: 'FromImage' }`);
+      if (c.availabilityZone && c.availabilityZone !== 'None') {
+        lines.push(`    zone: ${parseInt(c.availabilityZone)}`);
+      }
+      lines.push(`    adminUsername: 'azureuser'`);
+      lines.push(`    nicConfigurations: [{`);
+      lines.push(`      nicSuffix: '-nic'`);
+      lines.push(`      enableAcceleratedNetworking: ${c.acceleratedNetworking === 'true'}`);
+      lines.push(`      ipConfigurations: [{`);
+      lines.push(`        name: 'ipconfig1'`);
+      lines.push(`        subnetResourceId: ${subnetRef}`);
+      lines.push(`      }]`);
+      lines.push(`    }]`);
       lines.push(`  }`);
       lines.push(`}\n`);
       break;
     }
     case 'vmss': {
+      const vmssOsType = (c.os||'').toLowerCase().includes('windows') ? 'Windows' : 'Linux';
+      const vmssImageRef = vmssOsType === 'Windows' 
+        ? `{ publisher: 'MicrosoftWindowsServer', offer: 'WindowsServer', sku: '2022-datacenter-g2', version: 'latest' }`
+        : `{ publisher: 'Canonical', offer: '0001-com-ubuntu-server-jammy', sku: '22_04-lts-gen2', version: 'latest' }`;
+      const vmssZones = (c.zones||'1,2,3').split(',').map(z => parseInt(z.trim()));
       lines.push(`module ${safeName} 'br/public:avm/res/compute/virtual-machine-scale-set:0.4.0' = {`);
       lines.push(`  name: '${res.name}'`);
       lines.push(`  scope: ${rgRef}`);
@@ -33,27 +53,51 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`    name: '${res.name}'`);
       lines.push(`    skuName: '${c.size||'Standard_D2s_v3'}'`);
       lines.push(`    skuCapacity: ${c.instances||2}`);
+      lines.push(`    osType: '${vmssOsType}'`);
+      lines.push(`    imageReference: ${vmssImageRef}`);
       lines.push(`    upgradePolicy: '${c.upgradePolicy||'Rolling'}'`);
-      lines.push(`    zones: [${(c.zones||'1,2,3').split(',').map(z => `'${z.trim()}'`).join(', ')}]`);
-      lines.push(`    autoScaleSettings: { minCount: ${c.minInstances||2}, maxCount: ${c.maxInstances||10} }`);
+      lines.push(`    zones: [${vmssZones.join(', ')}]`);
+      lines.push(`    adminUsername: 'azureuser'`);
+      lines.push(`    nicConfigurations: [{`);
+      lines.push(`      nicSuffix: '-nic'`);
+      lines.push(`      enableAcceleratedNetworking: ${c.acceleratedNetworking === 'true'}`);
+      lines.push(`      ipConfigurations: [{`);
+      lines.push(`        name: 'ipconfig1'`);
+      lines.push(`        subnetResourceId: ${subnetRef}`);
+      lines.push(`      }]`);
+      lines.push(`    }]`);
+      if (c.minInstances || c.maxInstances) {
+        lines.push(`    // Auto scaling: min=${c.minInstances||2}, max=${c.maxInstances||10}`);
+      }
       lines.push(`  }`);
       lines.push(`}\n`);
       break;
     }
     case 'aks': {
+      const aksZones = c.availabilityZones ? c.availabilityZones.split(',').map(z => parseInt(z.trim())) : [1, 2, 3];
       lines.push(`module ${safeName} 'br/public:avm/res/container-service/managed-cluster:0.3.0' = {`);
       lines.push(`  name: '${res.name}'`);
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${res.name}'`);
       lines.push(`    kubernetesVersion: '${c.version||'1.29'}'`);
-      lines.push(`    agentPoolProfiles: [{ count: ${c.nodes||3}, vmSize: '${c.nodeSize||'Standard_D2s_v3'}' }]`);
+      lines.push(`    managedIdentities: { systemAssigned: true }`);
+      lines.push(`    primaryAgentPoolProfile: [{`);
+      lines.push(`      name: 'agentpool'`);
+      lines.push(`      count: ${c.nodes||3}`);
+      lines.push(`      vmSize: '${c.nodeSize||'Standard_D2s_v3'}'`);
+      lines.push(`      mode: 'System'`);
+      lines.push(`      availabilityZones: [${aksZones.join(', ')}]`);
+      lines.push(`      vnetSubnetID: ${subnetRef}`);
+      lines.push(`    }]`);
       lines.push(`    networkPlugin: '${c.networkPlugin||'azure'}'`);
-      lines.push(`    podCidr: '${c.podCidr||'10.244.0.0/16'}'`);
+      if (c.networkPlugin !== 'kubenet') {
+        lines.push(`    podCidr: '${c.podCidr||'10.244.0.0/16'}'`);
+      }
       lines.push(`    serviceCidr: '${c.serviceCidr||'10.0.0.0/16'}'`);
       lines.push(`    dnsServiceIP: '${c.dnsServiceIp||'10.0.0.10'}'`);
       lines.push(`    enablePrivateCluster: ${c.privateCluster === 'true'}`);
-      lines.push(`    sku: { name: 'Base', tier: '${c.tier||'Standard'}' }`);
+      lines.push(`    skuTier: '${c.tier||'Standard'}'`);
       lines.push(`  }`);
       lines.push(`}\n`);
       break;
@@ -97,18 +141,20 @@ function generateBicepResource(res, rg, vnet, sn) {
       break;
     }
     case 'fw': {
-      const fwZones = c.availabilityZones ? c.availabilityZones.split(',').map(z => z.trim()) : ['1','2','3'];
+      const fwZones = c.availabilityZones ? c.availabilityZones.split(',').map(z => parseInt(z.trim())) : [1, 2, 3];
       lines.push(`module ${safeName} 'br/public:avm/res/network/azure-firewall:0.3.0' = {`);
       lines.push(`  name: '${res.name}'`);
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${res.name}'`);
-      lines.push(`    skuTier: '${c.sku||'Premium'}'`);
+      lines.push(`    azureSkuTier: '${c.sku||'Premium'}'`);
       lines.push(`    threatIntelMode: '${c.threatIntelMode||'Alert'}'`);
-      lines.push(`    hubIPAddresses: { publicIPs: { count: 1 } }`);
-      lines.push(`    zones: [${fwZones.map(z => `'${z}'`).join(', ')}]`);
+      lines.push(`    virtualNetworkResourceId: vnet_${vnetSafeName}.outputs.resourceId`);
+      lines.push(`    publicIPAddressObject: { name: '${res.name}-pip' }`);
+      lines.push(`    zones: [${fwZones.join(', ')}]`);
       if (c.dnsProxy === 'true') {
-        lines.push(`    additionalProperties: { 'Network.DNS.EnableProxy': 'true' }`);
+        lines.push(`    additionalPublicIpConfigurations: []`);
+        lines.push(`    // DNS Proxy enabled via Firewall Policy`);
       }
       if (c.policyName) {
         lines.push(`    firewallPolicyId: '${c.policyName}'`);

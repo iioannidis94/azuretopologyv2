@@ -1,7 +1,7 @@
-import { state, saveState, fullUpdate } from '../state-management.js';
+import { state, saveState, fullUpdate, normalizeResourceConfig, createResourceMeta, validateResource, RES_TYPES } from '../state-management.js';
 import { closeModal } from './export-utils.js';
 
-const JSON_EXPORT_VERSION = 1;
+const JSON_EXPORT_VERSION = 2;
 const TRANSIENT_KEYS = ['dragging','dragStart','offsetStart','dragNodeId','dragGroup','selectedId','offset','scale','mouseStart','dragNodeStart'];
 
 
@@ -125,6 +125,10 @@ export function confirmJsonImport(){
   if (!state.hub.subnets) state.hub.subnets = [];
   if (!state.hub.peerings) state.hub.peerings = [];
   if (!state.hub.peeringConfigs) state.hub.peeringConfigs = {};
+  
+  // Normalize all resources and add metadata
+  _normalizeAndValidateResources();
+  
   state.hub.subnets.forEach(sn => { if (!sn.resources) sn.resources = []; });
   state.spokes.forEach(s => {
     if (!s.subnets) s.subnets = [];
@@ -140,6 +144,59 @@ export function confirmJsonImport(){
   saveState();
   closeModal('json-import-modal');
   fullUpdate();
+}
+
+/**
+ * Normalizes all resources in state to ensure consistent config structure
+ * and adds metadata for imported resources
+ */
+function _normalizeAndValidateResources() {
+  const importTime = new Date().toISOString();
+  
+  // Helper to normalize a single resource
+  const normalizeResource = (res) => {
+    // Normalize config to include all default fields
+    const normalized = normalizeResourceConfig(res);
+    
+    // Add or update metadata
+    if (!normalized._meta) {
+      normalized._meta = createResourceMeta('json-import', {
+        importedAt: importTime
+      });
+    }
+    
+    // Update validation status
+    const validation = validateResource(normalized);
+    normalized._meta.validationStatus = validation.status;
+    if (validation.warnings.length > 0) {
+      normalized._meta.warnings = [...(normalized._meta.warnings || []), ...validation.warnings];
+    }
+    
+    return normalized;
+  };
+  
+  // Process hub subnets
+  if (state.hub && state.hub.subnets) {
+    state.hub.subnets.forEach(sn => {
+      if (sn.resources) {
+        sn.resources = sn.resources.map(normalizeResource);
+      }
+    });
+  }
+  
+  // Process spoke subnets
+  (state.spokes || []).forEach(spoke => {
+    (spoke.subnets || []).forEach(sn => {
+      if (sn.resources) {
+        sn.resources = sn.resources.map(normalizeResource);
+      }
+    });
+  });
+  
+  // Process RG-level resources
+  if (state.rgResources) {
+    state.rgResources = state.rgResources.map(normalizeResource);
+  }
 }
 
 function _mergeJsonData(data) {

@@ -1,4 +1,4 @@
-import { state, saveState, RES_TYPES, fullUpdate } from '../state-management.js';
+import { state, saveState, RES_TYPES, fullUpdate, extractConfigFromAzure, normalizeResourceConfig, createResourceMeta, validateResource } from '../state-management.js';
 import { closeModal, _uid } from './export-utils.js';
 
 // AZURE RESOURCE INVENTORY IMPORT
@@ -319,7 +319,7 @@ export function confirmInventoryImport(){
   });
 
   // Second pass: map resources to types and assign to subnets
- // Second pass: map resources to types and assign to subnets
+  // Second pass: map resources to types and assign to subnets
   resources.forEach(r => {
     const rId = r.id || r.Id || r.ResourceId || '';
     const type = (r.type || r.ResourceType || '').toLowerCase();
@@ -343,12 +343,13 @@ export function confirmInventoryImport(){
     // RG-level resources
     const rtDef = RES_TYPES[resolvedType];
     if (rtDef && rtDef.rgLevel) {
-      const resObj = { id: _uid(), type: resolvedType, name: r.name || r.Name, config: _buildConfig(r, resolvedType), rgId: rgObj ? rgObj.id : null };
+      const resObj = _createResourceWithMeta(resolvedType, r.name || r.Name, _buildConfig(r, resolvedType), r);
+      resObj.rgId = rgObj ? rgObj.id : null;
       rgResourceList.push(resObj);
       return;
     }
 
-    const resObj = { id: _uid(), type: resolvedType, name: r.name || r.Name, config: _buildConfig(r, resolvedType) };
+    const resObj = _createResourceWithMeta(resolvedType, r.name || r.Name, _buildConfig(r, resolvedType), r);
 
     // Try to find subnet from resource properties
     let assignedSubnet = false;
@@ -608,58 +609,340 @@ function _getDefaultConfig(type) {
 /**
  * Build config for imported resource by merging Azure properties with defaults.
  * This ensures imported resources have identical configuration structure to manually created ones.
+ * Uses the centralized extractConfigFromAzure for consistent mapping.
  */
 function _buildConfig(resource, type) {
-  // Start with FULL default configuration, then override with actual Azure values
+  // Start with FULL default configuration
   const config = _getDefaultConfig(type);
   const props = resource.properties || resource.Properties || {};
   const sku = resource.sku || resource.Sku || {};
 
+  // Use centralized extraction for common mappings
+  const extracted = extractConfigFromAzure(resource, type);
+  Object.assign(config, extracted);
+
+  // Type-specific extraction for complex cases not handled by generic mappings
   switch(type) {
     case 'vm':
-      if (props.hardwareProfile?.vmSize) config.size = props.hardwareProfile.vmSize;
+      // Additional VM-specific extraction
+      if (props.hardwareProfile?.vmSize && !config.size) config.size = props.hardwareProfile.vmSize;
       if (props.storageProfile?.osDisk) {
-        if (props.storageProfile.osDisk.diskSizeGB) config.osDiskSizeGB = String(props.storageProfile.osDisk.diskSizeGB);
-        if (props.storageProfile.osDisk.managedDisk?.storageAccountType) config.osDiskType = props.storageProfile.osDisk.managedDisk.storageAccountType;
+        if (props.storageProfile.osDisk.diskSizeGB && !config.osDiskSizeGB) config.osDiskSizeGB = String(props.storageProfile.osDisk.diskSizeGB);
+        if (props.storageProfile.osDisk.managedDisk?.storageAccountType && !config.osDiskType) config.osDiskType = props.storageProfile.osDisk.managedDisk.storageAccountType;
+        // Extract data disks count
+        if (props.storageProfile?.dataDisks) config.dataDisks = String(props.storageProfile.dataDisks.length || 0);
       }
-      if (props.osProfile) {
+      if (props.osProfile && !config.os) {
         config.os = props.osProfile.windowsConfiguration ? 'Windows Server 2022' : 'Ubuntu 22.04';
       }
+      // Extract zone if available
+      if (resource.zones && resource.zones[0]) config.availabilityZone = resource.zones[0];
+      // Extract managed identity
+      if (resource.identity?.type) config.managedIdentity = resource.identity.type;
       break;
-    case 'aks':
-      if (props.kubernetesVersion) config.version = props.kubernetesVersion;
-      if (props.agentPoolProfiles && props.agentPoolProfiles[0]) {
-        if (props.agentPoolProfiles[0].count) config.nodes = String(props.agentPoolProfiles[0].count);
-        if (props.agentPoolProfiles[0].vmSize) config.nodeSize = props.agentPoolProfiles[0].vmSize;
+
+    case 'vmss':
+      // VMSS-specific extraction
+      if (sku.name && !config.size) config.size = sku.name;
+      if (sku.capacity && !config.instances) config.instances = String(sku.capacity);
+      if (props.upgradePolicy?.mode && !config.upgradePolicy) config.upgradePolicy = props.upgradePolicy.mode;
+      if (resource.zones) config.zones = Array.isArray(resource.zones) ? resource.zones.join(',') : resource.zones;
+      if (props.virtualMachineProfile?.osProfile) {
+        config.os = props.virtualMachineProfile.osProfile.windowsConfiguration ? 'Windows Server 2022' : 'Ubuntu 22.04';
       }
-      if (props.networkProfile?.networkPlugin) config.networkPlugin = props.networkProfile.networkPlugin;
       break;
+
+    case 'aks':
+      // AKS-specific extraction
+      if (props.kubernetesVersion && !config.version) config.version = props.kubernetesVersion;
+      if (props.agentPoolProfiles && props.agentPoolProfiles[0]) {
+        if (props.agentPoolProfiles[0].count && !config.nodes) config.nodes = String(props.agentPoolProfiles[0].count);
+        if (props.agentPoolProfiles[0].vmSize && !config.nodeSize) config.nodeSize = props.agentPoolProfiles[0].vmSize;
+      }
+      if (props.networkProfile) {
+        if (props.networkProfile.networkPlugin && !config.networkPlugin) config.networkPlugin = props.networkProfile.networkPlugin;
+        if (props.networkProfile.podCidr) config.podCidr = props.networkProfile.podCidr;
+        if (props.networkProfile.serviceCidr) config.serviceCidr = props.networkProfile.serviceCidr;
+        if (props.networkProfile.dnsServiceIP) config.dnsServiceIp = props.networkProfile.dnsServiceIP;
+      }
+      if (props.apiServerAccessProfile?.enablePrivateCluster !== undefined) {
+        config.privateCluster = String(props.apiServerAccessProfile.enablePrivateCluster);
+      }
+      if (sku?.tier) config.tier = sku.tier;
+      break;
+
+    case 'fa':
+      // Function App specific
+      if (props.siteConfig) {
+        const runtime = props.siteConfig.linuxFxVersion || props.siteConfig.windowsFxVersion || '';
+        if (runtime && !config.runtime) {
+          // Parse runtime like "NODE|20" or "DOTNET|8.0"
+          const parts = runtime.split('|');
+          config.runtime = parts[0]?.toLowerCase() || 'node';
+          if (parts[1]) config.runtimeVersion = parts[1];
+        }
+        if (props.siteConfig.alwaysOn !== undefined) config.alwaysOn = String(props.siteConfig.alwaysOn);
+      }
+      config.osType = props.siteConfig?.linuxFxVersion ? 'Linux' : 'Windows';
+      break;
+
+    case 'aca':
+      // Container Apps specific
+      if (props.template?.containers?.[0]) {
+        const container = props.template.containers[0];
+        if (container.image) config.image = container.image;
+        if (container.resources?.cpu) config.cpu = String(container.resources.cpu);
+        if (container.resources?.memory) config.memory = container.resources.memory;
+      }
+      if (props.template?.scale) {
+        if (props.template.scale.minReplicas !== undefined) config.minReplicas = String(props.template.scale.minReplicas);
+        if (props.template.scale.maxReplicas !== undefined) config.replicas = String(props.template.scale.maxReplicas);
+      }
+      if (props.configuration?.ingress) {
+        if (props.configuration.ingress.targetPort) config.targetPort = String(props.configuration.ingress.targetPort);
+        config.ingress = props.configuration.ingress.external ? 'external' : 'internal';
+      }
+      if (props.managedEnvironmentId) {
+        config.environmentName = props.managedEnvironmentId.split('/').pop() || '';
+      }
+      break;
+
+    case 'fw':
+      // Azure Firewall specific
+      if (sku.tier && !config.sku) config.sku = sku.tier;
+      if (props.threatIntelMode) config.threatIntelMode = props.threatIntelMode;
+      if (props.additionalProperties?.['Network.DNS.EnableProxy'] !== undefined) {
+        config.dnsProxy = String(props.additionalProperties['Network.DNS.EnableProxy']);
+      }
+      if (resource.zones) config.availabilityZones = Array.isArray(resource.zones) ? resource.zones.join(',') : resource.zones;
+      break;
+
+    case 'agw':
+      // Application Gateway specific
+      if (sku.name && !config.sku) config.sku = sku.name;
+      if (sku.tier && !config.tier) config.tier = sku.tier;
+      if (sku.capacity && !config.capacity) config.capacity = String(sku.capacity);
+      if (props.sslPolicy?.policyName) config.sslPolicy = props.sslPolicy.policyName;
+      break;
+
+    case 'lb':
+      // Load Balancer specific
+      if (sku.name && !config.sku) config.sku = sku.name;
+      if (props.frontendIPConfigurations?.[0]) {
+        const feIp = props.frontendIPConfigurations[0];
+        if (feIp.properties?.publicIPAddress) {
+          config.type = 'Public';
+        } else {
+          config.type = 'Internal';
+        }
+        if (feIp.properties?.privateIPAllocationMethod) {
+          config.frontendIp = feIp.properties.privateIPAllocationMethod;
+        }
+      }
+      break;
+
+    case 'gw':
+      // VPN Gateway specific
+      if (sku.name && !config.sku) config.sku = sku.name;
+      if (props.vpnType) config.vpnType = props.vpnType;
+      if (props.vpnGatewayGeneration) config.generation = props.vpnGatewayGeneration;
+      if (props.activeActive !== undefined) config.activeActive = String(props.activeActive);
+      if (props.bgpSettings?.asn) config.bgpAsn = String(props.bgpSettings.asn);
+      break;
+
+    case 'ergw':
+      // ExpressRoute Gateway specific
+      if (sku.name && !config.sku) config.sku = sku.name;
+      if (props.gatewayType) config.gatewayType = props.gatewayType;
+      break;
+
+    case 'bas':
+      // Bastion specific
+      if (sku.name && !config.sku) config.sku = sku.name;
+      if (props.scaleUnits !== undefined) config.scaleUnits = String(props.scaleUnits);
+      if (props.enableShareableLink !== undefined) config.shareableLink = String(props.enableShareableLink);
+      if (props.enableIpConnect !== undefined) config.ipConnect = String(props.enableIpConnect);
+      if (props.enableTunneling !== undefined) config.tunneling = String(props.enableTunneling);
+      break;
+
+    case 'afd':
+      // Front Door specific
+      if (sku.name) {
+        config.sku = sku.name.replace('_AzureFrontDoor', '');
+      }
+      break;
+
+    case 'pe':
+      // Private Endpoint specific
+      if (props.privateLinkServiceConnections?.[0]) {
+        const conn = props.privateLinkServiceConnections[0];
+        if (conn.properties?.groupIds?.[0]) config.groupId = conn.properties.groupIds[0];
+        if (conn.properties?.privateLinkServiceId) {
+          config.targetResourceId = conn.properties.privateLinkServiceId;
+          config.targetResourceName = conn.properties.privateLinkServiceId.split('/').pop() || '';
+        }
+        if (conn.name) config.connectionName = conn.name;
+      }
+      break;
+
+    case 'nsg':
+      // NSG specific - extract security rules
+      if (props.securityRules && Array.isArray(props.securityRules)) {
+        config.rules = JSON.stringify(props.securityRules.map(r => ({
+          name: r.name,
+          priority: String(r.properties?.priority || 100),
+          direction: r.properties?.direction || 'Inbound',
+          access: r.properties?.access || 'Allow',
+          protocol: r.properties?.protocol || 'Tcp',
+          srcPort: r.properties?.sourcePortRange || '*',
+          dstPort: r.properties?.destinationPortRange || '*',
+          srcAddr: r.properties?.sourceAddressPrefix || '*',
+          dstAddr: r.properties?.destinationAddressPrefix || '*'
+        })));
+      }
+      break;
+
     case 'sql':
-      if (sku.tier) config.tier = sku.tier;
-      if (sku.capacity) config.vcores = String(sku.capacity);
+      // SQL specific
+      if (sku.tier && !config.tier) config.tier = sku.tier;
+      if (sku.capacity && !config.vcores) config.vcores = String(sku.capacity);
+      if (props.maxSizeBytes) config.maxSizeGB = String(Math.round(props.maxSizeBytes / 1073741824));
+      if (props.collation) config.collation = props.collation;
+      if (props.zoneRedundant !== undefined) config.zoneRedundant = String(props.zoneRedundant);
       break;
+
+    case 'cosmos':
+      // Cosmos DB specific
+      if (resource.kind) {
+        config.api = resource.kind === 'MongoDB' ? 'MongoDB' : 'NoSQL';
+      }
+      if (props.consistencyPolicy?.defaultConsistencyLevel) {
+        config.consistencyLevel = props.consistencyPolicy.defaultConsistencyLevel;
+      }
+      if (props.enableFreeTier !== undefined) config.enableFreeTier = String(props.enableFreeTier);
+      if (props.capabilities?.some(c => c.name === 'EnableServerless')) config.serverless = 'true';
+      break;
+
     case 'sa':
+      // Storage Account specific
       if (sku.name) {
         const parts = sku.name.split('_');
-        if (parts[0]) config.tier = parts[0];
+        if (parts[0] && !config.tier) config.tier = parts[0];
+        if (parts[1] && !config.replication) config.replication = parts[1];
+      }
+      if (resource.kind && !config.kind) config.kind = resource.kind;
+      if (props.accessTier) config.accessTier = props.accessTier;
+      if (props.supportsHttpsTrafficOnly !== undefined) config.httpsOnly = String(props.supportsHttpsTrafficOnly);
+      if (props.minimumTlsVersion) config.minTlsVersion = props.minimumTlsVersion;
+      break;
+
+    case 'redis':
+      // Redis specific
+      if (sku.name && sku.family) {
+        config.sku = `${sku.name} ${sku.family}${sku.capacity || 1}`;
+      }
+      if (sku.capacity && !config.capacity) config.capacity = String(sku.capacity);
+      if (props.enableNonSslPort !== undefined) config.enableNonSslPort = String(props.enableNonSslPort);
+      if (props.minimumTlsVersion) config.minTlsVersion = props.minimumTlsVersion;
+      if (resource.zones) config.zones = Array.isArray(resource.zones) ? resource.zones.join(',') : '';
+      if (props.replicasPerPrimary !== undefined) config.replicasPerPrimary = String(props.replicasPerPrimary);
+      break;
+
+    case 'adls':
+      // Data Lake specific
+      if (sku.tier && !config.tier) config.tier = sku.tier;
+      if (sku.name) {
+        const parts = sku.name.split('_');
         if (parts[1]) config.replication = parts[1];
       }
-      if (resource.kind) config.kind = resource.kind;
+      if (props.isHnsEnabled !== undefined) config.hierarchicalNamespace = String(props.isHnsEnabled);
       break;
+
     case 'kv':
-      if (sku.name) config.sku = sku.name;
+      // Key Vault specific
+      if (props.sku?.name && !config.sku) config.sku = props.sku.name;
+      if (props.softDeleteRetentionInDays) config.softDeleteDays = String(props.softDeleteRetentionInDays);
+      if (props.enablePurgeProtection !== undefined) config.purgeProtection = String(props.enablePurgeProtection);
+      if (props.enableRbacAuthorization !== undefined) config.enableRbacAuth = String(props.enableRbacAuthorization);
+      if (props.networkAcls?.defaultAction) config.networkAcls = props.networkAcls.defaultAction;
       break;
-    case 'fw':
-      if (sku.tier) config.sku = sku.tier;
-      break;
+
     case 'app':
-    case 'fa':
-      const runtimeVersion = props.siteConfig?.linuxFxVersion || props.siteConfig?.windowsFxVersion;
-      if (runtimeVersion) config.runtime = runtimeVersion;
+      // App Service specific
+      if (props.serverFarmId) {
+        config.appServicePlanName = props.serverFarmId.split('/').pop() || '';
+      }
+      if (props.siteConfig) {
+        const runtime = props.siteConfig.linuxFxVersion || props.siteConfig.windowsFxVersion || '';
+        if (runtime && !config.runtime) {
+          const parts = runtime.split('|');
+          config.runtime = parts[0]?.toLowerCase() || 'dotnet';
+          if (parts[1]) config.runtimeVersion = parts[1];
+        }
+        if (props.siteConfig.alwaysOn !== undefined) config.alwaysOn = String(props.siteConfig.alwaysOn);
+        if (props.siteConfig.minTlsVersion) config.minTlsVersion = props.siteConfig.minTlsVersion;
+      }
+      if (props.httpsOnly !== undefined) config.httpsOnly = String(props.httpsOnly);
+      if (resource.identity?.type) config.managedIdentity = resource.identity.type;
       break;
+
+    case 'apim':
+      // API Management specific
+      if (sku.name && !config.tier) config.tier = sku.name;
+      if (sku.capacity && !config.capacity) config.capacity = String(sku.capacity);
+      if (props.publisherName) config.publisherName = props.publisherName;
+      if (props.publisherEmail) config.publisherEmail = props.publisherEmail;
+      if (props.virtualNetworkType) config.vnetType = props.virtualNetworkType;
+      break;
+
+    case 'sb':
+      // Service Bus specific
+      if (sku.name && !config.tier) config.tier = sku.name;
+      if (sku.capacity) config.messagingUnits = String(sku.capacity);
+      if (props.zoneRedundant !== undefined) config.zoneRedundant = String(props.zoneRedundant);
+      break;
+
+    case 'evh':
+      // Event Hub specific
+      if (sku.name && !config.plan) config.plan = sku.name;
+      if (sku.capacity) config.throughputUnits = String(sku.capacity);
+      break;
+
+    case 'logic':
+      // Logic App specific
+      if (sku?.name) config.plan = sku.name;
+      if (props.state) config.state = props.state;
+      break;
+
+    case 'foundry':
+      // AI Foundry specific
+      if (sku.name && !config.sku) config.sku = sku.name;
+      if (resource.kind) config.kind = resource.kind;
+      if (props.customSubDomainName) config.customSubdomain = props.customSubDomainName;
+      if (props.networkAcls?.defaultAction) config.networkRules = props.networkAcls.defaultAction;
+      break;
+
+    case 'openai':
+      // OpenAI specific
+      if (props.deployments?.[0]) {
+        const deployment = props.deployments[0];
+        if (deployment.properties?.model?.name) config.model = deployment.properties.model.name;
+        if (deployment.name) config.deploymentName = deployment.name;
+        if (deployment.sku?.capacity) config.capacity = String(deployment.sku.capacity);
+        if (deployment.properties?.model?.version) config.modelVersion = deployment.properties.model.version;
+      }
+      break;
+
+    case 'monitor':
+      // Monitor specific
+      if (props.sku?.name) config.workspaceSku = props.sku.name;
+      if (props.retentionInDays) config.retentionDays = String(props.retentionInDays);
+      if (props.workspaceCapping?.dailyQuotaGb) config.dailyCapGB = String(props.workspaceCapping.dailyQuotaGb);
+      break;
+
     case 'dns':
     case 'publicDns':
-      // Extract DNS zone name from resource name (zone name is typically the resource name)
+      // DNS zone specific
       const zoneName = resource.name || resource.Name || '';
       if (zoneName) {
         config.zone = zoneName;
@@ -673,9 +956,9 @@ function _buildConfig(resource, type) {
         config.vnetLinks = props.virtualNetworkLinks.map(link => {
           const linkProps = link.properties || link.Properties || {};
           const vnetId = linkProps.virtualNetwork?.id || linkProps.VirtualNetwork?.id || '';
-          const vnetName = vnetId.split('/').pop(); // Get last element of path (VNet name)
+          const vnetName = vnetId.split('/').pop();
           return {
-            vnetId: null, // Will be resolved later in vnet link resolution pass
+            vnetId: null,
             vnetName: vnetName || '',
             registrationEnabled: (linkProps.registrationEnabled || linkProps.RegistrationEnabled || false) === true,
             linkName: link.name || link.Name || ''
@@ -683,11 +966,41 @@ function _buildConfig(resource, type) {
         });
       }
       break;
+
     default:
-      // Already have full default config, no additional type-specific extraction needed
+      // Already have full default config from extractConfigFromAzure
       break;
   }
+
   return config;
+}
+
+/**
+ * Creates a resource object with metadata tracking
+ * @param {string} type - Resource type
+ * @param {string} name - Resource name  
+ * @param {Object} config - Resource configuration
+ * @param {Object} azureResource - Original Azure resource (for tracking)
+ * @returns {Object} - Resource object with _meta
+ */
+function _createResourceWithMeta(type, name, config, azureResource) {
+  const resource = {
+    id: _uid(),
+    type,
+    name,
+    config,
+    _meta: createResourceMeta('inventory-import', {
+      originalId: azureResource?.id || azureResource?.Id || null,
+      importedAt: new Date().toISOString()
+    })
+  };
+  
+  // Run validation and update meta
+  const validation = validateResource(resource);
+  resource._meta.validationStatus = validation.status;
+  resource._meta.warnings = validation.warnings;
+  
+  return resource;
 }
 
 function _findSubnetRef(props) {

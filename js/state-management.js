@@ -7,3 +7,4 @@ export * from './state/state-core.js';
 export * from './state/state-cidr.js';
 export * from './state/state-helpers.js';
 export * from './state/state-cost.js';
+export * from './state/state-validation.js';

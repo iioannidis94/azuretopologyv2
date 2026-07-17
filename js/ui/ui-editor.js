@@ -1,4 +1,6 @@
-import { state, esc, RES_TYPES, AZURE_ICON_BASE, saveState, fullUpdate, updateCost, getRecommendedDnsZones, validateResource } from '../state-management.js';
+import { state, esc, RES_TYPES, AZURE_ICON_BASE, saveState, fullUpdate, updateCost, getRecommendedDnsZones, validateResource, getResourcesByType } from '../state-management.js';
+import { renderResourceSection } from './editor/editor-resource.js';
+import { renderRgResourceSection } from './editor/editor-rgresource.js';
 
 // ================================================================
 // HELPER: Render validation status badge
@@ -279,13 +281,24 @@ export function renderEditor(){
   } else if (typeObj === 'subnet') {
     const serviceEndpointOptions = ['Microsoft.Storage','Microsoft.Sql','Microsoft.KeyVault','Microsoft.AzureActiveDirectory','Microsoft.EventHub','Microsoft.ServiceBus','Microsoft.Web','Microsoft.ContainerRegistry'];
     const delegationOptions = ['None','Microsoft.Web/serverFarms','Microsoft.ContainerInstance/containerGroups','Microsoft.Databricks/workspaces','Microsoft.DBforMySQL/flexibleServers','Microsoft.DBforPostgreSQL/flexibleServers'];
+    // Build a dropdown of real placed resources of the given type for subnet associations
+    // (falls back to a "(legacy)" option if the stored value doesn't match any placed resource id)
+    const assocSelect = (label, key, resType, emoji) => {
+      const options = getResourcesByType(resType);
+      const currentVal = obj[key] || '';
+      const matchesOption = options.some(o => o.id === currentVal);
+      let opts = `<option value=""${!currentVal?' selected':''}>-- None --</option>`;
+      opts += options.map(o => `<option value="${o.id}"${currentVal===o.id?' selected':''}>${esc(o.name)}</option>`).join('');
+      if(currentVal && !matchesOption) opts += `<option value="${esc(currentVal)}" selected>${esc(currentVal)} (legacy)</option>`;
+      return `<div class="editor-row"><span class="editor-label">${emoji} ${label}</span><select class="input-field" onchange="window._updateSubnetProp('${parent.id}','${obj.id}','${key}',this.value)">${opts}</select></div>`;
+    };
     h+=`<div class="editor-header">⬚ Subnet</div>
       <div class="editor-row"><span class="editor-label">Subnet Name</span><input class="input-field" value="${esc(obj.name)}" onchange="window._updateSubnet('${parent.id}','${obj.id}','name',this.value)"></div>
       <div class="editor-row"><span class="editor-label">CIDR Block</span><input class="input-field" value="${esc(obj.cidr)}" onchange="window._updateSubnet('${parent.id}','${obj.id}','cidr',this.value)"></div>
       <div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🔒 Security & Routing</span></div>
-      <div class="editor-row"><span class="editor-label">NSG</span><input class="input-field" value="${esc(obj.nsgId||'')}" onchange="window._updateSubnetProp('${parent.id}','${obj.id}','nsgId',this.value)" placeholder="NSG resource name"></div>
-      <div class="editor-row"><span class="editor-label">Route Table</span><input class="input-field" value="${esc(obj.routeTableId||'')}" onchange="window._updateSubnetProp('${parent.id}','${obj.id}','routeTableId',this.value)" placeholder="Route table name"></div>
-      <div class="editor-row"><span class="editor-label">NAT Gateway</span><input class="input-field" value="${esc(obj.natGatewayId||'')}" onchange="window._updateSubnetProp('${parent.id}','${obj.id}','natGatewayId',this.value)" placeholder="NAT Gateway name"></div>
+      ${assocSelect('NSG','nsgId','nsg','📋')}
+      ${assocSelect('Route Table','routeTableId','udr','🛣️')}
+      ${assocSelect('NAT Gateway','natGatewayId','natgw','🚪')}
       <div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🌐 Service Endpoints</span></div>
       <div class="editor-row"><span class="editor-label">Endpoints</span><input class="input-field" value="${esc(obj.serviceEndpoints||'')}" onchange="window._updateSubnetProp('${parent.id}','${obj.id}','serviceEndpoints',this.value)" placeholder="${serviceEndpointOptions.slice(0,3).join(', ')}"></div>
       <div class="editor-row"><span class="editor-label">Delegation</span><select class="input-field" onchange="window._updateSubnetProp('${parent.id}','${obj.id}','delegation',this.value)">
@@ -296,189 +309,9 @@ export function renderEditor(){
       <div class="editor-row"><span class="editor-label">PLS Network Policies</span><select class="input-field" onchange="window._updateSubnetProp('${parent.id}','${obj.id}','privateLinkServiceNetworkPolicies',this.value)"><option value="Disabled"${(obj.privateLinkServiceNetworkPolicies||'Disabled')==='Disabled'?' selected':''}>Disabled</option><option value="Enabled"${obj.privateLinkServiceNetworkPolicies==='Enabled'?' selected':''}>Enabled</option></select></div>
       <button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="window._deleteSubnet('${parent.id}','${obj.id}')">🗑 Delete Subnet</button>`;
   } else if (typeObj === 'resource') {
-    const rt=RES_TYPES[obj.type]||{color:'#888',label:'Resource', icon:'❓'};
-    const validationBadge = renderValidationBadge(obj);
-    h+=`<div class="editor-header">
-          <img src="${AZURE_ICON_BASE}${rt.img}" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-          <span style="display:none">${rt.icon}</span> 
-          ${rt.label} ${validationBadge}
-        </div>
-      <div class="editor-row"><span class="editor-label">Name</span><input class="input-field" value="${esc(obj.name)}" onchange="window._updateResource('${obj.id}','name',this.value)"></div>`;
-    
-    // Show validation section at the top
-    h += renderValidationSection(obj);
-     
-    // Special PE section with target resource selection
-    if(obj.type === 'pe'){
-      const { getPeTargetableResources, getPeTargetResource, PE_TARGET_DNS_RECOMMENDATIONS, getAllPrivateEndpoints } = window._state;
-      const targetableResources = getPeTargetableResources();
-      const currentTarget = getPeTargetResource(obj.id);
-       
-      h+=`<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🔗 Private Link Target</span></div>`;
-      h+=`<div class="editor-row"><span class="editor-label">Target Resource</span>
-        <select class="input-field" onchange="window._updateResConfig('${obj.id}','targetResourceId',this.value)">
-          <option value="">-- Select target resource --</option>
-          ${targetableResources.map(r => `<option value="${r.id}"${obj.config.targetResourceId === r.id ? ' selected' : ''}>${esc(r.name)} (${RES_TYPES[r.type]?.label || r.type})</option>`).join('')}
-        </select>
-      </div>`;
-       
-      if(currentTarget) {
-        h+=`<div class="editor-row"><span class="editor-label">Target Info</span><span style="font-size:11px;color:var(--muted);">🎯 ${esc(currentTarget.name)} in ${RES_TYPES[currentTarget.type]?.label || 'Resource'}</span></div>`;
-         
-        // Show recommended DNS zones for this target
-        const recommendedZones = PE_TARGET_DNS_RECOMMENDATIONS[obj.config.target] || [];
-        if(recommendedZones.length > 0) {
-          h+=`<div class="editor-row" style="flex-direction:column;align-items:stretch;margin-top:8px;padding:8px;background:rgba(0,176,148,0.05);border-radius:4px;">
-            <span style="font-size:10px;font-weight:bold;color:var(--azure-green);margin-bottom:6px;">💡 Required DNS Zones:</span>
-            ${recommendedZones.map(z => `<div style="font-size:9px;color:var(--text);margin-bottom:3px;padding:4px;background:rgba(0,120,212,0.1);border-radius:2px;">${esc(z)}</div>`).join('')}
-          </div>`;
-        }
-      }
-    }
-     
-    if(obj.type === 'vm'){
-      // VM: Structured sections for full configuration
-      const cfg = obj.config;
-      const vmSections = [
-        { title:'💻 Compute', keys:['size','os','availabilityZone'] },
-        { title:'💾 OS Disk', keys:['osDiskType','osDiskSizeGB'] },
-        { title:'📀 Data Disks', keys:['dataDisks','dataDiskSizeGB','dataDiskType'] },
-        { title:'🌐 Networking', keys:['acceleratedNetworking','publicIp'] },
-        { title:'🔐 Security', keys:['authType','securityType','vTpmEnabled','secureBootEnabled','managedIdentity'] },
-        { title:'⚙️ Management', keys:['bootDiagnostics','backupEnabled','patchMode'] },
-      ];
-      vmSections.forEach(section => {
-        const sectionKeys = section.keys.filter(k => k in cfg);
-        if(sectionKeys.length === 0) return;
-        h+=`<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">${section.title}</span></div>`;
-        sectionKeys.forEach(k => {
-          const label = k.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase())
-            .replace(/\bV Tpm\b/,'vTPM').replace(/\bIp\b/,'IP').replace(/\bOs\b/,'OS').replace(/\bVm\b/,'VM').replace(/\bG B\b/,'GB');
-          if(cfg[k]==='true'||cfg[k]==='false'){
-            h+=`<div class="editor-row"><span class="editor-label">${label}</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','${k}',this.value)"><option value="true"${cfg[k]==='true'?' selected':''}>Yes</option><option value="false"${cfg[k]==='false'?' selected':''}>No</option></select></div>`;
-          } else {
-            h+=`<div class="editor-row"><span class="editor-label">${label}</span><input class="input-field" value="${esc(cfg[k])}" onchange="window._updateResConfig('${obj.id}','${k}',this.value)"></div>`;
-          }
-        });
-      });
-      // Show any remaining keys not in sections
-      const allSectionKeys = vmSections.flatMap(s=>s.keys);
-      Object.keys(cfg).filter(k=>!allSectionKeys.includes(k)).forEach(k=>{
-        h+=`<div class="editor-row"><span class="editor-label">${k}</span><input class="input-field" value="${esc(cfg[k])}" onchange="window._updateResConfig('${obj.id}','${k}',this.value)"></div>`;
-      });
-    } else if(obj.type !== 'pe') {
-      h += renderConfigFields(obj.id, obj.config);
-    } else if(obj.type === 'pe') {
-      // For PE, render remaining config fields (target, groupId, etc.) skipping PE-specific fields
-      // Note: Special PE UI (target selection, DNS recommendations) already rendered above
-      h += renderConfigFields(obj.id, obj.config, k => !['targetResourceId', 'targetResourceName'].includes(k));
-    }
-    h+=`<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="window._deleteResource('${obj.id}')">🗑 Delete Resource</button>`;
+    h += renderResourceSection(obj, { renderValidationBadge, renderValidationSection, renderConfigFields });
   } else if (typeObj === 'rgResource') {
-    const rt = RES_TYPES[obj.type]||{color:'#888',label:'Resource', icon:'❓', img:''};
-    const validationBadge = renderValidationBadge(obj);
-    h+=`<div class="editor-header">
-          <img src="${AZURE_ICON_BASE}${rt.img}" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">
-          <span style="display:none">${rt.icon}</span> 
-          ${rt.label} ${validationBadge}
-        </div>
-      <div class="editor-row"><span class="editor-label">Name</span><input class="input-field" value="${esc(obj.name)}" onchange="window._updateRgResource('${obj.id}','name',this.value)"></div>`;
-    
-    // Show validation section at the top
-    h += renderValidationSection(obj);
-    
-    // Zone selection - searchable dropdown for Private DNS zones
-    if(obj.type === 'dns') {
-      const recommended = getRecommendedDnsZones();
-      const existingZones = (state.rgResources||[]).filter(r=>r.type==='dns' && r.config.zone).map(r=>r.config.zone);
-      const unresolvedRecs = recommended.filter(z => !existingZones.includes(z));
-      h+=`<div class="editor-row" style="flex-direction:column;align-items:stretch;">
-        <span class="editor-label" style="margin-bottom:4px;">Zone</span>
-        <div class="dns-zone-picker" style="position:relative;">
-          <input class="input-field dns-zone-search" id="dns-zone-search-${obj.id}" value="${esc(obj.config.zone||'')}" 
-            placeholder="Search or type zone..." 
-            onfocus="window._showDnsZoneDropdown('${obj.id}')"
-            oninput="window._filterDnsZones('${obj.id}', this.value)"
-            onchange="window._updateResConfig('${obj.id}','zone',this.value)">
-          <div class="dns-zone-dropdown" id="dns-zone-dd-${obj.id}" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:var(--card-bg);border:1px solid var(--border);border-radius:4px;z-index:1000;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,0.15);">
-          </div>
-        </div>
-      </div>`;
-      // Show recommendations
-      if(unresolvedRecs.length > 0) {
-        h+=`<div class="editor-row" style="flex-direction:column;align-items:stretch;margin-top:6px;">
-          <span class="editor-label" style="font-size:9px;color:var(--azure-blue);margin-bottom:4px;">💡 Recommended (based on Private Endpoints)</span>`;
-        unresolvedRecs.slice(0,3).forEach(zone => {
-          h+=`<div style="display:flex;align-items:center;gap:4px;margin-bottom:2px;">
-            <button style="flex:1;text-align:left;padding:4px 6px;border-radius:3px;cursor:pointer;font-size:9px;border:1px solid var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" 
-              title="${esc(zone)}"
-              onclick="window._selectDnsZone('${obj.id}','${zone}')">${zone}</button>
-          </div>`;
-        });
-        h+=`</div>`;
-      }
-    } else {
-      h+=`<div class="editor-row"><span class="editor-label">Zone</span><input class="input-field" value="${esc(obj.config.zone||'')}" onchange="window._updateResConfig('${obj.id}','zone',this.value)"></div>`;
-    }
-    
-    // DNS Records
-    if(obj.type === 'publicDns' && !obj.config.records) obj.config.records = [];
-    if(obj.config.records) {
-      h+=`<div class="editor-row" style="margin-top:10px;"><span class="editor-label" style="font-weight:bold;">DNS Records</span></div>`;
-      obj.config.records.forEach((rec, idx) => {
-        h+=`<div class="editor-row dns-record-row" style="gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-radius:4px;padding:6px;margin-bottom:4px;">
-          <input class="input-field" style="flex:1;min-width:60px;" placeholder="Name" value="${esc(rec.name)}" onchange="window._updateDnsRecord('${obj.id}',${idx},'name',this.value)">
-          <select class="input-field" style="width:60px;" onchange="window._updateDnsRecord('${obj.id}',${idx},'type',this.value)">
-            ${['A','AAAA','CNAME','MX','TXT','NS','SOA','SRV','PTR'].map(t=>`<option${rec.type===t?' selected':''}>${t}</option>`).join('')}
-          </select>
-          <input class="input-field" style="flex:2;min-width:80px;" placeholder="Value" value="${esc(rec.value)}" onchange="window._updateDnsRecord('${obj.id}',${idx},'value',this.value)">
-          <input class="input-field" style="width:50px;" placeholder="TTL" value="${esc(rec.ttl)}" onchange="window._updateDnsRecord('${obj.id}',${idx},'ttl',this.value)">
-          <button class="icon-btn danger" onclick="window._deleteDnsRecord('${obj.id}',${idx})">🗑</button>
-        </div>`;
-      });
-      h+=`<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addDnsRecord('${obj.id}')">➕ Add Record</button>`;
-    }
-    
-    // VNet Links (for Private DNS) - shown like peerings
-    if(obj.type === 'dns' && obj.config.vnetLinks !== undefined) {
-      const allVnetsForLink = [state.hub, ...state.spokes];
-      const linkedIds = (obj.config.vnetLinks||[]).map(l => l.vnetId);
-      const { getRecommendedVnetLinksForDnsZone } = window._state;
-      const recommendedLinks = getRecommendedVnetLinksForDnsZone(obj.id);
-      
-      h+=`<div class="editor-row" style="margin-top:10px;"><span class="editor-label" style="font-weight:bold;">VNet Links</span></div>`;
-      if(recommendedLinks.length > 0) {
-        h+=`<div style="padding:8px;background:rgba(0,120,212,0.05);border-radius:4px;margin-bottom:8px;border-left:3px solid var(--azure-blue);">
-          <span style="font-size:9px;font-weight:bold;color:var(--azure-blue);display:block;margin-bottom:4px;">💡 Recommended based on Private Endpoints:</span>
-          ${recommendedLinks.map(r => `<div style="font-size:9px;color:var(--text);margin-bottom:2px;">✓ ${esc(r.vnetName)} (${r.peCount} PE${r.peCount !== 1 ? 's' : ''})</div>`).join('')}
-        </div>`;
-      }
-      
-      h+=`<div style="display:flex; flex-direction:column; gap:4px; margin-top:4px;">`;
-      allVnetsForLink.forEach(v => {
-        const isLinked = linkedIds.includes(v.id);
-        const isRecommended = recommendedLinks.some(r => r.vnetId === v.id);
-        const linkStyle = isLinked 
-          ? "border:1px solid #00B294;background:rgba(0,178,148,.1);color:#00B294;"
-          : isRecommended 
-          ? "border:1px solid #FF8C00;background:rgba(255,140,0,.1);color:#FF8C00;"
-          : "border:1px solid var(--border);background:transparent;color:var(--text);";
-        
-        if (isLinked) {
-          h+=`<div style="display:flex;gap:4px;"><button style="flex:1;padding:8px;border-radius:4px;cursor:pointer;font-family:JetBrains Mono;font-size:10px;font-weight:bold;${linkStyle}transition:0.2s;" onclick="window._selectVnetLink('${obj.id}','${v.id}')">🔗 ${esc(v.name)}</button><button style="padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px solid var(--danger);background:transparent;color:var(--danger);" onclick="window._toggleVnetLink('${obj.id}','${v.id}')" title="Remove link">✕</button></div>`;
-        } else {
-          h+=`<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-family:JetBrains Mono;font-size:10px;font-weight:bold;${linkStyle}transition:0.2s;" onclick="window._toggleVnetLink('${obj.id}','${v.id}')">${isRecommended ? '⚡' : '🔌'} ${esc(v.name)}</button>`;
-        }
-      });
-      h+=`</div>`;
-    }
-    
-    // Add Another DNS Zone button (for Private DNS zones)
-    if(obj.type === 'dns') {
-      h+=`<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--azure-blue)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--azure-blue)'" onclick="window._addAnotherDnsZone('${obj.rgId}')">🌐 Add Another DNS Zone</button>`;
-    }
-    
-    h+=`<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="window._deleteRgResource('${obj.id}')">🗑 Delete Resource</button>`;
+    h += renderRgResourceSection(obj, { renderValidationBadge, renderValidationSection });
   }
   h+=`</div>`;
   el.innerHTML=h;

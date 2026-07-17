@@ -1,4 +1,4 @@
-import { state, uid, fullUpdate, saveState, updateCost, RES_TYPES, VNET_COLORS, isValidCidr, checkCidrOverlap, nextAvailableVnetCidr, nextAvailableSubnetCidr, nextAvailableSubnetCidrFromParsed, parseCidr, AZURE_PRIVATE_DNS_ZONES, getRecommendedDnsZones, getVnetsInRg } from '../state-management.js';
+import { state, uid, fullUpdate, saveState, updateCost, RES_TYPES, VNET_COLORS, isValidCidr, checkCidrOverlap, nextAvailableVnetCidr, nextAvailableSubnetCidr, nextAvailableSubnetCidrFromParsed, parseCidr, AZURE_PRIVATE_DNS_ZONES, getRecommendedDnsZones, getVnetsInRg, findResourceById } from '../state-management.js';
 import { selectNode } from '../canvas-engine.js';
 import { renderEditor } from './ui-editor.js';
 
@@ -227,6 +227,31 @@ export function updateResConfig(resId,configKey,val){
   const rgRes = (state.rgResources||[]).find(r => r.id === resId);
   if(rgRes) rgRes.config[configKey] = val;
   saveState(); updateCost(); renderEditor(); 
+}
+
+// ================================================================
+// ROUTE TABLE ROUTES (udr resource)
+// ================================================================
+export function addRoute(resId) {
+  const r = findResourceById(resId);
+  if(!r || !r.config) return;
+  if(!r.config.routes) r.config.routes = [];
+  r.config.routes.push({name:`route-${r.config.routes.length+1}`, addressPrefix:'0.0.0.0/0', nextHopType:'VirtualAppliance', nextHopIpAddress:''});
+  saveState(); renderEditor();
+}
+
+export function deleteRoute(resId, idx) {
+  const r = findResourceById(resId);
+  if(!r || !r.config || !r.config.routes) return;
+  r.config.routes.splice(idx, 1);
+  saveState(); renderEditor();
+}
+
+export function updateRoute(resId, idx, key, val) {
+  const r = findResourceById(resId);
+  if(!r || !r.config || !r.config.routes || !r.config.routes[idx]) return;
+  r.config.routes[idx][key] = val;
+  saveState(); updateCost(); renderEditor();
 }
 
 // ================================================================

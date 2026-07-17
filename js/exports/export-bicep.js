@@ -1,5 +1,13 @@
-import { state, RES_TYPES, getVnetsInRg, validateAllResources, generateValidationSummary, REQUIRED_FIELDS } from '../state-management.js';
+import { state, RES_TYPES, getVnetsInRg, validateAllResources, generateValidationSummary, REQUIRED_FIELDS, findResourceById } from '../state-management.js';
 import { _iacSafe } from './export-utils.js';
+
+// Resolve a subnet association field (nsgId/routeTableId/natGatewayId) which may hold either
+// the id of a real placed resource (preferred) or a legacy free-text resource name.
+function _resolveAssocRef(id) {
+  const res = findResourceById(id);
+  if (res) return `${_iacSafe(res.name)}.outputs.resourceId`;
+  return `'${id}'`; // legacy: treat as a literal resource id/name string
+}
 
 function generateBicepResource(res, rg, vnet, sn) {
   const lines = [];
@@ -331,6 +339,69 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`}\n`);
       break;
     }
+    case 'udr': {
+      const routes = Array.isArray(c.routes) ? c.routes : [];
+      lines.push(`module ${safeName} 'br/public:avm/res/network/route-table:0.3.0' = {`);
+      lines.push(`  name: '${res.name}'`);
+      lines.push(`  scope: ${rgRef}`);
+      lines.push(`  params: {`);
+      lines.push(`    name: '${res.name}'`);
+      lines.push(`    disableBgpRoutePropagation: ${c.disableBgpRoutePropagation === 'true'}`);
+      lines.push(`    routes: [`);
+      routes.forEach(route => {
+        let routeProps = `{ name: '${route.name}', addressPrefix: '${route.addressPrefix||'0.0.0.0/0'}', nextHopType: '${route.nextHopType||'VirtualAppliance'}'`;
+        if ((route.nextHopType||'VirtualAppliance') === 'VirtualAppliance' && route.nextHopIpAddress) {
+          routeProps += `, nextHopIpAddress: '${route.nextHopIpAddress}'`;
+        }
+        routeProps += ` }`;
+        lines.push(`      ${routeProps}`);
+      });
+      lines.push(`    ]`);
+      lines.push(`  }`);
+      lines.push(`}\n`);
+      break;
+    }
+    case 'natgw': {
+      const natZones = (c.zones||'1').split(',').map(z => parseInt(z.trim())).filter(z => !isNaN(z));
+      lines.push(`module ${safeName} 'br/public:avm/res/network/nat-gateway:0.3.0' = {`);
+      lines.push(`  name: '${res.name}'`);
+      lines.push(`  scope: ${rgRef}`);
+      lines.push(`  params: {`);
+      lines.push(`    name: '${res.name}'`);
+      lines.push(`    skuName: '${c.sku||'Standard'}'`);
+      lines.push(`    idleTimeoutInMinutes: ${c.idleTimeoutMinutes||4}`);
+      if (natZones.length) lines.push(`    zones: [${natZones.join(', ')}]`);
+      if (c.publicIpName) lines.push(`    // Associate existing Public IP: ${c.publicIpName}`);
+      lines.push(`  }`);
+      lines.push(`}\n`);
+      break;
+    }
+    case 'asg': {
+      lines.push(`module ${safeName} 'br/public:avm/res/network/application-security-group:0.3.0' = {`);
+      lines.push(`  name: '${res.name}'`);
+      lines.push(`  scope: ${rgRef}`);
+      lines.push(`  params: {`);
+      lines.push(`    name: '${res.name}'`);
+      lines.push(`  }`);
+      lines.push(`}\n`);
+      break;
+    }
+    case 'pip': {
+      const pipZones = (c.zones||'').split(',').map(z => parseInt(z.trim())).filter(z => !isNaN(z));
+      lines.push(`module ${safeName} 'br/public:avm/res/network/public-ip-address:0.3.0' = {`);
+      lines.push(`  name: '${res.name}'`);
+      lines.push(`  scope: ${rgRef}`);
+      lines.push(`  params: {`);
+      lines.push(`    name: '${res.name}'`);
+      lines.push(`    skuName: '${c.sku||'Standard'}'`);
+      lines.push(`    skuTier: '${c.tier||'Regional'}'`);
+      lines.push(`    publicIPAllocationMethod: '${c.allocationMethod||'Static'}'`);
+      if (pipZones.length) lines.push(`    zones: [${pipZones.join(', ')}]`);
+      if (c.domainNameLabel) lines.push(`    dnsSettings: { domainNameLabel: '${c.domainNameLabel}' }`);
+      lines.push(`  }`);
+      lines.push(`}\n`);
+      break;
+    }
     case 'sql': {
       const sqlTier = c.tier || 'GeneralPurpose';
       const sqlSkuName = sqlTier === 'BusinessCritical' ? 'BC_Gen5' : 'GP_Gen5';
@@ -657,9 +728,9 @@ export function generateBicep(){
         lines.push(`    subnets: [`);
         (vnet.subnets || []).forEach(sn => {
           let snProps = `{ name: '${sn.name}', addressPrefix: '${sn.cidr}'`;
-          if(sn.nsgId) snProps += `, networkSecurityGroupId: '${sn.nsgId}'`;
-          if(sn.routeTableId) snProps += `, routeTableId: '${sn.routeTableId}'`;
-          if(sn.natGatewayId) snProps += `, natGatewayId: '${sn.natGatewayId}'`;
+          if(sn.nsgId) snProps += `, networkSecurityGroupId: ${_resolveAssocRef(sn.nsgId)}`;
+          if(sn.routeTableId) snProps += `, routeTableId: ${_resolveAssocRef(sn.routeTableId)}`;
+          if(sn.natGatewayId) snProps += `, natGatewayId: ${_resolveAssocRef(sn.natGatewayId)}`;
           if(sn.serviceEndpoints) {
             const eps = sn.serviceEndpoints.split(',').map(e=>e.trim()).filter(Boolean);
             if(eps.length) snProps += `, serviceEndpoints: [${eps.map(e=>`{ service: '${e}' }`).join(', ')}]`;

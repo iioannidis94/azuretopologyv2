@@ -1,4 +1,4 @@
-import { state, saveState, fullUpdate, normalizeResourceConfig, createResourceMeta, validateResource, RES_TYPES, getVnetsInRg } from '../state-management.js';
+import { state, saveState, fullUpdate, normalizeResourceConfig, createResourceMeta, validateResource, RES_TYPES, getVnetsInRg, findResourceById } from '../state-management.js';
 import { closeModal, _iacSafe } from './export-utils.js';
 
 const JSON_EXPORT_VERSION = 2;
@@ -105,6 +105,13 @@ export function generateArmTemplate() {
 }
 
 function _generateArmVnet(vnet, rg) {
+  // Resolve a subnet association field (nsgId/routeTableId/natGatewayId) to an ARM resourceId() expression.
+  // The field may hold either the id of a real placed resource (preferred) or a legacy free-text resource name.
+  const resolveAssocId = (armType, id) => {
+    const res = findResourceById(id);
+    const name = res ? res.name : id;
+    return `[resourceId('${armType}', '${name}')]`;
+  };
   const subnets = (vnet.subnets || []).map(sn => {
     const subnet = {
       name: sn.name,
@@ -112,6 +119,15 @@ function _generateArmVnet(vnet, rg) {
         addressPrefix: sn.cidr
       }
     };
+    if (sn.nsgId) {
+      subnet.properties.networkSecurityGroup = { id: resolveAssocId('Microsoft.Network/networkSecurityGroups', sn.nsgId) };
+    }
+    if (sn.routeTableId) {
+      subnet.properties.routeTable = { id: resolveAssocId('Microsoft.Network/routeTables', sn.routeTableId) };
+    }
+    if (sn.natGatewayId) {
+      subnet.properties.natGateway = { id: resolveAssocId('Microsoft.Network/natGateways', sn.natGatewayId) };
+    }
     if (sn.serviceEndpoints) {
       const eps = sn.serviceEndpoints.split(',').map(e => e.trim()).filter(Boolean);
       if (eps.length) {
@@ -521,6 +537,68 @@ function _generateArmResource(res, rg, vnet, sn) {
           }))
         }
       };
+    }
+
+    case 'udr': {
+      const routes = Array.isArray(c.routes) ? c.routes : [];
+      return {
+        type: 'Microsoft.Network/routeTables',
+        apiVersion: '2023-09-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        properties: {
+          disableBgpRoutePropagation: c.disableBgpRoutePropagation === 'true',
+          routes: routes.map(route => {
+            const routeProps = { addressPrefix: route.addressPrefix || '0.0.0.0/0', nextHopType: route.nextHopType || 'VirtualAppliance' };
+            if ((route.nextHopType || 'VirtualAppliance') === 'VirtualAppliance' && route.nextHopIpAddress) {
+              routeProps.nextHopIpAddress = route.nextHopIpAddress;
+            }
+            return { name: route.name, properties: routeProps };
+          })
+        }
+      };
+    }
+
+    case 'natgw': {
+      const natZones = (c.zones || '1').split(',').map(z => z.trim()).filter(Boolean);
+      return {
+        type: 'Microsoft.Network/natGateways',
+        apiVersion: '2023-09-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        sku: { name: c.sku || 'Standard' },
+        zones: natZones,
+        properties: {
+          idleTimeoutInMinutes: parseInt(c.idleTimeoutMinutes) || 4
+        }
+      };
+    }
+
+    case 'asg': {
+      return {
+        type: 'Microsoft.Network/applicationSecurityGroups',
+        apiVersion: '2023-09-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        properties: {}
+      };
+    }
+
+    case 'pip': {
+      const pipZones = (c.zones || '').split(',').map(z => z.trim()).filter(Boolean);
+      const pip = {
+        type: 'Microsoft.Network/publicIPAddresses',
+        apiVersion: '2023-09-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        sku: { name: c.sku || 'Standard', tier: c.tier || 'Regional' },
+        properties: {
+          publicIPAllocationMethod: c.allocationMethod || 'Static'
+        }
+      };
+      if (pipZones.length) pip.zones = pipZones;
+      if (c.domainNameLabel) pip.properties.dnsSettings = { domainNameLabel: c.domainNameLabel };
+      return pip;
     }
 
     case 'sa': {

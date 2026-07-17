@@ -25,6 +25,17 @@ export function getVnetsInRg(rgId){
   return result;
 }
 
+// Find any placed resource (subnet-level or RG-level) by its id
+export function findResourceById(id) {
+  if (!id) return null;
+  return getAllDiagramResources().find(r => r.id === id) || null;
+}
+
+// Get all placed resources of a given type (e.g. 'nsg', 'udr', 'natgw')
+export function getResourcesByType(type) {
+  return getAllDiagramResources().filter(r => r.type === type);
+}
+
 // ================================================================
 // AZURE PRIVATE DNS ZONES LIST
 // ================================================================

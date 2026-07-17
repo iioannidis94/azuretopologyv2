@@ -1,4 +1,4 @@
-import { state, RES_TYPES, getVnetsInRg, validateAllResources, generateValidationSummary, REQUIRED_FIELDS } from '../state-management.js';
+import { state, RES_TYPES, getVnetsInRg, validateAllResources, generateValidationSummary, REQUIRED_FIELDS, findResourceById } from '../state-management.js';
 import { _iacSafe } from './export-utils.js';
 
 // App Service Plan SKU → Tier/WorkerSize lookup tables
@@ -207,6 +207,41 @@ function generatePowerShellResource(res, rg, varN, sn) {
         lines.push(`$nsgRules += New-AzNetworkSecurityRuleConfig -Name "${rule.name}" -Protocol ${rule.protocol||'Tcp'} -Direction ${rule.direction||'Inbound'} -Priority ${rule.priority||100} -SourceAddressPrefix "${rule.srcAddr||'*'}" -SourcePortRange "${rule.srcPort||'*'}" -DestinationAddressPrefix "${rule.dstAddr||'*'}" -DestinationPortRange "${rule.dstPort||'80'}" -Access ${rule.access||'Allow'}`);
       });
       lines.push(`New-AzNetworkSecurityGroup -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -SecurityRules $nsgRules`);
+      break;
+    }
+    case 'udr': {
+      const routes = Array.isArray(c.routes) ? c.routes : [];
+      lines.push(`$routes = @()`);
+      routes.forEach(route => {
+        let routeCmd = `$routes += New-AzRouteConfig -Name "${route.name}" -AddressPrefix "${route.addressPrefix||'0.0.0.0/0'}" -NextHopType "${route.nextHopType||'VirtualAppliance'}"`;
+        if ((route.nextHopType||'VirtualAppliance') === 'VirtualAppliance' && route.nextHopIpAddress) {
+          routeCmd += ` -NextHopIpAddress "${route.nextHopIpAddress}"`;
+        }
+        lines.push(routeCmd);
+      });
+      let udrCmd = `New-AzRouteTable -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Route $routes`;
+      if (c.disableBgpRoutePropagation === 'true') udrCmd += ` -DisableBgpRoutePropagation`;
+      lines.push(udrCmd);
+      break;
+    }
+    case 'natgw': {
+      lines.push(`# ⚠️ NOTE: Attach an existing Public IP or Public IP Prefix before creating the NAT Gateway`);
+      let natCmd = `New-AzNatGateway -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Sku "${c.sku||'Standard'}" -IdleTimeoutInMinutes ${c.idleTimeoutMinutes||4}`;
+      if (c.zones) natCmd += ` -Zone @(${c.zones.split(',').map(z=>`"${z.trim()}"`).join(',')})`;
+      if (c.publicIpName) natCmd += ` -PublicIpAddress (Get-AzPublicIpAddress -Name "${c.publicIpName}" -ResourceGroupName "${rg.name}")`;
+      lines.push(natCmd);
+      break;
+    }
+    case 'asg': {
+      lines.push(`New-AzApplicationSecurityGroup -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}"`);
+      break;
+    }
+    case 'pip': {
+      let pipCmd = `New-AzPublicIpAddress -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Sku "${c.sku||'Standard'}" -AllocationMethod "${c.allocationMethod||'Static'}"`;
+      if (c.tier && c.tier !== 'Regional') pipCmd += ` -Tier "${c.tier}"`;
+      if (c.zones) pipCmd += ` -Zone @(${c.zones.split(',').map(z=>`"${z.trim()}"`).join(',')})`;
+      if (c.domainNameLabel) pipCmd += ` -DomainNameLabel "${c.domainNameLabel}"`;
+      lines.push(pipCmd);
       break;
     }
     case 'sql': {
@@ -438,13 +473,6 @@ export function generatePowerShell(){
         if(vnet.encryption === 'true') vnetCmd += ` -EnableEncryption -EncryptionEnforcementPolicy "AllowUnencrypted"`;
         lines.push(vnetCmd);
 
-        // NSG and Route Table associations
-        (vnet.subnets || []).forEach(sn => {
-          if(sn.nsgId) lines.push(`Set-AzVirtualNetworkSubnetConfig -Name "${sn.name}" -VirtualNetwork ${varN} -AddressPrefix "${sn.cidr}" -NetworkSecurityGroupId (Get-AzNetworkSecurityGroup -Name "${sn.nsgId}" -ResourceGroupName "${rg.name}").Id | Set-AzVirtualNetwork`);
-          if(sn.routeTableId) lines.push(`Set-AzVirtualNetworkSubnetConfig -Name "${sn.name}" -VirtualNetwork ${varN} -AddressPrefix "${sn.cidr}" -RouteTableId (Get-AzRouteTable -Name "${sn.routeTableId}" -ResourceGroupName "${rg.name}").Id | Set-AzVirtualNetwork`);
-          if(sn.natGatewayId) lines.push(`Set-AzVirtualNetworkSubnetConfig -Name "${sn.name}" -VirtualNetwork ${varN} -AddressPrefix "${sn.cidr}" -NatGatewayId (Get-AzNatGateway -Name "${sn.natGatewayId}" -ResourceGroupName "${rg.name}").Id | Set-AzVirtualNetwork`);
-        });
-        
         if (vnet.peerings && vnet.peerings.length > 0) {
             vnet.peerings.forEach(pId => {
                 const target = allVnets.find(v => v.id === pId);
@@ -462,6 +490,14 @@ export function generatePowerShell(){
           });
         });
         lines.push('');
+
+        // NSG/Route Table/NAT Gateway associations — run after the referenced resources are deployed above
+        (vnet.subnets || []).forEach(sn => {
+          // NSG/RouteTable/NatGateway may reference a real placed resource id (preferred) or a legacy free-text name
+          if(sn.nsgId) { const nsgName = findResourceById(sn.nsgId)?.name || sn.nsgId; lines.push(`Set-AzVirtualNetworkSubnetConfig -Name "${sn.name}" -VirtualNetwork ${varN} -AddressPrefix "${sn.cidr}" -NetworkSecurityGroupId (Get-AzNetworkSecurityGroup -Name "${nsgName}" -ResourceGroupName "${rg.name}").Id | Set-AzVirtualNetwork`); }
+          if(sn.routeTableId) { const rtName = findResourceById(sn.routeTableId)?.name || sn.routeTableId; lines.push(`Set-AzVirtualNetworkSubnetConfig -Name "${sn.name}" -VirtualNetwork ${varN} -AddressPrefix "${sn.cidr}" -RouteTableId (Get-AzRouteTable -Name "${rtName}" -ResourceGroupName "${rg.name}").Id | Set-AzVirtualNetwork`); }
+          if(sn.natGatewayId) { const natName = findResourceById(sn.natGatewayId)?.name || sn.natGatewayId; lines.push(`Set-AzVirtualNetworkSubnetConfig -Name "${sn.name}" -VirtualNetwork ${varN} -AddressPrefix "${sn.cidr}" -NatGatewayId (Get-AzNatGateway -Name "${natName}" -ResourceGroupName "${rg.name}").Id | Set-AzVirtualNetwork`); }
+        });
       });
 
       // RG-level resources (DNS Zones)

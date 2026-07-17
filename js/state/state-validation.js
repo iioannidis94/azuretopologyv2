@@ -408,9 +408,11 @@ export function validateResource(resource) {
 
   const config = resource.config || {};
   const required = REQUIRED_FIELDS[resource.type] || { critical: [], warning: [] };
+  const criticalFields = required.critical || [];
+  const warningFields = required.warning || [];
 
   // Check critical fields
-  for (const field of required.critical) {
+  for (const field of criticalFields) {
     const value = config[field];
     if (value === undefined || value === null || value === '' || value === '<REQUIRED>') {
       result.errors.push(`Missing required field: ${field}`);
@@ -418,7 +420,7 @@ export function validateResource(resource) {
   }
 
   // Check warning fields
-  for (const field of required.warning) {
+  for (const field of warningFields) {
     const value = config[field];
     if (value === undefined || value === null || value === '') {
       result.warnings.push(`Optional field not set: ${field}`);

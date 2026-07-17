@@ -513,4 +513,50 @@ export function generatePowerShell(){
   return lines.join('\n');
 }
 
-export function openPsModal(){document.getElementById('ps-output').textContent=generatePowerShell();document.getElementById('ps-modal').classList.add('show');}
+export function openPsModal(){
+  const script = generatePowerShell();
+  document.getElementById('ps-output').textContent = script;
+  
+  // Run validation and show banner
+  const validation = validateAllResources(state);
+  const banner = document.getElementById('ps-validation-banner');
+  
+  if (validation.errors > 0) {
+    // Show error banner
+    banner.style.display = 'block';
+    banner.style.backgroundColor = '#ff4444';
+    banner.style.color = '#ffffff';
+    banner.style.border = '2px solid #cc0000';
+    banner.innerHTML = `
+      <strong>✗ NOT READY FOR DEPLOYMENT</strong><br>
+      This script has ${validation.errors} error(s) that must be fixed before deployment.<br>
+      <strong>Action required:</strong> Search for <code>&lt;REQUIRED:...&gt;</code> placeholders in the script and replace them with actual values.<br>
+      <strong>Next step:</strong> After fixing, validate with: <code>Validate-AzureDeployment.ps1</code>
+    `;
+  } else if (validation.warnings > 0) {
+    // Show warning banner
+    banner.style.display = 'block';
+    banner.style.backgroundColor = '#ffcc00';
+    banner.style.color = '#000000';
+    banner.style.border = '2px solid #cc9900';
+    banner.innerHTML = `
+      <strong>⚠ DEPLOYMENT READY WITH WARNINGS</strong><br>
+      This script is deployable but has ${validation.warnings} warning(s).<br>
+      <strong>Recommended:</strong> Review warnings in the script comments and validate with: <code>Validate-AzureDeployment.ps1</code>
+    `;
+  } else {
+    // Show success banner
+    banner.style.display = 'block';
+    banner.style.backgroundColor = '#00cc44';
+    banner.style.color = '#ffffff';
+    banner.style.border = '2px solid #009933';
+    banner.innerHTML = `
+      <strong>✓ READY FOR DEPLOYMENT</strong><br>
+      This script has passed all validation checks and is ready for deployment.<br>
+      <strong>Next steps:</strong> 1) Download the script, 2) Run <code>Validate-AzureDeployment.ps1</code> (optional), 3) Deploy to Azure.<br>
+      See <code>DEPLOYMENT-GUIDE.md</code> for detailed instructions.
+    `;
+  }
+  
+  document.getElementById('ps-modal').classList.add('show');
+}

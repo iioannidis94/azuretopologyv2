@@ -5,7 +5,7 @@ export class ViewportCuller {
   constructor(canvas) {
     this.canvas = canvas;
     this.viewportPadding = 100; // Extra pixels around viewport to prefetch
-    this.MIN_NODES_FOR_CULLING = 50; // Only optimize when dataset is large enough
+    this.MIN_NODES_FOR_CULLING = 30; // Reduced threshold - optimize earlier for better performance
   }
 
   /**

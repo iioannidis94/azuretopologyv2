@@ -245,6 +245,9 @@ canvas.addEventListener('mouseleave',()=>{
 // Zoom throttling for performance optimization using requestAnimationFrame
 let drawScheduled = false;
 let saveStateTimeout = null;
+let wheelTimeout = null;
+let lastWheelTime = 0;
+let pendingScale = null;
 
 function scheduleRender() {
   if (!drawScheduled) {
@@ -264,15 +267,39 @@ function throttleSaveState() {
   }, 100); // Debounce state saving: persist 100ms after zoom stops
 }
 
-canvas.addEventListener('wheel',e=>{
+// Debounced wheel handler for smoother zoom performance
+function handleWheel(e) {
   e.preventDefault();
+  const now = Date.now();
   const oldScale = state.scale;
-  state.scale=Math.max(.2,Math.min(3,state.scale*(e.deltaY<0?1.1:.9)));
-  if (oldScale !== state.scale) {
-    scheduleRender();
+  const newScale = Math.max(.2, Math.min(3, state.scale * (e.deltaY < 0 ? 1.1 : .9)));
+  
+  if (oldScale !== newScale) {
+    state.scale = newScale;
+    pendingScale = newScale;
+    
+    // Throttle redraws: max 60fps (16ms between frames)
+    if (now - lastWheelTime > 16) {
+      scheduleRender();
+      lastWheelTime = now;
+    } else {
+      // Schedule a delayed render for the final zoom position
+      if (wheelTimeout) clearTimeout(wheelTimeout);
+      wheelTimeout = setTimeout(() => {
+        if (pendingScale !== null) {
+          state.scale = pendingScale;
+          scheduleRender();
+          pendingScale = null;
+        }
+        wheelTimeout = null;
+      }, 50);
+    }
+    
     throttleSaveState();
   }
-},{passive:false});
+}
+
+canvas.addEventListener('wheel', handleWheel, {passive: false});
 
 // TOUCH EVENTS FOR MOBILE
 let lastPinchDist = 0;
@@ -292,9 +319,17 @@ canvas.addEventListener('touchmove',e=>{
     if(lastPinchDist > 0){
       const oldScale = state.scale;
       const factor = dist / lastPinchDist;
-      state.scale = Math.max(.2, Math.min(3, state.scale * factor));
-      if (oldScale !== state.scale) {
-        scheduleRender();
+      const newScale = Math.max(.2, Math.min(3, state.scale * factor));
+      if (oldScale !== newScale) {
+        state.scale = newScale;
+        pendingScale = newScale;
+        
+        // Throttle touch zoom redraws for performance
+        const now = Date.now();
+        if (now - lastWheelTime > 16) {
+          scheduleRender();
+          lastWheelTime = now;
+        }
         throttleSaveState();
       }
     }

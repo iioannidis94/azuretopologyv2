@@ -8,6 +8,29 @@ const ctx = canvas.getContext('2d');
 const culler = new ViewportCuller(canvas);
 const peeringCache = new PeeringCache();
 
+// Performance optimization: cache image readiness
+const imageReadyCache = new Map();
+let lastImageCheckTime = 0;
+const IMAGE_CHECK_INTERVAL = 100; // Check image loading every 100ms
+
+function isImageReady(type) {
+  const now = Date.now();
+  if (now - lastImageCheckTime > IMAGE_CHECK_INTERVAL) {
+    imageReadyCache.clear();
+    lastImageCheckTime = now;
+  }
+  
+  if (!imageReadyCache.has(type)) {
+    const img = loadedImages[type];
+    imageReadyCache.set(type, img && img.complete && img.naturalWidth > 0);
+  }
+  return imageReadyCache.get(type);
+}
+
+// Performance optimization: throttle minimap updates
+let lastMinimapUpdate = 0;
+const MINIMAP_UPDATE_INTERVAL = 100; // Update minimap max every 100ms
+
 function safeRR(c,x,y,w,h,r){if(typeof c.roundRect==='function')c.roundRect(x,y,w,h,r);else c.rect(x,y,w,h);}
 
 export function pointToSegmentDist(px, py, x1, y1, x2, y2) {
@@ -49,6 +72,14 @@ export function draw(){
   
   // Filter visible nodes for large datasets
   const visibleNodes = culler.filterVisibleNodes(nodes, viewport);
+  
+  // Separate visible nodes by type once (optimization)
+  const visibleSubnets = [];
+  const visibleOtherNodes = [];
+  for (const n of visibleNodes) {
+    if (n.isSubnet) visibleSubnets.push(n);
+    else visibleOtherNodes.push(n);
+  }
 
   if(state.layout==='grid'){
     // Draw Management Group bounds (if enabled)
@@ -203,12 +234,18 @@ export function draw(){
     });
   });
 
-  // DRAW NODES (filtered by visibility)
-  visibleNodes.filter(n => n.isSubnet).forEach(n => drawSubnet(n, dw));
-  visibleNodes.filter(n => !n.isSubnet).forEach(n => drawNode(n, dw));
+  // DRAW NODES (using pre-separated arrays - optimization)
+  visibleSubnets.forEach(n => drawSubnet(n, dw));
+  visibleOtherNodes.forEach(n => drawNode(n, dw));
   
   ctx.restore();
-  drawMinimap();
+  
+  // Throttle minimap updates during rapid zoom/pan
+  const now = Date.now();
+  if (now - lastMinimapUpdate > MINIMAP_UPDATE_INTERVAL) {
+    drawMinimap();
+    lastMinimapUpdate = now;
+  }
 }
 
 function drawSubnet(n, dw) {
@@ -273,10 +310,11 @@ function drawNode(n, dw){
     }
     ctx.shadowBlur=0;
     
-    const img = loadedImages[n.type];
-    if(img && img.complete && img.naturalWidth > 0){
+    const img = isImageReady(n.type) ? loadedImages[n.type] : null;
+    if(img){
       ctx.drawImage(img, n.x - 14, n.y - 20, 28, 28);
     } else {
+      const rt=RES_TYPES[n.type]||{icon:'❓'};
       ctx.font='24px serif';ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText(rt.icon, n.x, n.y - 8);
     }

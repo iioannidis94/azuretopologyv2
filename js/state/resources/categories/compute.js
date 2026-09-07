@@ -105,6 +105,22 @@ export const computeCategory = {
         'properties.managedEnvironmentId': { key: 'environmentName', transform: (v) => v?.split('/').pop() || '' }
       },
       dependencies: ['Container Apps Environment']
+    },
+    acr: {
+      icon: '📦',
+      img: 'Container-Registries.svg',
+      color: '#0078D4',
+      label: 'Container Registry',
+      cost: 25,
+      pricingCalculatorSlug: 'container-registry',
+      azureTypes: ['microsoft.containerregistry/registries'],
+      config: { sku: 'Premium', adminUserEnabled: 'false', publicNetworkAccess: 'Enabled' },
+      validation: { critical: ['sku'], warning: ['adminUserEnabled', 'publicNetworkAccess'] },
+      importMappings: {
+        'sku.name': 'sku',
+        'properties.adminUserEnabled': 'adminUserEnabled',
+        'properties.publicNetworkAccess': 'publicNetworkAccess'
+      }
     }
   }
 };

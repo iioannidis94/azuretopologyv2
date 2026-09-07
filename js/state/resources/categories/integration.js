@@ -87,6 +87,38 @@ export const integrationCategory = {
         'properties.state': 'state'
       },
       dependencies: ['Storage Account (optional/external)']
+    },
+    appcfg: {
+      icon: '⚙️',
+      img: 'App-Configuration.svg',
+      color: '#00B294',
+      label: 'App Configuration',
+      cost: 10,
+      pricingCalculatorSlug: 'app-configuration',
+      azureTypes: ['microsoft.appconfiguration/configurationstores'],
+      config: { sku: 'Standard', publicNetworkAccess: 'Enabled', disableLocalAuth: 'false' },
+      validation: { critical: ['sku'], warning: ['publicNetworkAccess'] },
+      importMappings: {
+        'sku.name': 'sku',
+        'properties.publicNetworkAccess': 'publicNetworkAccess',
+        'properties.disableLocalAuth': 'disableLocalAuth'
+      }
+    },
+    egt: {
+      icon: '📣',
+      img: 'Event-Grid-Topics.svg',
+      color: '#8764B8',
+      label: 'Event Grid Topic',
+      cost: 15,
+      pricingCalculatorSlug: 'event-grid',
+      azureTypes: ['microsoft.eventgrid/topics'],
+      config: { sku: 'Basic', inputSchema: 'EventGridSchema', publicNetworkAccess: 'Enabled' },
+      validation: { critical: ['sku'], warning: ['inputSchema', 'publicNetworkAccess'] },
+      importMappings: {
+        'sku.name': 'sku',
+        'properties.inputSchema': 'inputSchema',
+        'properties.publicNetworkAccess': 'publicNetworkAccess'
+      }
     }
   }
 };

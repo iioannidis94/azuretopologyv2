@@ -90,6 +90,23 @@ export const dataCategory = {
         'properties.isHnsEnabled': 'hierarchicalNamespace',
         'properties.blobServiceProperties.deleteRetentionPolicy.enabled': 'enableSoftDelete'
       }
+    },
+    search: {
+      icon: '🔎',
+      img: 'Search-Services.svg',
+      color: '#0078D4',
+      label: 'AI Search',
+      cost: 250,
+      pricingCalculatorSlug: 'search',
+      azureTypes: ['microsoft.search/searchservices'],
+      config: { sku: 'standard', replicaCount: '1', partitionCount: '1', publicNetworkAccess: 'enabled' },
+      validation: { critical: ['sku'], warning: ['replicaCount', 'partitionCount', 'publicNetworkAccess'] },
+      importMappings: {
+        'sku.name': { key: 'sku', transform: (v) => String(v || 'standard').toLowerCase() },
+        'properties.replicaCount': 'replicaCount',
+        'properties.partitionCount': 'partitionCount',
+        'properties.publicNetworkAccess': { key: 'publicNetworkAccess', transform: (v) => String(v || 'enabled').toLowerCase() }
+      }
     }
   }
 };

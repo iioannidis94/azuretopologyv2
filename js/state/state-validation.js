@@ -181,6 +181,16 @@ function _applyDependencyValidation(resource, diagramState, result) {
         _pushUnique(result.warnings, `NAT Gateway publicIpName "${config.publicIpName}" is external or missing from the diagram`);
       }
       break;
+    case 'appi':
+      if (config.workspaceResourceId) {
+        const workspaceResource = _findResourceById(diagramState, config.workspaceResourceId);
+        if (!workspaceResource && !config.workspaceResourceId.startsWith('/subscriptions/')) {
+          _pushUnique(result.warnings, `Application Insights workspaceResourceId does not match a resource in the diagram: ${config.workspaceResourceId}`);
+        } else if (workspaceResource && workspaceResource.type !== 'monitor') {
+          _pushUnique(result.warnings, 'Application Insights workspaceResourceId should reference an Azure Monitor workspace resource');
+        }
+      }
+      break;
     case 'dns':
       if (Array.isArray(config.vnetLinks)) {
         config.vnetLinks.forEach(link => {

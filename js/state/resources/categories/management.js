@@ -17,6 +17,23 @@ export const managementCategory = {
         'properties.retentionInDays': 'retentionDays',
         'properties.workspaceCapping.dailyQuotaGb': 'dailyCapGB'
       }
+    },
+    appi: {
+      icon: '📊',
+      img: 'Application-Insights.svg',
+      color: '#8764B8',
+      label: 'Application Insights',
+      cost: 15,
+      pricingCalculatorSlug: 'monitor',
+      azureTypes: ['microsoft.insights/components'],
+      config: { kind: 'web', applicationType: 'web', workspaceResourceId: '' },
+      validation: { critical: ['applicationType'], warning: ['workspaceResourceId'] },
+      importMappings: {
+        'kind': 'kind',
+        'properties.Application_Type': 'applicationType',
+        'properties.WorkspaceResourceId': 'workspaceResourceId'
+      },
+      dependencies: ['Log Analytics Workspace (optional)']
     }
   }
 };

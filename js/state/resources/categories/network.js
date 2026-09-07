@@ -20,8 +20,8 @@ export const networkCategory = {
       cost: 900,
       pricingCalculatorSlug: 'azure-firewall',
       azureTypes: ['microsoft.network/azurefirewalls'],
-      config: { sku: 'Premium', threatIntelMode: 'Alert', dnsProxy: 'true', policyName: '', availabilityZones: '1,2,3' },
-      validation: { critical: ['sku'], warning: ['threatIntelMode', 'availabilityZones'] },
+      config: { sku: 'Premium', threatIntelMode: 'Alert', dnsProxy: 'true', policyName: '', wafPolicy: '', availabilityZones: '1,2,3' },
+      validation: { critical: ['sku'], warning: ['threatIntelMode', 'availabilityZones', 'policyName'] },
       importMappings: {
         'sku.tier': 'sku',
         'properties.threatIntelMode': 'threatIntelMode',
@@ -48,13 +48,34 @@ export const networkCategory = {
       cost: 350,
       pricingCalculatorSlug: 'application-gateway',
       azureTypes: ['microsoft.network/applicationgateways'],
-      config: { sku: 'WAF_v2', capacity: '2', tier: 'WAF_v2', sslPolicy: 'AppGwSslPolicy20220101', httpListeners: 'HTTP:80' },
-      validation: { critical: ['sku', 'capacity'], warning: ['tier', 'sslPolicy'] },
+      config: {
+        sku: 'WAF_v2',
+        capacity: '2',
+        tier: 'WAF_v2',
+        sslPolicy: 'AppGwSslPolicy20220101',
+        httpListeners: 'HTTP:80',
+        wafMode: 'Prevention',
+        wafPolicy: '',
+        backendPools: [{ name: 'defaultBackendPool', targets: '10.0.2.4' }]
+      },
+      validation: { critical: ['sku', 'capacity'], warning: ['tier', 'sslPolicy', 'wafPolicy'] },
       importMappings: {
         'sku.name': 'sku',
         'sku.tier': 'tier',
         'sku.capacity': 'capacity',
-        'properties.sslPolicy.policyName': 'sslPolicy'
+        'properties.sslPolicy.policyName': 'sslPolicy',
+        'properties.webApplicationFirewallConfiguration.firewallMode': 'wafMode',
+        'properties.firewallPolicy.id': 'wafPolicy',
+        'properties.backendAddressPools': {
+          key: 'backendPools',
+          transform: (pools) => (pools || []).map(pool => ({
+            name: pool.name || 'defaultBackendPool',
+            targets: (pool.properties?.backendAddresses || [])
+              .map(addr => addr.ipAddress || addr.fqdn)
+              .filter(Boolean)
+              .join(',')
+          }))
+        }
       }
     },
     lb: {
@@ -65,8 +86,8 @@ export const networkCategory = {
       cost: 25,
       pricingCalculatorSlug: 'load-balancer',
       azureTypes: ['microsoft.network/loadbalancers'],
-      config: { sku: 'Standard', type: 'Internal', frontendIp: 'Dynamic', healthProbe: 'TCP/80', lbRules: 'HTTP:80->80' },
-      validation: { critical: ['sku', 'type'], warning: ['healthProbe'] },
+      config: { sku: 'Standard', type: 'Internal', frontendIp: 'Dynamic', healthProbe: 'TCP/80', lbRules: 'HTTP:80->80', wafPolicy: '' },
+      validation: { critical: ['sku', 'type'], warning: ['healthProbe', 'wafPolicy'] },
       importMappings: {
         'sku.name': 'sku',
         'properties.frontendIPConfigurations[0].properties.privateIPAllocationMethod': 'frontendIp',
@@ -188,6 +209,36 @@ export const networkCategory = {
       validation: { critical: ['zone'], warning: [] },
       importMappings: {
         'name': 'zone'
+      }
+    },
+    wafPolicy: {
+      icon: '🧰',
+      img: 'Application-Gateways.svg',
+      color: '#FF8C00',
+      label: 'WAF Policy',
+      cost: 20,
+      pricingCalculatorSlug: 'web-application-firewall',
+      azureTypes: ['microsoft.network/applicationgatewaywebapplicationfirewallpolicies'],
+      rgLevel: true,
+      config: {
+        mode: 'Prevention',
+        ruleSetType: 'OWASP',
+        ruleSetVersion: '3.2',
+        requestBodyCheck: 'true',
+        maxRequestBodySizeInKb: '128',
+        fileUploadLimitInMb: '100',
+        customRules: [{
+          name: 'BlockBadBots',
+          priority: '100',
+          action: 'Block',
+          matchVariable: 'RequestHeaders:User-Agent',
+          operator: 'Contains',
+          matchValue: 'BadBot'
+        }]
+      },
+      validation: { critical: ['mode', 'ruleSetType', 'ruleSetVersion'], warning: ['customRules'] },
+      importMappings: {
+        'properties.policySettings.mode': 'mode'
       }
     },
     nsg: {

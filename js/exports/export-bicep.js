@@ -9,6 +9,13 @@ function _resolveAssocRef(id) {
   return `'${id}'`; // legacy: treat as a literal resource id/name string
 }
 
+function _resolveWafPolicyName(ref) {
+  if (!ref) return '';
+  const linked = findResourceById(ref);
+  if (linked?.type === 'wafPolicy') return linked.name;
+  return ref;
+}
+
 function _pushRbacComments(lines, res) {
   (res.config?.rbacAssignments || []).forEach(assignment => {
     const linked = assignment.principalResourceId ? findResourceById(assignment.principalResourceId) : null;
@@ -191,6 +198,9 @@ function generateBicepResource(res, rg, vnet, sn) {
       if (c.policyName) {
         lines.push(`    firewallPolicyId: '${c.policyName}'`);
       }
+      if (c.wafPolicy) {
+        lines.push(`    // WAF Policy reference: ${_resolveWafPolicyName(c.wafPolicy)}`);
+      }
       lines.push(`  }`);
       lines.push(`}\n`);
       break;
@@ -213,6 +223,7 @@ function generateBicepResource(res, rg, vnet, sn) {
       break;
     }
     case 'agw': {
+      const backendPools = (Array.isArray(c.backendPools) && c.backendPools.length > 0) ? c.backendPools : [{ name: 'defaultBackendPool', targets: '' }];
       lines.push(`module ${safeName} 'br/public:avm/res/network/application-gateway:0.4.0' = {`);
       lines.push(`  name: '${res.name}'`);
       lines.push(`  scope: ${rgRef}`);
@@ -223,8 +234,14 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`    gatewayIPConfigurations: [{ subnetId: ${subnetRef} }]`);
       lines.push(`    frontendIPConfigurations: [{ publicIPAddressId: '${res.name}-pip' }]`);
       lines.push(`    frontendPorts: [{ port: 80 }]`);
-      lines.push(`    backendAddressPools: [{ name: 'defaultBackendPool' }]`);
+      lines.push(`    backendAddressPools: [${backendPools.map(pool => `{ name: '${pool.name || 'defaultBackendPool'}' }`).join(', ')}]`);
       lines.push(`    backendHttpSettingsCollection: [{ port: 80, protocol: 'Http' }]`);
+      if (String(c.sku || '').toUpperCase().includes('WAF')) {
+        lines.push(`    webApplicationFirewallConfiguration: { enabled: true, firewallMode: '${c.wafMode || 'Prevention'}', ruleSetType: 'OWASP', ruleSetVersion: '3.2' }`);
+        if (c.wafPolicy) {
+          lines.push(`    // Link WAF policy resource: wafPolicy_${_iacSafe(_resolveWafPolicyName(c.wafPolicy))}.outputs.resourceId`);
+        }
+      }
       lines.push(`  }`);
       lines.push(`}\n`);
       break;
@@ -246,6 +263,9 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`    backendAddressPools: [{ name: '${res.name}-backend' }]`);
       lines.push(`    probes: [{ name: '${res.name}-probe', protocol: '${probeparts[0]||'Tcp'}', port: ${probeparts[1]||80} }]`);
       lines.push(`    loadBalancingRules: [{ name: '${res.name}-rule', frontendPort: 80, backendPort: 80, protocol: 'Tcp' }]`);
+      if (c.wafPolicy) {
+        lines.push(`    // WAF Policy reference: ${_resolveWafPolicyName(c.wafPolicy)}`);
+      }
       lines.push(`  }`);
       lines.push(`}\n`);
       break;
@@ -311,7 +331,7 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`    endpoints: [{ name: '${c.endpoints||res.name+'-endpoint'}' }]`);
       lines.push(`    originGroups: [{ name: '${c.originGroups||'default-origin-group'}' }]`);
       if (c.wafPolicy) {
-        lines.push(`    securityPolicies: [{ name: '${c.wafPolicy}' }]`);
+        lines.push(`    securityPolicies: [{ name: '${_resolveWafPolicyName(c.wafPolicy)}' }]`);
       }
       lines.push(`  }`);
       lines.push(`}\n`);
@@ -849,7 +869,22 @@ export function generateBicep(){
       // RG-level resources (DNS Zones)
       const rgResources = (state.rgResources||[]).filter(r => r.rgId === rg.id);
       rgResources.forEach(res => {
-        if(res.type === 'publicDns') {
+        if(res.type === 'wafPolicy') {
+          const safeName = _iacSafe(res.name);
+          const c = res.config || {};
+          lines.push(`module wafPolicy_${safeName} 'br/public:avm/res/network/application-gateway-web-application-firewall-policy:0.2.0' = {`);
+          lines.push(`  name: '${res.name}'`);
+          lines.push(`  scope: ${rgSafe}`);
+          lines.push(`  params: {`);
+          lines.push(`    name: '${res.name}'`);
+          lines.push(`    policySettings: { mode: '${c.mode || 'Prevention'}', requestBodyCheck: ${(c.requestBodyCheck || 'true') === 'true'}, maxRequestBodySizeInKb: ${c.maxRequestBodySizeInKb || 128}, fileUploadLimitInMb: ${c.fileUploadLimitInMb || 100} }`);
+          lines.push(`    managedRules: { managedRuleSets: [{ ruleSetType: '${c.ruleSetType || 'OWASP'}', ruleSetVersion: '${c.ruleSetVersion || '3.2'}' }] }`);
+          lines.push(`  }`);
+          lines.push(`}\n`);
+          (c.customRules || []).forEach(rule => {
+            lines.push(`// WAF Custom Rule: ${rule.name || 'rule'} action=${rule.action || 'Block'} priority=${rule.priority || 100} ${rule.matchVariable || 'RequestHeaders:User-Agent'} ${rule.operator || 'Contains'} ${rule.matchValue || ''}`);
+          });
+        } else if(res.type === 'publicDns') {
           const safeName = _iacSafe(res.config.zone);
           lines.push(`module dnsZone_${safeName} 'br/public:avm/res/network/dns-zone:0.3.0' = {`);
           lines.push(`  name: '${res.config.zone}'`);
@@ -857,7 +892,12 @@ export function generateBicep(){
           lines.push(`  params: { name: '${res.config.zone}' }`);
           lines.push(`}\n`);
           (res.config.records||[]).forEach(rec => {
-            lines.push(`// DNS Record: ${rec.name} ${rec.type} ${rec.value}`);
+            const recordValue = rec.type === 'MX'
+              ? `${rec.preference || 10} ${rec.exchange || rec.value || ''}`
+              : rec.type === 'SRV'
+              ? `${rec.priority || 10} ${rec.weight || 10} ${rec.port || 443} ${rec.target || rec.value || ''}`
+              : rec.target || rec.value || '';
+            lines.push(`// DNS Record: ${rec.name} ${rec.type} ${recordValue}`);
           });
         } else if(res.type === 'dns') {
           const zoneName = res.config.fullZoneName || res.config.zone;
@@ -880,7 +920,12 @@ export function generateBicep(){
           lines.push(`  }`);
           lines.push(`}\n`);
           (res.config.records||[]).forEach(rec => {
-            lines.push(`// Private DNS Record: ${rec.name} ${rec.type} ${rec.value}`);
+            const recordValue = rec.type === 'MX'
+              ? `${rec.preference || 10} ${rec.exchange || rec.value || ''}`
+              : rec.type === 'SRV'
+              ? `${rec.priority || 10} ${rec.weight || 10} ${rec.port || 443} ${rec.target || rec.value || ''}`
+              : rec.target || rec.value || '';
+            lines.push(`// Private DNS Record: ${rec.name} ${rec.type} ${recordValue}`);
           });
         }
         lines.push('');

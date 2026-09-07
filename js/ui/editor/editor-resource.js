@@ -35,6 +35,21 @@ function _renderRbacSection(obj) {
   return h;
 }
 
+function _getWafPolicyResources() {
+  return getAllDiagramResources().filter(r => r.type === 'wafPolicy');
+}
+
+function _renderWafPolicyPicker(obj, key = 'wafPolicy', label = 'WAF Policy') {
+  const wafPolicies = _getWafPolicyResources();
+  const selected = obj.config?.[key] || '';
+  let options = `<option value="">-- None --</option>`;
+  options += wafPolicies.map(policy => `<option value="${policy.id}"${selected === policy.id ? ' selected' : ''}>${esc(policy.name)}</option>`).join('');
+  if (selected && !wafPolicies.some(policy => policy.id === selected)) {
+    options += `<option value="${esc(selected)}" selected>${esc(selected)} (legacy)</option>`;
+  }
+  return `<div class="editor-row"><span class="editor-label">${label}</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','${key}',this.value)">${options}</select></div>`;
+}
+
 function _renderKeyVaultSection(obj) {
   const secrets = obj.config.secrets || [];
   const keys = obj.config.keys || [];
@@ -157,6 +172,32 @@ export function renderResourceSection(obj, { renderValidationBadge, renderValida
     Object.keys(cfg).filter(k => !allSectionKeys.includes(k)).forEach(k => {
       h += `<div class="editor-row"><span class="editor-label">${k}</span><input class="input-field" value="${esc(cfg[k])}" onchange="window._updateResConfig('${obj.id}','${k}',this.value)"></div>`;
     });
+  } else if (obj.type === 'agw') {
+    const cfg = obj.config || {};
+    const agwSku = cfg.sku || 'WAF_v2';
+    const isWafSku = agwSku.toUpperCase().includes('WAF');
+    h += `<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">⚙️ Gateway SKU</span></div>
+      <div class="editor-row"><span class="editor-label">SKU</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','sku',this.value);window._updateResConfig('${obj.id}','tier',this.value)">
+        ${['Standard_v2', 'WAF_v2'].map(sku => `<option value="${sku}"${agwSku === sku ? ' selected' : ''}>${sku}</option>`).join('')}
+      </select></div>
+      <div class="editor-row"><span class="editor-label">Capacity</span><input class="input-field" value="${esc(cfg.capacity || '2')}" onchange="window._updateResConfig('${obj.id}','capacity',this.value)"></div>
+      <div class="editor-row"><span class="editor-label">SSL Policy</span><input class="input-field" value="${esc(cfg.sslPolicy || 'AppGwSslPolicy20220101')}" onchange="window._updateResConfig('${obj.id}','sslPolicy',this.value)"></div>
+      <div class="editor-row"><span class="editor-label">HTTP Listeners</span><input class="input-field" value="${esc(cfg.httpListeners || 'HTTP:80')}" onchange="window._updateResConfig('${obj.id}','httpListeners',this.value)"></div>`;
+    if (isWafSku) {
+      h += `<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🛡️ WAF Controls</span></div>`;
+      h += `<div class="editor-row"><span class="editor-label">WAF Mode</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','wafMode',this.value)"><option value="Detection"${(cfg.wafMode || 'Prevention') === 'Detection' ? ' selected' : ''}>Detection</option><option value="Prevention"${(cfg.wafMode || 'Prevention') === 'Prevention' ? ' selected' : ''}>Prevention</option></select></div>`;
+      h += _renderWafPolicyPicker(obj, 'wafPolicy', 'WAF Policy Resource');
+    }
+    h += `<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🎯 Backend Pools</span></div>`;
+    (cfg.backendPools || []).forEach((pool, idx) => {
+      h += `<div class="editor-row" style="gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-radius:4px;padding:6px;margin-bottom:4px;">
+        <input class="input-field" style="flex:1;min-width:110px;" placeholder="Pool name" value="${esc(pool.name || '')}" onchange="window._updateAgwBackendPool('${obj.id}',${idx},'name',this.value)">
+        <input class="input-field" style="flex:2;min-width:150px;" placeholder="Targets (IPs/FQDN comma-separated)" value="${esc(pool.targets || '')}" onchange="window._updateAgwBackendPool('${obj.id}',${idx},'targets',this.value)">
+        <button class="icon-btn danger" onclick="window._deleteAgwBackendPool('${obj.id}',${idx})">🗑</button>
+      </div>`;
+    });
+    h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addAgwBackendPool('${obj.id}')">➕ Add Backend Pool</button>`;
+    h += _renderRbacSection(obj);
   } else if (obj.type === 'kv') {
     h += renderConfigFields(obj.id, obj.config, k => !['secrets', 'keys', 'certificates', 'rbacAssignments'].includes(k));
     h += _renderKeyVaultSection(obj);
@@ -182,7 +223,10 @@ export function renderResourceSection(obj, { renderValidationBadge, renderValida
     h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addRoute('${obj.id}')">➕ Add Route</button>`;
     h += _renderRbacSection(obj);
   } else if (obj.type !== 'pe') {
-    h += renderConfigFields(obj.id, obj.config, k => k !== 'rbacAssignments');
+    h += renderConfigFields(obj.id, obj.config, k => !['rbacAssignments', 'wafPolicy'].includes(k));
+    if (['fw', 'lb', 'afd'].includes(obj.type)) {
+      h += _renderWafPolicyPicker(obj, 'wafPolicy');
+    }
     h += _renderRbacSection(obj);
   } else if (obj.type === 'pe') {
     // For PE, render remaining config fields (target, groupId, etc.) skipping PE-specific fields

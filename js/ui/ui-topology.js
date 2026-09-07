@@ -310,6 +310,18 @@ export function updateRbacAssignment(resId, idx, key, val) {
   _updateConfigArrayItem(resId, 'rbacAssignments', idx, key, val);
 }
 
+export function addAgwBackendPool(resId) {
+  _addConfigArrayItem(resId, 'backendPools', { name: 'backendPool', targets: '' });
+}
+
+export function deleteAgwBackendPool(resId, idx) {
+  _deleteConfigArrayItem(resId, 'backendPools', idx);
+}
+
+export function updateAgwBackendPool(resId, idx, key, val) {
+  _updateConfigArrayItem(resId, 'backendPools', idx, key, val);
+}
+
 // ================================================================
 // ROUTE TABLE ROUTES (udr resource)
 // ================================================================
@@ -354,6 +366,8 @@ export function addRgResource(rgId, resType) {
     rgVnets.forEach(v => config.vnetLinks.push({vnetId: v.id, vnetName: v.name, registrationEnabled: false}));
   } else if(resType === 'publicDns') {
     config.records = [{name:'www', type:'A', value:'20.0.0.1', ttl:'3600'}, {name:'@', type:'MX', value:'mail.example.com', ttl:'3600'}];
+  } else if (resType === 'wafPolicy') {
+    config.customRules = Array.isArray(config.customRules) ? config.customRules : [];
   }
   const nr = {id:uid(), type:resType, name:`${baseName}-${rT.label.toLowerCase().replace(/\s+/g,'-')}`, config, rgId};
   state.rgResources.push(nr);
@@ -390,7 +404,68 @@ export function deleteDnsRecord(resId, idx) {
 export function updateDnsRecord(resId, idx, key, val) {
   const r = (state.rgResources||[]).find(r => r.id === resId);
   if(!r || !r.config || !r.config.records || !r.config.records[idx]) return;
-  r.config.records[idx][key] = val;
+  const rec = r.config.records[idx];
+  if (key === 'type') {
+    rec.type = val;
+    if (val === 'MX') {
+      rec.preference = rec.preference || '10';
+      rec.exchange = rec.exchange || rec.value || '';
+    } else if (val === 'SRV') {
+      rec.priority = rec.priority || '10';
+      rec.weight = rec.weight || '10';
+      rec.port = rec.port || '443';
+      rec.target = rec.target || rec.value || '';
+    } else if (val === 'SOA') {
+      rec.host = rec.host || 'ns1';
+      rec.email = rec.email || 'hostmaster';
+      rec.serialNumber = rec.serialNumber || '1';
+      rec.refreshTime = rec.refreshTime || '3600';
+      rec.retryTime = rec.retryTime || '300';
+      rec.expireTime = rec.expireTime || '2419200';
+      rec.minimumTtl = rec.minimumTtl || '300';
+    } else if (['CNAME', 'NS', 'PTR'].includes(val)) {
+      rec.target = rec.target || rec.value || '';
+    } else {
+      rec.value = rec.value || '';
+    }
+    saveState(); renderEditor();
+    return;
+  }
+  rec[key] = val;
+  if (key === 'value' && (!rec.target || !rec.exchange)) {
+    if (['CNAME', 'NS', 'PTR'].includes(rec.type) && !rec.target) rec.target = val;
+    if (rec.type === 'MX' && !rec.exchange) rec.exchange = val;
+    if (rec.type === 'SRV' && !rec.target) rec.target = val;
+  }
+  saveState();
+}
+
+export function addWafCustomRule(resId) {
+  const r = (state.rgResources||[]).find(r => r.id === resId && r.type === 'wafPolicy');
+  if(!r || !r.config) return;
+  if(!Array.isArray(r.config.customRules)) r.config.customRules = [];
+  r.config.customRules.push({
+    name: `Rule-${r.config.customRules.length + 1}`,
+    priority: String(100 + r.config.customRules.length * 10),
+    action: 'Block',
+    matchVariable: 'RequestHeaders:User-Agent',
+    operator: 'Contains',
+    matchValue: ''
+  });
+  saveState(); renderEditor();
+}
+
+export function deleteWafCustomRule(resId, idx) {
+  const r = (state.rgResources||[]).find(r => r.id === resId && r.type === 'wafPolicy');
+  if(!r || !r.config || !Array.isArray(r.config.customRules)) return;
+  r.config.customRules.splice(idx, 1);
+  saveState(); renderEditor();
+}
+
+export function updateWafCustomRule(resId, idx, key, val) {
+  const r = (state.rgResources||[]).find(r => r.id === resId && r.type === 'wafPolicy');
+  if(!r || !r.config || !Array.isArray(r.config.customRules) || !r.config.customRules[idx]) return;
+  r.config.customRules[idx][key] = val;
   saveState();
 }
 

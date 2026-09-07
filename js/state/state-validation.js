@@ -118,6 +118,13 @@ function _findResourceByName(diagramState, name, allowedTypes = []) {
   }) || null;
 }
 
+function _findWafPolicy(diagramState, ref) {
+  if (!ref) return null;
+  const byId = _findResourceById(diagramState, ref);
+  if (byId?.type === 'wafPolicy') return byId;
+  return _findResourceByName(diagramState, ref, ['wafPolicy']);
+}
+
 function _validateSubnetAssociation(subnet, assocKey, expectedType, label, diagramState, result) {
   const ref = subnet?.[assocKey];
   if (!ref) return;
@@ -165,6 +172,13 @@ function _applyDependencyValidation(resource, diagramState, result) {
       if (placement.vnet && !_hasSubnet(placement.vnet, 'AzureFirewallSubnet')) {
         _pushUnique(result.errors, 'Azure Firewall requires a subnet named AzureFirewallSubnet in the same VNet');
       }
+      if (config.wafPolicy) {
+        const wafRef = String(config.wafPolicy);
+        const waf = _findWafPolicy(diagramState, wafRef);
+        if (!waf && !wafRef.startsWith('/subscriptions/')) {
+          _pushUnique(result.warnings, `Azure Firewall wafPolicy does not match a WAF Policy resource in the diagram: ${config.wafPolicy}`);
+        }
+      }
       break;
     case 'bas':
       if (placement.vnet && !_hasSubnet(placement.vnet, 'AzureBastionSubnet')) {
@@ -196,6 +210,42 @@ function _applyDependencyValidation(resource, diagramState, result) {
     case 'natgw':
       if (config.publicIpName && !_findResourceByName(diagramState, config.publicIpName, ['pip'])) {
         _pushUnique(result.warnings, `NAT Gateway publicIpName "${config.publicIpName}" is external or missing from the diagram`);
+      }
+      break;
+    case 'agw': {
+      if (String(config.sku || '').toUpperCase().includes('WAF') && !config.wafPolicy) {
+        _pushUnique(result.warnings, 'App Gateway WAF SKU is selected but wafPolicy is not set');
+      }
+      if (config.wafPolicy) {
+        const wafRef = String(config.wafPolicy);
+        const waf = _findWafPolicy(diagramState, wafRef);
+        if (!waf && !wafRef.startsWith('/subscriptions/')) {
+          _pushUnique(result.warnings, `App Gateway wafPolicy does not match a WAF Policy resource in the diagram: ${config.wafPolicy}`);
+        }
+      }
+      if (Array.isArray(config.backendPools)) {
+        config.backendPools.forEach((pool, idx) => {
+          if (!pool.name) _pushUnique(result.warnings, `App Gateway backend pool #${idx + 1} is missing name`);
+        });
+      }
+      break;
+    }
+    case 'lb':
+    case 'afd':
+      if (config.wafPolicy) {
+        const wafRef = String(config.wafPolicy);
+        const waf = _findWafPolicy(diagramState, wafRef);
+        if (!waf && !wafRef.startsWith('/subscriptions/')) {
+          _pushUnique(result.warnings, `${RES_TYPES[resource.type]?.label || resource.type} wafPolicy does not match a WAF Policy resource in the diagram: ${config.wafPolicy}`);
+        }
+      }
+      break;
+    case 'wafPolicy':
+      if (Array.isArray(config.customRules)) {
+        config.customRules.forEach((rule, idx) => {
+          if (!rule.name) _pushUnique(result.warnings, `WAF policy custom rule #${idx + 1} is missing name`);
+          if (!rule.matchValue) _pushUnique(result.warnings, `WAF policy custom rule #${idx + 1} is missing matchValue`);
+        });
       }
       break;
     case 'kv':
@@ -232,7 +282,18 @@ function _applyDependencyValidation(resource, diagramState, result) {
         config.records.forEach((record, idx) => {
           if (!record.name) _pushUnique(result.warnings, `${RES_TYPES[resource.type]?.label || resource.type} record #${idx + 1} is missing name`);
           if (!record.type) _pushUnique(result.warnings, `${RES_TYPES[resource.type]?.label || resource.type} record #${idx + 1} is missing type`);
-          if (!record.value) _pushUnique(result.warnings, `${RES_TYPES[resource.type]?.label || resource.type} record #${idx + 1} is missing value`);
+          if (record.type === 'MX') {
+            if (!record.exchange && !record.value) _pushUnique(result.warnings, `${RES_TYPES[resource.type]?.label || resource.type} MX record #${idx + 1} is missing exchange`);
+          } else if (record.type === 'SRV') {
+            if (!record.target && !record.value) _pushUnique(result.warnings, `${RES_TYPES[resource.type]?.label || resource.type} SRV record #${idx + 1} is missing target`);
+            if (!record.port) _pushUnique(result.warnings, `${RES_TYPES[resource.type]?.label || resource.type} SRV record #${idx + 1} is missing port`);
+          } else if (record.type === 'SOA') {
+            if (!record.host && !record.value) _pushUnique(result.warnings, `${RES_TYPES[resource.type]?.label || resource.type} SOA record #${idx + 1} is missing host`);
+          } else if (['CNAME', 'NS', 'PTR'].includes(record.type)) {
+            if (!record.target && !record.value) _pushUnique(result.warnings, `${RES_TYPES[resource.type]?.label || resource.type} ${record.type} record #${idx + 1} is missing target`);
+          } else if (!record.value) {
+            _pushUnique(result.warnings, `${RES_TYPES[resource.type]?.label || resource.type} record #${idx + 1} is missing value`);
+          }
         });
       }
       if (resource.type !== 'dns') break;

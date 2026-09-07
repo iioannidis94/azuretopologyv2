@@ -31,6 +31,46 @@ function renderRbacSection(obj) {
   return h;
 }
 
+function renderDnsRecordValueFields(resId, rec, idx) {
+  const type = rec.type || 'A';
+  const targetValue = rec.target || rec.value || '';
+  const mxExchange = rec.exchange || rec.value || '';
+  const soaHost = rec.host || rec.value || '';
+
+  if (type === 'MX') {
+    return `
+      <input class="input-field" style="width:70px;" placeholder="Pref" value="${esc(rec.preference || '10')}" onchange="window._updateDnsRecord('${resId}',${idx},'preference',this.value)">
+      <input class="input-field" style="flex:2;min-width:120px;" placeholder="Exchange (mail.contoso.com)" value="${esc(mxExchange)}" onchange="window._updateDnsRecord('${resId}',${idx},'exchange',this.value)">`;
+  }
+  if (type === 'SRV') {
+    return `
+      <input class="input-field" style="width:64px;" placeholder="Prio" value="${esc(rec.priority || '10')}" onchange="window._updateDnsRecord('${resId}',${idx},'priority',this.value)">
+      <input class="input-field" style="width:64px;" placeholder="Weight" value="${esc(rec.weight || '10')}" onchange="window._updateDnsRecord('${resId}',${idx},'weight',this.value)">
+      <input class="input-field" style="width:64px;" placeholder="Port" value="${esc(rec.port || '443')}" onchange="window._updateDnsRecord('${resId}',${idx},'port',this.value)">
+      <input class="input-field" style="flex:2;min-width:120px;" placeholder="Target (svc.contoso.com)" value="${esc(targetValue)}" onchange="window._updateDnsRecord('${resId}',${idx},'target',this.value)">`;
+  }
+  if (type === 'SOA') {
+    return `
+      <input class="input-field" style="flex:1;min-width:100px;" placeholder="Host (ns1)" value="${esc(soaHost)}" onchange="window._updateDnsRecord('${resId}',${idx},'host',this.value)">
+      <input class="input-field" style="flex:1;min-width:110px;" placeholder="Email (hostmaster)" value="${esc(rec.email || '')}" onchange="window._updateDnsRecord('${resId}',${idx},'email',this.value)">
+      <input class="input-field" style="width:80px;" placeholder="Serial" value="${esc(rec.serialNumber || '1')}" onchange="window._updateDnsRecord('${resId}',${idx},'serialNumber',this.value)">
+      <input class="input-field" style="width:80px;" placeholder="Refresh" value="${esc(rec.refreshTime || '3600')}" onchange="window._updateDnsRecord('${resId}',${idx},'refreshTime',this.value)">
+      <input class="input-field" style="width:70px;" placeholder="Retry" value="${esc(rec.retryTime || '300')}" onchange="window._updateDnsRecord('${resId}',${idx},'retryTime',this.value)">
+      <input class="input-field" style="width:80px;" placeholder="Expire" value="${esc(rec.expireTime || '2419200')}" onchange="window._updateDnsRecord('${resId}',${idx},'expireTime',this.value)">
+      <input class="input-field" style="width:76px;" placeholder="MinTTL" value="${esc(rec.minimumTtl || '300')}" onchange="window._updateDnsRecord('${resId}',${idx},'minimumTtl',this.value)">`;
+  }
+  if (['CNAME', 'NS', 'PTR'].includes(type)) {
+    return `<input class="input-field" style="flex:2;min-width:120px;" placeholder="Target FQDN" value="${esc(targetValue)}" onchange="window._updateDnsRecord('${resId}',${idx},'target',this.value)">`;
+  }
+  if (type === 'TXT') {
+    return `<input class="input-field" style="flex:2;min-width:120px;" placeholder="Text value" value="${esc(rec.value || '')}" onchange="window._updateDnsRecord('${resId}',${idx},'value',this.value)">`;
+  }
+  if (type === 'AAAA') {
+    return `<input class="input-field" style="flex:2;min-width:120px;" placeholder="IPv6 Address" value="${esc(rec.value || '')}" onchange="window._updateDnsRecord('${resId}',${idx},'value',this.value)">`;
+  }
+  return `<input class="input-field" style="flex:2;min-width:120px;" placeholder="IPv4 Address" value="${esc(rec.value || '')}" onchange="window._updateDnsRecord('${resId}',${idx},'value',this.value)">`;
+}
+
 export function renderRgResourceSection(obj, { renderValidationBadge, renderValidationSection }) {
   let h = '';
   const rt = RES_TYPES[obj.type] || { color: '#888', label: 'Resource', icon: '❓', img: '' };
@@ -93,7 +133,7 @@ export function renderRgResourceSection(obj, { renderValidationBadge, renderVali
       h += `</div>`;
     }
     h += `<div class="editor-row"><span class="editor-label">Auto Registration Default</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','autoRegistration',this.value)"><option value="false"${(obj.config.autoRegistration || 'false') === 'false' ? ' selected' : ''}>Disabled</option><option value="true"${obj.config.autoRegistration === 'true' ? ' selected' : ''}>Enabled</option></select></div>`;
-  } else {
+  } else if (obj.type === 'publicDns') {
     h += `<div class="editor-row"><span class="editor-label">Zone</span><input class="input-field" value="${esc(obj.config.zone || '')}" onchange="window._updateResConfig('${obj.id}','zone',this.value)"></div>`;
   }
 
@@ -107,12 +147,36 @@ export function renderRgResourceSection(obj, { renderValidationBadge, renderVali
         <select class="input-field" style="width:60px;" onchange="window._updateDnsRecord('${obj.id}',${idx},'type',this.value)">
           ${['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA', 'SRV', 'PTR'].map(t => `<option${rec.type === t ? ' selected' : ''}>${t}</option>`).join('')}
         </select>
-        <input class="input-field" style="flex:2;min-width:80px;" placeholder="Value" value="${esc(rec.value)}" onchange="window._updateDnsRecord('${obj.id}',${idx},'value',this.value)">
+        ${renderDnsRecordValueFields(obj.id, rec, idx)}
         <input class="input-field" style="width:50px;" placeholder="TTL" value="${esc(rec.ttl)}" onchange="window._updateDnsRecord('${obj.id}',${idx},'ttl',this.value)">
         <button class="icon-btn danger" onclick="window._deleteDnsRecord('${obj.id}',${idx})">🗑</button>
       </div>`;
     });
     h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addDnsRecord('${obj.id}')">➕ Add Record</button>`;
+  }
+
+  if (obj.type === 'wafPolicy') {
+    const cfg = obj.config || {};
+    h += `<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🛡️ WAF Policy Settings</span></div>
+      <div class="editor-row"><span class="editor-label">Mode</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','mode',this.value)"><option value="Detection"${(cfg.mode || 'Prevention') === 'Detection' ? ' selected' : ''}>Detection</option><option value="Prevention"${(cfg.mode || 'Prevention') === 'Prevention' ? ' selected' : ''}>Prevention</option></select></div>
+      <div class="editor-row"><span class="editor-label">Rule Set Type</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','ruleSetType',this.value)"><option value="OWASP"${(cfg.ruleSetType || 'OWASP') === 'OWASP' ? ' selected' : ''}>OWASP</option><option value="Microsoft_BotManagerRuleSet"${cfg.ruleSetType === 'Microsoft_BotManagerRuleSet' ? ' selected' : ''}>Microsoft_BotManagerRuleSet</option></select></div>
+      <div class="editor-row"><span class="editor-label">Rule Set Version</span><input class="input-field" value="${esc(cfg.ruleSetVersion || '3.2')}" onchange="window._updateResConfig('${obj.id}','ruleSetVersion',this.value)"></div>
+      <div class="editor-row"><span class="editor-label">Request Body Check</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','requestBodyCheck',this.value)"><option value="true"${(cfg.requestBodyCheck || 'true') === 'true' ? ' selected' : ''}>Enabled</option><option value="false"${cfg.requestBodyCheck === 'false' ? ' selected' : ''}>Disabled</option></select></div>
+      <div class="editor-row"><span class="editor-label">Max Body (KB)</span><input class="input-field" value="${esc(cfg.maxRequestBodySizeInKb || '128')}" onchange="window._updateResConfig('${obj.id}','maxRequestBodySizeInKb',this.value)"></div>
+      <div class="editor-row"><span class="editor-label">Upload Limit (MB)</span><input class="input-field" value="${esc(cfg.fileUploadLimitInMb || '100')}" onchange="window._updateResConfig('${obj.id}','fileUploadLimitInMb',this.value)"></div>
+      <div class="editor-row" style="margin-top:10px;"><span class="editor-label" style="font-weight:bold;">Custom Rules</span></div>`;
+    (cfg.customRules || []).forEach((rule, idx) => {
+      h += `<div class="editor-row" style="gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-radius:4px;padding:6px;margin-bottom:4px;">
+        <input class="input-field" style="flex:1;min-width:110px;" placeholder="Rule name" value="${esc(rule.name || '')}" onchange="window._updateWafCustomRule('${obj.id}',${idx},'name',this.value)">
+        <input class="input-field" style="width:72px;" placeholder="Priority" value="${esc(rule.priority || '')}" onchange="window._updateWafCustomRule('${obj.id}',${idx},'priority',this.value)">
+        <select class="input-field" style="width:90px;" onchange="window._updateWafCustomRule('${obj.id}',${idx},'action',this.value)"><option value="Block"${(rule.action || 'Block') === 'Block' ? ' selected' : ''}>Block</option><option value="Allow"${rule.action === 'Allow' ? ' selected' : ''}>Allow</option><option value="Log"${rule.action === 'Log' ? ' selected' : ''}>Log</option></select>
+        <input class="input-field" style="flex:1;min-width:130px;" placeholder="Match variable" value="${esc(rule.matchVariable || '')}" onchange="window._updateWafCustomRule('${obj.id}',${idx},'matchVariable',this.value)">
+        <select class="input-field" style="width:92px;" onchange="window._updateWafCustomRule('${obj.id}',${idx},'operator',this.value)"><option value="Contains"${(rule.operator || 'Contains') === 'Contains' ? ' selected' : ''}>Contains</option><option value="Equals"${rule.operator === 'Equals' ? ' selected' : ''}>Equals</option><option value="BeginsWith"${rule.operator === 'BeginsWith' ? ' selected' : ''}>BeginsWith</option><option value="EndsWith"${rule.operator === 'EndsWith' ? ' selected' : ''}>EndsWith</option></select>
+        <input class="input-field" style="flex:1;min-width:120px;" placeholder="Match value" value="${esc(rule.matchValue || '')}" onchange="window._updateWafCustomRule('${obj.id}',${idx},'matchValue',this.value)">
+        <button class="icon-btn danger" onclick="window._deleteWafCustomRule('${obj.id}',${idx})">🗑</button>
+      </div>`;
+    });
+    h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addWafCustomRule('${obj.id}')">➕ Add WAF Rule</button>`;
   }
 
   // VNet Links (for Private DNS) - shown like peerings

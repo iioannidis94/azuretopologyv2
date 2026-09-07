@@ -9,6 +9,30 @@ function _resolveAssocRef(id) {
   return `'${id}'`; // legacy: treat as a literal resource id/name string
 }
 
+function _pushRbacComments(lines, res) {
+  (res.config?.rbacAssignments || []).forEach(assignment => {
+    const linked = assignment.principalResourceId ? findResourceById(assignment.principalResourceId) : null;
+    const principal = assignment.principalName || linked?.name || assignment.principalObjectId || '<principal>';
+    const role = assignment.roleDefinitionName || '<role>';
+    lines.push(`// RBAC: ${principal} (${assignment.principalType || 'ManagedIdentity'}) -> ${role} on ${res.name}`);
+  });
+}
+
+function _pushKeyVaultComments(lines, res) {
+  (res.config?.secrets || []).forEach(secret => {
+    if (!secret.name) return;
+    lines.push(`// Key Vault Secret: ${secret.name} contentType=${secret.contentType || 'text/plain'} valueSource=${secret.valueSource || 'secure-input'}`);
+  });
+  (res.config?.keys || []).forEach(key => {
+    if (!key.name) return;
+    lines.push(`// Key Vault Key: ${key.name} type=${key.keyType || 'RSA'} size=${key.keySize || 2048} ops=${key.keyOps || 'encrypt,decrypt,sign,verify'}`);
+  });
+  (res.config?.certificates || []).forEach(certificate => {
+    if (!certificate.name) return;
+    lines.push(`// Key Vault Certificate: ${certificate.name} subject=${certificate.subject || 'CN=example.contoso.com'} issuer=${certificate.issuer || 'Self'} validityMonths=${certificate.validityMonths || 12}`);
+  });
+}
+
 function generateBicepResource(res, rg, vnet, sn) {
   const lines = [];
   const c = res.config || {};
@@ -505,6 +529,7 @@ function generateBicepResource(res, rg, vnet, sn) {
       if(c.networkAcls && c.networkAcls !== 'Allow') lines.push(`    networkAcls: { defaultAction: 'Deny' }`);
       lines.push(`  }`);
       lines.push(`}\n`);
+      _pushKeyVaultComments(lines, res);
       break;
     }
     case 'app': {
@@ -695,6 +720,7 @@ function generateBicepResource(res, rg, vnet, sn) {
       break;
     }
   }
+  _pushRbacComments(lines, res);
   return lines;
 }
 

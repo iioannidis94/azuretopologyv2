@@ -3,7 +3,33 @@
 // Renders the right-side properties panel for resources that live
 // directly under a Resource Group (DNS zones, etc.)
 // ================================================================
-import { state, esc, RES_TYPES, AZURE_ICON_BASE, getRecommendedDnsZones } from '../../state-management.js';
+import { state, esc, RES_TYPES, AZURE_ICON_BASE, getRecommendedDnsZones, getAllDiagramResources } from '../../state-management.js';
+
+function renderRbacSection(obj) {
+  const assignments = obj.config.rbacAssignments || [];
+  const candidates = getAllDiagramResources().filter(r => r.id !== obj.id);
+  let h = `<div class="editor-row" style="margin-top:10px;"><span class="editor-label" style="font-weight:bold;">RBAC Assignments</span></div>`;
+  if (assignments.length === 0) {
+    h += `<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">No explicit RBAC assignments modeled for this resource.</div>`;
+  }
+  assignments.forEach((assignment, idx) => {
+    h += `<div class="editor-row" style="gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-radius:4px;padding:6px;margin-bottom:4px;">
+      <select class="input-field" style="min-width:130px;" onchange="window._updateRbacAssignment('${obj.id}',${idx},'principalType',this.value)">
+        ${['ManagedIdentity', 'ServicePrincipal', 'Group', 'User'].map(type => `<option value="${type}"${(assignment.principalType || 'ManagedIdentity') === type ? ' selected' : ''}>${type}</option>`).join('')}
+      </select>
+      <select class="input-field" style="flex:1;min-width:150px;" onchange="window._updateRbacAssignment('${obj.id}',${idx},'principalResourceId',this.value)">
+        <option value="">-- Linked resource principal --</option>
+        ${candidates.map(r => `<option value="${r.id}"${assignment.principalResourceId === r.id ? ' selected' : ''}>${esc(r.name)} (${RES_TYPES[r.type]?.label || r.type})</option>`).join('')}
+      </select>
+      <input class="input-field" style="flex:1;min-width:130px;" placeholder="Principal name / alias" value="${esc(assignment.principalName || '')}" onchange="window._updateRbacAssignment('${obj.id}',${idx},'principalName',this.value)">
+      <input class="input-field" style="flex:1;min-width:130px;" placeholder="Principal objectId (optional)" value="${esc(assignment.principalObjectId || '')}" onchange="window._updateRbacAssignment('${obj.id}',${idx},'principalObjectId',this.value)">
+      <input class="input-field" style="flex:1;min-width:140px;" placeholder="Role definition name" value="${esc(assignment.roleDefinitionName || '')}" onchange="window._updateRbacAssignment('${obj.id}',${idx},'roleDefinitionName',this.value)">
+      <button class="icon-btn danger" onclick="window._deleteRbacAssignment('${obj.id}',${idx})">🗑</button>
+    </div>`;
+  });
+  h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addRbacAssignment('${obj.id}')">➕ Add RBAC Assignment</button>`;
+  return h;
+}
 
 export function renderRgResourceSection(obj, { renderValidationBadge, renderValidationSection }) {
   let h = '';
@@ -18,6 +44,23 @@ export function renderRgResourceSection(obj, { renderValidationBadge, renderVali
 
   // Show validation section at the top
   h += renderValidationSection(obj);
+
+  if (obj.type === 'dns' || obj.type === 'publicDns') {
+    const recordCount = (obj.config.records || []).length;
+    const linkCount = (obj.config.vnetLinks || []).length;
+    const recommended = obj.type === 'dns' ? (window._state?.getRecommendedVnetLinksForDnsZone?.(obj.id) || []) : [];
+    const missingLinks = recommended.filter(link => !(obj.config.vnetLinks || []).some(existing => existing.vnetId === link.vnetId)).length;
+    const status = obj.type === 'dns'
+      ? (recordCount > 0 && linkCount > 0 && missingLinks === 0 ? 'Ready' : (recordCount > 0 || linkCount > 0 ? 'Partial' : 'Planned'))
+      : (recordCount > 0 ? 'Ready' : 'Planned');
+    h += `<div style="margin-top:10px;padding:8px;border:1px solid var(--border);border-radius:4px;background:rgba(0,120,212,0.04);">
+      <div style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;margin-bottom:6px;">📡 DNS Status</div>
+      <div style="font-size:10px;color:var(--text);">Type: ${obj.type === 'dns' ? 'Private DNS Zone' : 'Public DNS Zone'}</div>
+      <div style="font-size:10px;color:var(--text);">State: ${status}</div>
+      <div style="font-size:10px;color:var(--text);">Records: ${recordCount}</div>
+      ${obj.type === 'dns' ? `<div style="font-size:10px;color:var(--text);">Linked VNets: ${linkCount}</div><div style="font-size:10px;color:var(--text);">Recommended Missing Links: ${missingLinks}</div>` : ''}
+    </div>`;
+  }
 
   // Zone selection - searchable dropdown for Private DNS zones
   if (obj.type === 'dns') {
@@ -49,6 +92,7 @@ export function renderRgResourceSection(obj, { renderValidationBadge, renderVali
       });
       h += `</div>`;
     }
+    h += `<div class="editor-row"><span class="editor-label">Auto Registration Default</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','autoRegistration',this.value)"><option value="false"${(obj.config.autoRegistration || 'false') === 'false' ? ' selected' : ''}>Disabled</option><option value="true"${obj.config.autoRegistration === 'true' ? ' selected' : ''}>Enabled</option></select></div>`;
   } else {
     h += `<div class="editor-row"><span class="editor-label">Zone</span><input class="input-field" value="${esc(obj.config.zone || '')}" onchange="window._updateResConfig('${obj.id}','zone',this.value)"></div>`;
   }
@@ -109,6 +153,8 @@ export function renderRgResourceSection(obj, { renderValidationBadge, renderVali
   if (obj.type === 'dns') {
     h += `<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--azure-blue)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--azure-blue)'" onclick="window._addAnotherDnsZone('${obj.rgId}')">🌐 Add Another DNS Zone</button>`;
   }
+
+  h += renderRbacSection(obj);
 
   h += `<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="window._deleteRgResource('${obj.id}')">🗑 Delete Resource</button>`;
   return h;

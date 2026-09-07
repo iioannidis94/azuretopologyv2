@@ -60,6 +60,7 @@ function renderConfigFields(objId, config, filterFn = null) {
   let html = '';
   Object.keys(config).forEach(k => {
     if (filterFn && !filterFn(k)) return; // Skip filtered keys
+    if (Array.isArray(config[k]) || (config[k] && typeof config[k] === 'object')) return;
     const label = k.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase());
     if(config[k]==='true'||config[k]==='false'){
       html+=`<div class="editor-row"><span class="editor-label">${label}</span><select class="input-field" onchange="window._updateResConfig('${objId}','${k}',this.value)"><option value="true"${config[k]==='true'?' selected':''}>Yes</option><option value="false"${config[k]==='false'?' selected':''}>No</option></select></div>`;

@@ -136,6 +136,23 @@ function _applyDependencyValidation(resource, diagramState, result) {
 
   const placement = _findPlacement(resource, diagramState);
   const config = resource.config || {};
+  const rbacAssignments = Array.isArray(config.rbacAssignments) ? config.rbacAssignments : [];
+
+  rbacAssignments.forEach((assignment, idx) => {
+    const principalLabel = assignment.principalName || assignment.principalObjectId || assignment.principalResourceId || `assignment #${idx + 1}`;
+    if (!assignment.roleDefinitionName) {
+      _pushUnique(result.warnings, `RBAC ${principalLabel} is missing roleDefinitionName`);
+    }
+    if (!assignment.principalResourceId && !assignment.principalName && !assignment.principalObjectId) {
+      _pushUnique(result.warnings, `RBAC ${principalLabel} is missing a linked resource or principal reference`);
+    }
+    if (assignment.principalResourceId) {
+      const principalResource = _findResourceById(diagramState, assignment.principalResourceId);
+      if (!principalResource) {
+        _pushUnique(result.warnings, `RBAC principalResourceId does not match a resource in the diagram: ${assignment.principalResourceId}`);
+      }
+    }
+  });
 
   if (placement.subnet) {
     _validateSubnetAssociation(placement.subnet, 'nsgId', 'nsg', 'nsgId', diagramState, result);
@@ -181,6 +198,24 @@ function _applyDependencyValidation(resource, diagramState, result) {
         _pushUnique(result.warnings, `NAT Gateway publicIpName "${config.publicIpName}" is external or missing from the diagram`);
       }
       break;
+    case 'kv':
+      if (Array.isArray(config.secrets)) {
+        config.secrets.forEach((secret, idx) => {
+          if (!secret.name) _pushUnique(result.warnings, `Key Vault secret #${idx + 1} is missing name`);
+        });
+      }
+      if (Array.isArray(config.keys)) {
+        config.keys.forEach((key, idx) => {
+          if (!key.name) _pushUnique(result.warnings, `Key Vault key #${idx + 1} is missing name`);
+        });
+      }
+      if (Array.isArray(config.certificates)) {
+        config.certificates.forEach((certificate, idx) => {
+          if (!certificate.name) _pushUnique(result.warnings, `Key Vault certificate #${idx + 1} is missing name`);
+          if (certificate.name && !certificate.subject) _pushUnique(result.warnings, `Key Vault certificate "${certificate.name}" is missing subject`);
+        });
+      }
+      break;
     case 'appi':
       if (config.workspaceResourceId) {
         const workspaceResource = _findResourceById(diagramState, config.workspaceResourceId);
@@ -192,6 +227,15 @@ function _applyDependencyValidation(resource, diagramState, result) {
       }
       break;
     case 'dns':
+    case 'publicDns':
+      if (Array.isArray(config.records)) {
+        config.records.forEach((record, idx) => {
+          if (!record.name) _pushUnique(result.warnings, `${RES_TYPES[resource.type]?.label || resource.type} record #${idx + 1} is missing name`);
+          if (!record.type) _pushUnique(result.warnings, `${RES_TYPES[resource.type]?.label || resource.type} record #${idx + 1} is missing type`);
+          if (!record.value) _pushUnique(result.warnings, `${RES_TYPES[resource.type]?.label || resource.type} record #${idx + 1} is missing value`);
+        });
+      }
+      if (resource.type !== 'dns') break;
       if (Array.isArray(config.vnetLinks)) {
         config.vnetLinks.forEach(link => {
           const linkedVnet = [diagramState.hub, ...(diagramState.spokes || [])]

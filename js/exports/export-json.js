@@ -906,6 +906,7 @@ function _generateArmResource(res, rg, vnet, sn) {
           enablePurgeProtection: c.purgeProtection !== 'false',
           enableRbacAuthorization: c.enableRbacAuth !== 'false',
           softDeleteRetentionInDays: parseInt(c.softDeleteDays) || 90,
+          networkAcls: c.networkAcls && c.networkAcls !== 'Allow' ? { defaultAction: 'Deny' } : undefined,
           accessPolicies: []
         }
       };
@@ -1287,22 +1288,91 @@ function _generateArmResource(res, rg, vnet, sn) {
 
 function _generateArmRgResource(res, rg) {
   if (res.type === 'publicDns') {
-    return {
+    const resources = [{
       type: 'Microsoft.Network/dnsZones',
       apiVersion: '2018-05-01',
       name: res.config.zone,
       location: 'global',
       properties: {}
-    };
+    }];
+    (res.config.records || []).forEach(rec => {
+      if (rec.type === 'A') {
+        resources.push({
+          type: 'Microsoft.Network/dnsZones/A',
+          apiVersion: '2018-05-01',
+          name: `${res.config.zone}/${rec.name}`,
+          properties: { TTL: parseInt(rec.ttl) || 3600, ARecords: [{ ipv4Address: rec.value }] }
+        });
+      } else if (rec.type === 'CNAME') {
+        resources.push({
+          type: 'Microsoft.Network/dnsZones/CNAME',
+          apiVersion: '2018-05-01',
+          name: `${res.config.zone}/${rec.name}`,
+          properties: { TTL: parseInt(rec.ttl) || 3600, CNAMERecord: { cname: rec.value } }
+        });
+      } else if (rec.type === 'TXT') {
+        resources.push({
+          type: 'Microsoft.Network/dnsZones/TXT',
+          apiVersion: '2018-05-01',
+          name: `${res.config.zone}/${rec.name}`,
+          properties: { TTL: parseInt(rec.ttl) || 3600, TXTRecords: [{ value: [rec.value] }] }
+        });
+      } else if (rec.type === 'MX') {
+        resources.push({
+          type: 'Microsoft.Network/dnsZones/MX',
+          apiVersion: '2018-05-01',
+          name: `${res.config.zone}/${rec.name}`,
+          properties: { TTL: parseInt(rec.ttl) || 3600, MXRecords: [{ preference: 10, exchange: rec.value }] }
+        });
+      }
+    });
+    return resources;
   } else if (res.type === 'dns') {
     const zoneName = res.config.fullZoneName || res.config.zone;
-    return {
+    const resources = [{
       type: 'Microsoft.Network/privateDnsZones',
       apiVersion: '2020-06-01',
       name: zoneName,
       location: 'global',
       properties: {}
-    };
+    }];
+    (res.config.records || []).forEach(rec => {
+      if (rec.type === 'A') {
+        resources.push({
+          type: 'Microsoft.Network/privateDnsZones/A',
+          apiVersion: '2020-06-01',
+          name: `${zoneName}/${rec.name}`,
+          properties: { ttl: parseInt(rec.ttl) || 3600, aRecords: [{ ipv4Address: rec.value }] }
+        });
+      } else if (rec.type === 'CNAME') {
+        resources.push({
+          type: 'Microsoft.Network/privateDnsZones/CNAME',
+          apiVersion: '2020-06-01',
+          name: `${zoneName}/${rec.name}`,
+          properties: { ttl: parseInt(rec.ttl) || 3600, cnameRecord: { cname: rec.value } }
+        });
+      } else if (rec.type === 'TXT') {
+        resources.push({
+          type: 'Microsoft.Network/privateDnsZones/TXT',
+          apiVersion: '2020-06-01',
+          name: `${zoneName}/${rec.name}`,
+          properties: { ttl: parseInt(rec.ttl) || 3600, txtRecords: [{ value: [rec.value] }] }
+        });
+      }
+    });
+    (res.config.vnetLinks || []).forEach(link => {
+      resources.push({
+        type: 'Microsoft.Network/privateDnsZones/virtualNetworkLinks',
+        apiVersion: '2020-06-01',
+        name: `${zoneName}/${link.linkName || `link-${link.vnetName || 'vnet'}`}`,
+        location: 'global',
+        properties: {
+          registrationEnabled: link.registrationEnabled || res.config.autoRegistration === 'true',
+          virtualNetwork: { id: `[resourceId('Microsoft.Network/virtualNetworks', '${link.vnetName || 'vnet'}')]` }
+        }
+      });
+    });
+    return resources;
   }
   return null;
 }

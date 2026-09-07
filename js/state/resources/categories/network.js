@@ -166,8 +166,8 @@ export const networkCategory = {
       azureTypes: ['microsoft.network/privatednszones'],
       rgLevel: true,
       dnsType: 'private',
-      config: { zone: 'privatelink.blob.core.windows.net', fullZoneName: 'privatelink.blob.core.windows.net', vnetLinks: [], autoRegistration: 'false' },
-      validation: { critical: ['zone'], warning: ['vnetLinks'] },
+      config: { zone: 'privatelink.blob.core.windows.net', fullZoneName: 'privatelink.blob.core.windows.net', records: [], vnetLinks: [], autoRegistration: 'false' },
+      validation: { critical: ['zone'], warning: ['records', 'vnetLinks', 'autoRegistration'] },
       importMappings: {
         'name': 'zone',
         'properties.registrationEnabled': 'autoRegistration'

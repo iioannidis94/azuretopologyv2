@@ -8,18 +8,20 @@ import { closeModal, copyText, downloadText, toggleExportPanel } from './exports
 import { exportJson, openJsonImportModal, handleJsonFile, confirmJsonImport, previewPastedJson } from './exports/export-json.js';
 import { openAzureInventoryModal, handleInventoryFile, previewInventory, confirmInventoryImport, setInventoryScope } from './exports/export-inventory.js';
 import { openTemplateGallery, closeTemplateGallery, applyTemplate } from './template-gallery.js';
-import { getPeTargetableResources, getPeTargetResource, getAllPrivateEndpoints, getPesForResource, getRecommendedVnetLinksForDnsZone, getRecommendedDnsZones, PE_TARGET_DNS_RECOMMENDATIONS } from './state/state-helpers.js';
+import { getPeTargetableResources, getPeTargetResource, getAllPrivateEndpoints, getPesForResource, getRecommendedVnetLinksForDnsZone, getRecommendedDnsZones, PE_TARGET_DNS_RECOMMENDATIONS, syncDnsVnetLinks } from './state/state-helpers.js';
 
 // ================================================================
 // WIRE UP fullUpdate
 // ================================================================
 function fullUpdateImpl(){ 
+  syncDnsVnetLinks(state);
   saveState(); updateCost(); renderSecurityPanel(); renderSidebar(); renderEditor(); draw(); 
 }
 setFullUpdate(fullUpdateImpl);
 
 // Render-only (no saveState) - used by undo/redo to re-render without creating history entries
 function renderAllImpl(){
+  syncDnsVnetLinks(state);
   updateCost(); renderSecurityPanel(); renderSidebar(); renderEditor(); draw();
 }
 setRenderAll(renderAllImpl);

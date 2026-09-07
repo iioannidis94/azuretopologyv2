@@ -25,6 +25,63 @@ export function getVnetsInRg(rgId){
   return result;
 }
 
+export function getAllVnets(diagramState = state) {
+  return [diagramState?.hub, ...(diagramState?.spokes || [])].filter(Boolean);
+}
+
+export function resolveVnetLink(link, diagramState = state) {
+  if (!link) return null;
+  const allVnets = getAllVnets(diagramState);
+  if (link.vnetId) {
+    const byId = allVnets.find(vnet => vnet.id === link.vnetId);
+    if (byId) return byId;
+  }
+  const linkName = String(link.vnetName || '').trim().toLowerCase();
+  if (!linkName) return null;
+  return allVnets.find(vnet => String(vnet.name || '').trim().toLowerCase() === linkName) || null;
+}
+
+export function syncDnsVnetLinks(diagramState = state) {
+  let changed = false;
+  (diagramState?.rgResources || []).forEach(resource => {
+    if (!['dns', 'publicDns'].includes(resource.type) || !Array.isArray(resource.config?.vnetLinks)) return;
+
+    const originalLinks = resource.config.vnetLinks;
+    const seen = new Set();
+    const normalizedLinks = [];
+
+    originalLinks.forEach(link => {
+      if (!link || typeof link !== 'object') return;
+
+      const resolvedVnet = resolveVnetLink(link, diagramState);
+      const normalizedLink = { ...link };
+
+      if (resolvedVnet) {
+        normalizedLink.vnetId = resolvedVnet.id;
+        normalizedLink.vnetName = resolvedVnet.name;
+      }
+
+      const dedupeKey = normalizedLink.vnetId
+        ? `id:${normalizedLink.vnetId}`
+        : (normalizedLink.vnetName ? `name:${String(normalizedLink.vnetName).trim().toLowerCase()}` : '');
+
+      if (dedupeKey && seen.has(dedupeKey)) {
+        changed = true;
+        return;
+      }
+
+      if (dedupeKey) seen.add(dedupeKey);
+      normalizedLinks.push(normalizedLink);
+    });
+
+    if (JSON.stringify(normalizedLinks) !== JSON.stringify(originalLinks)) {
+      resource.config.vnetLinks = normalizedLinks;
+      changed = true;
+    }
+  });
+  return changed;
+}
+
 // Find any placed resource (subnet-level or RG-level) by its id
 export function findResourceById(id) {
   if (!id) return null;

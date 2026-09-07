@@ -9,6 +9,30 @@ function _resolveAssocRef(id) {
   return `'${id}'`; // legacy: treat as a literal resource id/name string
 }
 
+function _pushRbacComments(lines, res) {
+  (res.config?.rbacAssignments || []).forEach(assignment => {
+    const linked = assignment.principalResourceId ? findResourceById(assignment.principalResourceId) : null;
+    const principal = assignment.principalName || linked?.name || assignment.principalObjectId || '<principal>';
+    const role = assignment.roleDefinitionName || '<role>';
+    lines.push(`// RBAC: ${principal} (${assignment.principalType || 'ManagedIdentity'}) -> ${role} on ${res.name}`);
+  });
+}
+
+function _pushKeyVaultComments(lines, res) {
+  (res.config?.secrets || []).forEach(secret => {
+    if (!secret.name) return;
+    lines.push(`// Key Vault Secret: ${secret.name} contentType=${secret.contentType || 'text/plain'} valueSource=${secret.valueSource || 'secure-input'}`);
+  });
+  (res.config?.keys || []).forEach(key => {
+    if (!key.name) return;
+    lines.push(`// Key Vault Key: ${key.name} type=${key.keyType || 'RSA'} size=${key.keySize || 2048} ops=${key.keyOps || 'encrypt,decrypt,sign,verify'}`);
+  });
+  (res.config?.certificates || []).forEach(certificate => {
+    if (!certificate.name) return;
+    lines.push(`// Key Vault Certificate: ${certificate.name} subject=${certificate.subject || 'CN=example.contoso.com'} issuer=${certificate.issuer || 'Self'} validityMonths=${certificate.validityMonths || 12}`);
+  });
+}
+
 function generateBicepResource(res, rg, vnet, sn) {
   const lines = [];
   const c = res.config || {};
@@ -505,11 +529,12 @@ function generateBicepResource(res, rg, vnet, sn) {
       if(c.networkAcls && c.networkAcls !== 'Allow') lines.push(`    networkAcls: { defaultAction: 'Deny' }`);
       lines.push(`  }`);
       lines.push(`}\n`);
+      _pushKeyVaultComments(lines, res);
       break;
     }
     case 'app': {
       const aspNameBicep = c.appServicePlanName || `${res.name}-plan`;
-      const aspSkuBicep = c.appServicePlanSku || c.sku || 'P1v3';
+      const aspSkuBicep = c.appServicePlanSku || 'P1v3';
       lines.push(`module ${safeName}_plan 'br/public:avm/res/web/server-farm:0.2.0' = {`);
       lines.push(`  name: '${aspNameBicep}'`);
       lines.push(`  scope: ${rgRef}`);
@@ -561,8 +586,35 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${res.name}'`);
-      lines.push(`    sku: { name: '${c.tier||'Standard'}', tier: '${c.tier||'Standard'}', capacity: ${c.throughputUnits||1} }`);
+      lines.push(`    sku: { name: '${c.plan||'Standard'}', tier: '${c.plan||'Standard'}', capacity: ${c.throughputUnits||1} }`);
       lines.push(`    eventhubs: [{ name: '${res.name}-hub', partitionCount: ${c.partitions||4}, messageRetentionInDays: ${c.retentionDays||7}${c.captureEnabled==='true' ? ', captureDescription: { enabled: true }' : ''} }]`);
+      if (c.kafkaEnabled === 'true') lines.push(`    // Kafka enabled`);
+      lines.push(`  }`);
+      lines.push(`}\n`);
+      break;
+    }
+    case 'appcfg': {
+      lines.push(`resource ${safeName} 'Microsoft.AppConfiguration/configurationStores@2024-05-01' = {`);
+      lines.push(`  name: '${res.name}'`);
+      lines.push(`  scope: ${rgRef}`);
+      lines.push(`  location: '${rg.location}'`);
+      lines.push(`  sku: { name: '${c.sku||'Standard'}' }`);
+      lines.push(`  properties: {`);
+      lines.push(`    publicNetworkAccess: '${c.publicNetworkAccess||'Enabled'}'`);
+      lines.push(`    disableLocalAuth: ${c.disableLocalAuth === 'true'}`);
+      lines.push(`  }`);
+      lines.push(`}\n`);
+      break;
+    }
+    case 'egt': {
+      lines.push(`resource ${safeName} 'Microsoft.EventGrid/topics@2023-12-15-preview' = {`);
+      lines.push(`  name: '${res.name}'`);
+      lines.push(`  scope: ${rgRef}`);
+      lines.push(`  location: '${rg.location}'`);
+      lines.push(`  sku: { name: '${c.sku||'Basic'}' }`);
+      lines.push(`  properties: {`);
+      lines.push(`    inputSchema: '${c.inputSchema||'EventGridSchema'}'`);
+      lines.push(`    publicNetworkAccess: '${c.publicNetworkAccess||'Enabled'}'`);
       lines.push(`  }`);
       lines.push(`}\n`);
       break;
@@ -623,11 +675,52 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`}\n`);
       break;
     }
+    case 'appi': {
+      lines.push(`resource ${safeName} 'Microsoft.Insights/components@2020-02-02' = {`);
+      lines.push(`  name: '${res.name}'`);
+      lines.push(`  scope: ${rgRef}`);
+      lines.push(`  location: '${rg.location}'`);
+      lines.push(`  kind: '${c.kind||'web'}'`);
+      lines.push(`  properties: {`);
+      lines.push(`    Application_Type: '${c.applicationType||'web'}'`);
+      if (c.workspaceResourceId) lines.push(`    WorkspaceResourceId: '${c.workspaceResourceId}'`);
+      lines.push(`  }`);
+      lines.push(`}\n`);
+      break;
+    }
+    case 'acr': {
+      lines.push(`resource ${safeName} 'Microsoft.ContainerRegistry/registries@2023-07-01' = {`);
+      lines.push(`  name: '${res.name}'`);
+      lines.push(`  scope: ${rgRef}`);
+      lines.push(`  location: '${rg.location}'`);
+      lines.push(`  sku: { name: '${c.sku||'Premium'}' }`);
+      lines.push(`  properties: {`);
+      lines.push(`    adminUserEnabled: ${c.adminUserEnabled === 'true'}`);
+      lines.push(`    publicNetworkAccess: '${c.publicNetworkAccess||'Enabled'}'`);
+      lines.push(`  }`);
+      lines.push(`}\n`);
+      break;
+    }
+    case 'search': {
+      lines.push(`resource ${safeName} 'Microsoft.Search/searchServices@2023-11-01' = {`);
+      lines.push(`  name: '${res.name}'`);
+      lines.push(`  scope: ${rgRef}`);
+      lines.push(`  location: '${rg.location}'`);
+      lines.push(`  sku: { name: '${c.sku||'standard'}' }`);
+      lines.push(`  properties: {`);
+      lines.push(`    replicaCount: ${c.replicaCount||1}`);
+      lines.push(`    partitionCount: ${c.partitionCount||1}`);
+      lines.push(`    publicNetworkAccess: '${c.publicNetworkAccess||'enabled'}'`);
+      lines.push(`  }`);
+      lines.push(`}\n`);
+      break;
+    }
     default: {
       lines.push(`// module ${safeName} 'br/public:avm/res/...' — type ${res.type} not yet supported`);
       break;
     }
   }
+  _pushRbacComments(lines, res);
   return lines;
 }
 

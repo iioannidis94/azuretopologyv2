@@ -906,6 +906,7 @@ function _generateArmResource(res, rg, vnet, sn) {
           enablePurgeProtection: c.purgeProtection !== 'false',
           enableRbacAuthorization: c.enableRbacAuth !== 'false',
           softDeleteRetentionInDays: parseInt(c.softDeleteDays) || 90,
+          networkAcls: c.networkAcls && c.networkAcls !== 'Allow' ? { defaultAction: 'Deny' } : undefined,
           accessPolicies: []
         }
       };
@@ -913,7 +914,7 @@ function _generateArmResource(res, rg, vnet, sn) {
 
     case 'app': {
       const planName = c.appServicePlanName || `${res.name}-plan`;
-      const planSku = c.appServicePlanSku || c.sku || 'P1v3';
+      const planSku = c.appServicePlanSku || 'P1v3';
       const runtime = (c.runtime || 'dotnet').toLowerCase();
       const linuxFxVersion = `${runtime}|${c.runtimeVersion || '8.0'}`;
       return [
@@ -1007,6 +1008,34 @@ function _generateArmResource(res, rg, vnet, sn) {
       ];
     }
 
+    case 'appcfg': {
+      return {
+        type: 'Microsoft.AppConfiguration/configurationStores',
+        apiVersion: '2024-05-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        sku: { name: c.sku || 'Standard' },
+        properties: {
+          publicNetworkAccess: c.publicNetworkAccess || 'Enabled',
+          disableLocalAuth: c.disableLocalAuth === 'true'
+        }
+      };
+    }
+
+    case 'egt': {
+      return {
+        type: 'Microsoft.EventGrid/topics',
+        apiVersion: '2023-12-15-preview',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        sku: { name: c.sku || 'Basic' },
+        properties: {
+          inputSchema: c.inputSchema || 'EventGridSchema',
+          publicNetworkAccess: c.publicNetworkAccess || 'Enabled'
+        }
+      };
+    }
+
     case 'logic': {
       return {
         type: 'Microsoft.Logic/workflows',
@@ -1082,6 +1111,49 @@ function _generateArmResource(res, rg, vnet, sn) {
           sku: { name: c.workspaceSku || 'PerGB2018' },
           retentionInDays: parseInt(c.retentionDays) || 90,
           workspaceCapping: c.dailyCapGB ? { dailyQuotaGb: Number(c.dailyCapGB) } : undefined
+        }
+      };
+    }
+
+    case 'appi': {
+      return {
+        type: 'Microsoft.Insights/components',
+        apiVersion: '2020-02-02',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        kind: c.kind || 'web',
+        properties: {
+          Application_Type: c.applicationType || 'web',
+          WorkspaceResourceId: c.workspaceResourceId || undefined
+        }
+      };
+    }
+
+    case 'acr': {
+      return {
+        type: 'Microsoft.ContainerRegistry/registries',
+        apiVersion: '2023-07-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        sku: { name: c.sku || 'Premium' },
+        properties: {
+          adminUserEnabled: c.adminUserEnabled === 'true',
+          publicNetworkAccess: c.publicNetworkAccess || 'Enabled'
+        }
+      };
+    }
+
+    case 'search': {
+      return {
+        type: 'Microsoft.Search/searchServices',
+        apiVersion: '2023-11-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        sku: { name: c.sku || 'standard' },
+        properties: {
+          replicaCount: parseInt(c.replicaCount) || 1,
+          partitionCount: parseInt(c.partitionCount) || 1,
+          publicNetworkAccess: c.publicNetworkAccess || 'enabled'
         }
       };
     }
@@ -1216,22 +1288,91 @@ function _generateArmResource(res, rg, vnet, sn) {
 
 function _generateArmRgResource(res, rg) {
   if (res.type === 'publicDns') {
-    return {
+    const resources = [{
       type: 'Microsoft.Network/dnsZones',
       apiVersion: '2018-05-01',
       name: res.config.zone,
       location: 'global',
       properties: {}
-    };
+    }];
+    (res.config.records || []).forEach(rec => {
+      if (rec.type === 'A') {
+        resources.push({
+          type: 'Microsoft.Network/dnsZones/A',
+          apiVersion: '2018-05-01',
+          name: `${res.config.zone}/${rec.name}`,
+          properties: { TTL: parseInt(rec.ttl) || 3600, ARecords: [{ ipv4Address: rec.value }] }
+        });
+      } else if (rec.type === 'CNAME') {
+        resources.push({
+          type: 'Microsoft.Network/dnsZones/CNAME',
+          apiVersion: '2018-05-01',
+          name: `${res.config.zone}/${rec.name}`,
+          properties: { TTL: parseInt(rec.ttl) || 3600, CNAMERecord: { cname: rec.value } }
+        });
+      } else if (rec.type === 'TXT') {
+        resources.push({
+          type: 'Microsoft.Network/dnsZones/TXT',
+          apiVersion: '2018-05-01',
+          name: `${res.config.zone}/${rec.name}`,
+          properties: { TTL: parseInt(rec.ttl) || 3600, TXTRecords: [{ value: [rec.value] }] }
+        });
+      } else if (rec.type === 'MX') {
+        resources.push({
+          type: 'Microsoft.Network/dnsZones/MX',
+          apiVersion: '2018-05-01',
+          name: `${res.config.zone}/${rec.name}`,
+          properties: { TTL: parseInt(rec.ttl) || 3600, MXRecords: [{ preference: 10, exchange: rec.value }] }
+        });
+      }
+    });
+    return resources;
   } else if (res.type === 'dns') {
     const zoneName = res.config.fullZoneName || res.config.zone;
-    return {
+    const resources = [{
       type: 'Microsoft.Network/privateDnsZones',
       apiVersion: '2020-06-01',
       name: zoneName,
       location: 'global',
       properties: {}
-    };
+    }];
+    (res.config.records || []).forEach(rec => {
+      if (rec.type === 'A') {
+        resources.push({
+          type: 'Microsoft.Network/privateDnsZones/A',
+          apiVersion: '2020-06-01',
+          name: `${zoneName}/${rec.name}`,
+          properties: { ttl: parseInt(rec.ttl) || 3600, aRecords: [{ ipv4Address: rec.value }] }
+        });
+      } else if (rec.type === 'CNAME') {
+        resources.push({
+          type: 'Microsoft.Network/privateDnsZones/CNAME',
+          apiVersion: '2020-06-01',
+          name: `${zoneName}/${rec.name}`,
+          properties: { ttl: parseInt(rec.ttl) || 3600, cnameRecord: { cname: rec.value } }
+        });
+      } else if (rec.type === 'TXT') {
+        resources.push({
+          type: 'Microsoft.Network/privateDnsZones/TXT',
+          apiVersion: '2020-06-01',
+          name: `${zoneName}/${rec.name}`,
+          properties: { ttl: parseInt(rec.ttl) || 3600, txtRecords: [{ value: [rec.value] }] }
+        });
+      }
+    });
+    (res.config.vnetLinks || []).forEach(link => {
+      resources.push({
+        type: 'Microsoft.Network/privateDnsZones/virtualNetworkLinks',
+        apiVersion: '2020-06-01',
+        name: `${zoneName}/${link.linkName || `link-${link.vnetName || 'vnet'}`}`,
+        location: 'global',
+        properties: {
+          registrationEnabled: link.registrationEnabled || res.config.autoRegistration === 'true',
+          virtualNetwork: { id: `[resourceId('Microsoft.Network/virtualNetworks', '${link.vnetName || 'vnet'}')]` }
+        }
+      });
+    });
+    return resources;
   }
   return null;
 }

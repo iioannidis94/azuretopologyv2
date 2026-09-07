@@ -229,6 +229,87 @@ export function updateResConfig(resId,configKey,val){
   saveState(); updateCost(); renderEditor(); 
 }
 
+function _getResourceConfig(resId) {
+  const resource = findResourceById(resId);
+  return resource?.config || null;
+}
+
+function _ensureConfigArray(resId, key) {
+  const config = _getResourceConfig(resId);
+  if (!config) return null;
+  if (!Array.isArray(config[key])) config[key] = [];
+  return config[key];
+}
+
+function _addConfigArrayItem(resId, key, item) {
+  const list = _ensureConfigArray(resId, key);
+  if (!list) return;
+  list.push(item);
+  saveState(); renderEditor();
+}
+
+function _deleteConfigArrayItem(resId, key, idx) {
+  const list = _ensureConfigArray(resId, key);
+  if (!list || !list[idx]) return;
+  list.splice(idx, 1);
+  saveState(); renderEditor();
+}
+
+function _updateConfigArrayItem(resId, key, idx, prop, val) {
+  const list = _ensureConfigArray(resId, key);
+  if (!list || !list[idx]) return;
+  list[idx][prop] = val;
+  saveState(); renderEditor();
+}
+
+export function addKeyVaultSecret(resId) {
+  _addConfigArrayItem(resId, 'secrets', { name: 'new-secret', contentType: 'text/plain', valueSource: 'secure-input', enabled: 'true', expiresOn: '' });
+}
+
+export function deleteKeyVaultSecret(resId, idx) {
+  _deleteConfigArrayItem(resId, 'secrets', idx);
+}
+
+export function updateKeyVaultSecret(resId, idx, key, val) {
+  _updateConfigArrayItem(resId, 'secrets', idx, key, val);
+}
+
+export function addKeyVaultKey(resId) {
+  _addConfigArrayItem(resId, 'keys', { name: 'new-key', keyType: 'RSA', keySize: '2048', keyOps: 'encrypt,decrypt,sign,verify', enabled: 'true' });
+}
+
+export function deleteKeyVaultKey(resId, idx) {
+  _deleteConfigArrayItem(resId, 'keys', idx);
+}
+
+export function updateKeyVaultKey(resId, idx, key, val) {
+  _updateConfigArrayItem(resId, 'keys', idx, key, val);
+}
+
+export function addKeyVaultCertificate(resId) {
+  _addConfigArrayItem(resId, 'certificates', { name: 'new-cert', subject: 'CN=app.contoso.com', issuer: 'Self', validityMonths: '12', enabled: 'true' });
+}
+
+export function deleteKeyVaultCertificate(resId, idx) {
+  _deleteConfigArrayItem(resId, 'certificates', idx);
+}
+
+export function updateKeyVaultCertificate(resId, idx, key, val) {
+  _updateConfigArrayItem(resId, 'certificates', idx, key, val);
+}
+
+export function addRbacAssignment(resId) {
+  _addConfigArrayItem(resId, 'rbacAssignments', { principalType: 'ManagedIdentity', principalResourceId: '', principalName: '', principalObjectId: '', roleDefinitionName: 'Reader' });
+}
+
+export function deleteRbacAssignment(resId, idx) {
+  _deleteConfigArrayItem(resId, 'rbacAssignments', idx);
+}
+
+export function updateRbacAssignment(resId, idx, key, val) {
+  _updateConfigArrayItem(resId, 'rbacAssignments', idx, key, val);
+}
+
 // ================================================================
 // ROUTE TABLE ROUTES (udr resource)
 // ================================================================

@@ -5,6 +5,32 @@ import { _iacSafe } from './export-utils.js';
 const _ASP_TIER_MAP = { F1:'Free', D1:'Shared', B1:'Basic', B2:'Basic', B3:'Basic', S1:'Standard', S2:'Standard', S3:'Standard', P1v2:'PremiumV2', P2v2:'PremiumV2', P3v2:'PremiumV2', P0v3:'PremiumV3', P1v3:'PremiumV3', P2v3:'PremiumV3', P3v3:'PremiumV3', P1mv3:'PremiumV3', P2mv3:'PremiumV3', P3mv3:'PremiumV3', P4mv3:'PremiumV3', P5mv3:'PremiumV3', Y1:'Dynamic' };
 const _ASP_SIZE_MAP = { F1:'Small', D1:'Small', B1:'Small', B2:'Medium', B3:'Large', S1:'Small', S2:'Medium', S3:'Large', P1v2:'Small', P2v2:'Medium', P3v2:'Large', P0v3:'Small', P1v3:'Small', P2v3:'Medium', P3v3:'Large', P1mv3:'Small', P2mv3:'Medium', P3mv3:'Large', P4mv3:'Large', P5mv3:'Large', Y1:'Small' };
 
+function _pushRbacComments(lines, res) {
+  (res.config?.rbacAssignments || []).forEach(assignment => {
+    const linked = assignment.principalResourceId ? findResourceById(assignment.principalResourceId) : null;
+    const principal = assignment.principalName || linked?.name || assignment.principalObjectId || '<principal>';
+    const role = assignment.roleDefinitionName || '<role>';
+    lines.push(`# RBAC: ${principal} (${assignment.principalType || 'ManagedIdentity'}) -> ${role} on ${res.name}`);
+  });
+}
+
+function _pushKeyVaultContentCommands(lines, res) {
+  (res.config?.secrets || []).forEach(secret => {
+    if (!secret.name) return;
+    const safeVar = secret.name.replace(/[^a-zA-Z0-9]/g, '_');
+    lines.push(`$secretValue_${safeVar} = Read-Host -AsSecureString "Enter value for Key Vault secret ${secret.name}"`);
+    lines.push(`Set-AzKeyVaultSecret -VaultName "${res.name}" -Name "${secret.name}" -SecretValue $secretValue_${safeVar}${secret.contentType ? ` -ContentType "${secret.contentType}"` : ''} | Out-Null`);
+  });
+  (res.config?.keys || []).forEach(key => {
+    if (!key.name) return;
+    lines.push(`Add-AzKeyVaultKey -VaultName "${res.name}" -Name "${key.name}" -Destination Software -Size ${key.keySize || 2048} | Out-Null`);
+  });
+  (res.config?.certificates || []).forEach(certificate => {
+    if (!certificate.name) return;
+    lines.push(`# Certificate: ${certificate.name} subject=${certificate.subject || 'CN=example.contoso.com'} issuer=${certificate.issuer || 'Self'} validityMonths=${certificate.validityMonths || 12}`);
+  });
+}
+
 function generatePowerShellResource(res, rg, varN, sn) {
   const lines = [];
   const c = res.config || {};
@@ -293,11 +319,12 @@ function generatePowerShellResource(res, rg, varN, sn) {
       if(c.softDeleteDays && c.softDeleteDays !== '90') kvCmd += ` -SoftDeleteRetentionInDays ${c.softDeleteDays}`;
       if(c.networkAcls && c.networkAcls !== 'Allow') kvCmd += ` -NetworkRuleSet @{ DefaultAction = "Deny" }`;
       lines.push(kvCmd);
+      _pushKeyVaultContentCommands(lines, res);
       break;
     }
     case 'app': {
       const aspName = c.appServicePlanName || `${res.name}-plan`;
-      const aspSku = c.appServicePlanSku || c.sku || 'P1v3';
+      const aspSku = c.appServicePlanSku || 'P1v3';
       const aspTier = _ASP_TIER_MAP[aspSku] || 'PremiumV3';
       const aspWorkerSize = _ASP_SIZE_MAP[aspSku] || 'Small';
       lines.push(`New-AzAppServicePlan -Name "${aspName}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Tier "${aspTier}" -WorkerSize "${aspWorkerSize}"`);
@@ -321,9 +348,23 @@ function generatePowerShellResource(res, rg, varN, sn) {
       break;
     }
     case 'evh': {
-      let evhCmd = `New-AzEventHubNamespace -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -SkuName "${c.tier||'Standard'}" -SkuCapacity ${c.throughputUnits||1}`;
+      let evhCmd = `New-AzEventHubNamespace -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -SkuName "${c.plan||'Standard'}" -SkuCapacity ${c.throughputUnits||1}`;
       lines.push(evhCmd);
       lines.push(`New-AzEventHub -Name "${res.name}-hub" -NamespaceName "${res.name}" -ResourceGroupName "${rg.name}" -PartitionCount ${c.partitions||4} -MessageRetentionInDays ${c.retentionDays||7}${c.captureEnabled==='true' ? ' -CaptureEnabled' : ''}`);
+      if (c.kafkaEnabled === 'true') lines.push(`# Kafka enabled for namespace ${res.name}`);
+      break;
+    }
+    case 'appcfg': {
+      lines.push(`New-AzAppConfigurationStore -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Sku "${c.sku||'Standard'}"`);
+      if (c.publicNetworkAccess && c.publicNetworkAccess !== 'Enabled') lines.push(`# Public network access: ${c.publicNetworkAccess}`);
+      if (c.disableLocalAuth === 'true') lines.push(`# Disable local auth: true`);
+      break;
+    }
+    case 'egt': {
+      lines.push(`New-AzEventGridTopic -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}"`);
+      if (c.sku && c.sku !== 'Basic') lines.push(`# Requested SKU: ${c.sku}`);
+      if (c.inputSchema && c.inputSchema !== 'EventGridSchema') lines.push(`# Input schema: ${c.inputSchema}`);
+      if (c.publicNetworkAccess && c.publicNetworkAccess !== 'Enabled') lines.push(`# Public network access: ${c.publicNetworkAccess}`);
       break;
     }
     case 'logic': {
@@ -350,11 +391,30 @@ function generatePowerShellResource(res, rg, varN, sn) {
       if(c.solutions) lines.push(`# Solutions: ${c.solutions}`);
       break;
     }
+    case 'appi': {
+      let appiCmd = `New-AzApplicationInsights -ResourceGroupName "${rg.name}" -Name "${res.name}" -Location "${rg.location}" -Kind "${c.kind||'web'}" -ApplicationType "${c.applicationType||'web'}"`;
+      if (c.workspaceResourceId) appiCmd += ` -WorkspaceResourceId "${c.workspaceResourceId}"`;
+      lines.push(appiCmd);
+      break;
+    }
+    case 'acr': {
+      let acrCmd = `New-AzContainerRegistry -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Sku "${c.sku||'Premium'}"`;
+      if (c.adminUserEnabled === 'true') acrCmd += ' -EnableAdminUser';
+      lines.push(acrCmd);
+      if (c.publicNetworkAccess && c.publicNetworkAccess !== 'Enabled') lines.push(`# Public network access: ${c.publicNetworkAccess}`);
+      break;
+    }
+    case 'search': {
+      lines.push(`New-AzSearchService -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Sku "${c.sku||'standard'}" -ReplicaCount ${c.replicaCount||1} -PartitionCount ${c.partitionCount||1}`);
+      if (c.publicNetworkAccess && c.publicNetworkAccess !== 'enabled') lines.push(`# Public network access: ${c.publicNetworkAccess}`);
+      break;
+    }
     default: {
       lines.push(`# Resource "${res.name}" (type: ${res.type}) — no specific PowerShell generation available`);
       break;
     }
   }
+  _pushRbacComments(lines, res);
   return lines;
 }
 

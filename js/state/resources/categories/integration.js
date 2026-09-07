@@ -64,8 +64,8 @@ export const integrationCategory = {
       cost: 30,
       pricingCalculatorSlug: 'event-hubs',
       azureTypes: ['microsoft.eventhub/namespaces'],
-      config: { plan: 'Standard', throughputUnits: '1', partitions: '4', retentionDays: '7', captureEnabled: 'false' },
-      validation: { critical: ['plan'], warning: ['throughputUnits', 'partitions'] },
+      config: { plan: 'Standard', throughputUnits: '1', partitions: '4', retentionDays: '7', captureEnabled: 'false', kafkaEnabled: 'false' },
+      validation: { critical: ['plan'], warning: ['throughputUnits', 'partitions', 'kafkaEnabled'] },
       importMappings: {
         'sku.name': 'plan',
         'sku.capacity': 'throughputUnits',
@@ -85,6 +85,39 @@ export const integrationCategory = {
       importMappings: {
         'sku.name': 'plan',
         'properties.state': 'state'
+      },
+      dependencies: ['Storage Account (optional/external)']
+    },
+    appcfg: {
+      icon: '⚙️',
+      img: 'App-Configuration.svg',
+      color: '#00B294',
+      label: 'App Configuration',
+      cost: 10,
+      pricingCalculatorSlug: 'app-configuration',
+      azureTypes: ['microsoft.appconfiguration/configurationstores'],
+      config: { sku: 'Standard', publicNetworkAccess: 'Enabled', disableLocalAuth: 'false' },
+      validation: { critical: ['sku'], warning: ['publicNetworkAccess'] },
+      importMappings: {
+        'sku.name': 'sku',
+        'properties.publicNetworkAccess': 'publicNetworkAccess',
+        'properties.disableLocalAuth': 'disableLocalAuth'
+      }
+    },
+    egt: {
+      icon: '📣',
+      img: 'Event-Grid-Topics.svg',
+      color: '#8764B8',
+      label: 'Event Grid Topic',
+      cost: 15,
+      pricingCalculatorSlug: 'event-grid',
+      azureTypes: ['microsoft.eventgrid/topics'],
+      config: { sku: 'Basic', inputSchema: 'EventGridSchema', publicNetworkAccess: 'Enabled' },
+      validation: { critical: ['sku'], warning: ['inputSchema', 'publicNetworkAccess'] },
+      importMappings: {
+        'sku.name': 'sku',
+        'properties.inputSchema': 'inputSchema',
+        'properties.publicNetworkAccess': 'publicNetworkAccess'
       }
     }
   }

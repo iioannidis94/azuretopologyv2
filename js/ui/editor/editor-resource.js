@@ -3,7 +3,87 @@
 // Renders the right-side properties panel for resources placed inside
 // a subnet (VMs, NSGs, Route Tables, Private Endpoints, etc.)
 // ================================================================
-import { esc, RES_TYPES, AZURE_ICON_BASE } from '../../state-management.js';
+import { esc, RES_TYPES, AZURE_ICON_BASE, getAllDiagramResources } from '../../state-management.js';
+
+function _renderBoolSelect(handler, value) {
+  return `<select class="input-field" onchange="${handler}"><option value="true"${value === 'true' ? ' selected' : ''}>Yes</option><option value="false"${value === 'false' ? ' selected' : ''}>No</option></select>`;
+}
+
+function _renderRbacSection(obj) {
+  const assignments = obj.config.rbacAssignments || [];
+  const candidates = getAllDiagramResources().filter(r => r.id !== obj.id);
+  let h = `<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🔐 RBAC Assignments</span></div>`;
+  if (assignments.length === 0) {
+    h += `<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">No explicit RBAC assignments modeled for this resource.</div>`;
+  }
+  assignments.forEach((assignment, idx) => {
+    h += `<div class="editor-row" style="gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-radius:4px;padding:6px;margin-bottom:4px;">
+      <select class="input-field" style="min-width:130px;" onchange="window._updateRbacAssignment('${obj.id}',${idx},'principalType',this.value)">
+        ${['ManagedIdentity', 'ServicePrincipal', 'Group', 'User'].map(type => `<option value="${type}"${(assignment.principalType || 'ManagedIdentity') === type ? ' selected' : ''}>${type}</option>`).join('')}
+      </select>
+      <select class="input-field" style="flex:1;min-width:150px;" onchange="window._updateRbacAssignment('${obj.id}',${idx},'principalResourceId',this.value)">
+        <option value="">-- Linked resource principal --</option>
+        ${candidates.map(r => `<option value="${r.id}"${assignment.principalResourceId === r.id ? ' selected' : ''}>${esc(r.name)} (${RES_TYPES[r.type]?.label || r.type})</option>`).join('')}
+      </select>
+      <input class="input-field" style="flex:1;min-width:130px;" placeholder="Principal name / alias" value="${esc(assignment.principalName || '')}" onchange="window._updateRbacAssignment('${obj.id}',${idx},'principalName',this.value)">
+      <input class="input-field" style="flex:1;min-width:130px;" placeholder="Principal objectId (optional)" value="${esc(assignment.principalObjectId || '')}" onchange="window._updateRbacAssignment('${obj.id}',${idx},'principalObjectId',this.value)">
+      <input class="input-field" style="flex:1;min-width:140px;" placeholder="Role definition name" value="${esc(assignment.roleDefinitionName || '')}" onchange="window._updateRbacAssignment('${obj.id}',${idx},'roleDefinitionName',this.value)">
+      <button class="icon-btn danger" onclick="window._deleteRbacAssignment('${obj.id}',${idx})">🗑</button>
+    </div>`;
+  });
+  h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addRbacAssignment('${obj.id}')">➕ Add RBAC Assignment</button>`;
+  return h;
+}
+
+function _renderKeyVaultSection(obj) {
+  const secrets = obj.config.secrets || [];
+  const keys = obj.config.keys || [];
+  const certificates = obj.config.certificates || [];
+  let h = `<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🔑 Key Vault Contents</span></div>`;
+  h += `<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Model metadata only; provide secret values securely during deployment.</div>`;
+
+  h += `<div class="editor-row" style="margin-top:6px;"><span class="editor-label" style="font-weight:bold;">Secrets</span></div>`;
+  secrets.forEach((secret, idx) => {
+    h += `<div class="editor-row" style="gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-radius:4px;padding:6px;margin-bottom:4px;">
+      <input class="input-field" style="flex:1;min-width:110px;" placeholder="Secret name" value="${esc(secret.name)}" onchange="window._updateKeyVaultSecret('${obj.id}',${idx},'name',this.value)">
+      <input class="input-field" style="flex:1;min-width:110px;" placeholder="Content type" value="${esc(secret.contentType || '')}" onchange="window._updateKeyVaultSecret('${obj.id}',${idx},'contentType',this.value)">
+      <input class="input-field" style="flex:1;min-width:130px;" placeholder="Value source / note" value="${esc(secret.valueSource || '')}" onchange="window._updateKeyVaultSecret('${obj.id}',${idx},'valueSource',this.value)">
+      ${_renderBoolSelect(`window._updateKeyVaultSecret('${obj.id}',${idx},'enabled',this.value)`, secret.enabled || 'true')}
+      <input class="input-field" style="flex:1;min-width:120px;" placeholder="Expires on" value="${esc(secret.expiresOn || '')}" onchange="window._updateKeyVaultSecret('${obj.id}',${idx},'expiresOn',this.value)">
+      <button class="icon-btn danger" onclick="window._deleteKeyVaultSecret('${obj.id}',${idx})">🗑</button>
+    </div>`;
+  });
+  h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addKeyVaultSecret('${obj.id}')">➕ Add Secret</button>`;
+
+  h += `<div class="editor-row" style="margin-top:10px;"><span class="editor-label" style="font-weight:bold;">Keys</span></div>`;
+  keys.forEach((key, idx) => {
+    h += `<div class="editor-row" style="gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-radius:4px;padding:6px;margin-bottom:4px;">
+      <input class="input-field" style="flex:1;min-width:110px;" placeholder="Key name" value="${esc(key.name)}" onchange="window._updateKeyVaultKey('${obj.id}',${idx},'name',this.value)">
+      <select class="input-field" style="min-width:110px;" onchange="window._updateKeyVaultKey('${obj.id}',${idx},'keyType',this.value)">
+        ${['RSA', 'RSA-HSM', 'EC', 'EC-HSM'].map(type => `<option value="${type}"${(key.keyType || 'RSA') === type ? ' selected' : ''}>${type}</option>`).join('')}
+      </select>
+      <input class="input-field" style="width:90px;" placeholder="Key size" value="${esc(key.keySize || '')}" onchange="window._updateKeyVaultKey('${obj.id}',${idx},'keySize',this.value)">
+      <input class="input-field" style="flex:1;min-width:160px;" placeholder="Key ops" value="${esc(key.keyOps || '')}" onchange="window._updateKeyVaultKey('${obj.id}',${idx},'keyOps',this.value)">
+      ${_renderBoolSelect(`window._updateKeyVaultKey('${obj.id}',${idx},'enabled',this.value)`, key.enabled || 'true')}
+      <button class="icon-btn danger" onclick="window._deleteKeyVaultKey('${obj.id}',${idx})">🗑</button>
+    </div>`;
+  });
+  h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addKeyVaultKey('${obj.id}')">➕ Add Key</button>`;
+
+  h += `<div class="editor-row" style="margin-top:10px;"><span class="editor-label" style="font-weight:bold;">Certificates</span></div>`;
+  certificates.forEach((certificate, idx) => {
+    h += `<div class="editor-row" style="gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-radius:4px;padding:6px;margin-bottom:4px;">
+      <input class="input-field" style="flex:1;min-width:110px;" placeholder="Certificate name" value="${esc(certificate.name)}" onchange="window._updateKeyVaultCertificate('${obj.id}',${idx},'name',this.value)">
+      <input class="input-field" style="flex:1;min-width:150px;" placeholder="Subject" value="${esc(certificate.subject || '')}" onchange="window._updateKeyVaultCertificate('${obj.id}',${idx},'subject',this.value)">
+      <input class="input-field" style="flex:1;min-width:110px;" placeholder="Issuer" value="${esc(certificate.issuer || '')}" onchange="window._updateKeyVaultCertificate('${obj.id}',${idx},'issuer',this.value)">
+      <input class="input-field" style="width:90px;" placeholder="Months" value="${esc(certificate.validityMonths || '')}" onchange="window._updateKeyVaultCertificate('${obj.id}',${idx},'validityMonths',this.value)">
+      ${_renderBoolSelect(`window._updateKeyVaultCertificate('${obj.id}',${idx},'enabled',this.value)`, certificate.enabled || 'true')}
+      <button class="icon-btn danger" onclick="window._deleteKeyVaultCertificate('${obj.id}',${idx})">🗑</button>
+    </div>`;
+  });
+  h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addKeyVaultCertificate('${obj.id}')">➕ Add Certificate</button>`;
+  return h;
+}
 
 export function renderResourceSection(obj, { renderValidationBadge, renderValidationSection, renderConfigFields }) {
   let h = '';
@@ -77,6 +157,10 @@ export function renderResourceSection(obj, { renderValidationBadge, renderValida
     Object.keys(cfg).filter(k => !allSectionKeys.includes(k)).forEach(k => {
       h += `<div class="editor-row"><span class="editor-label">${k}</span><input class="input-field" value="${esc(cfg[k])}" onchange="window._updateResConfig('${obj.id}','${k}',this.value)"></div>`;
     });
+  } else if (obj.type === 'kv') {
+    h += renderConfigFields(obj.id, obj.config, k => !['secrets', 'keys', 'certificates', 'rbacAssignments'].includes(k));
+    h += _renderKeyVaultSection(obj);
+    h += _renderRbacSection(obj);
   } else if (obj.type === 'udr') {
     // Route Table: structured routes editor (add/edit/delete), similar to DNS records
     const cfg = obj.config;
@@ -96,12 +180,15 @@ export function renderResourceSection(obj, { renderValidationBadge, renderValida
       </div>`;
     });
     h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addRoute('${obj.id}')">➕ Add Route</button>`;
+    h += _renderRbacSection(obj);
   } else if (obj.type !== 'pe') {
-    h += renderConfigFields(obj.id, obj.config);
+    h += renderConfigFields(obj.id, obj.config, k => k !== 'rbacAssignments');
+    h += _renderRbacSection(obj);
   } else if (obj.type === 'pe') {
     // For PE, render remaining config fields (target, groupId, etc.) skipping PE-specific fields
     // Note: Special PE UI (target selection, DNS recommendations) already rendered above
     h += renderConfigFields(obj.id, obj.config, k => !['targetResourceId', 'targetResourceName'].includes(k));
+    h += _renderRbacSection(obj);
   }
   h += `<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="window._deleteResource('${obj.id}')">🗑 Delete Resource</button>`;
   return h;

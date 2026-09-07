@@ -160,7 +160,7 @@ export function getRecommendedDnsZones() {
 
 // Get all resources that can be PE targets (exclude peering resources)
 export function getPeTargetableResources() {
-  const peTargetTypes = ['sa', 'sql', 'kv', 'cosmos', 'redis', 'app', 'apim', 'sb', 'evh', 'aks', 'fa', 'monitor'];
+  const peTargetTypes = ['sa', 'sql', 'kv', 'cosmos', 'redis', 'app', 'apim', 'sb', 'evh', 'aks', 'fa', 'monitor', 'acr', 'search', 'appcfg'];
   return getAllDiagramResources().filter(r => peTargetTypes.includes(r.type));
 }
 

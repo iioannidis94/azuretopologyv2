@@ -27,7 +27,8 @@ export const networkCategory = {
         'properties.threatIntelMode': 'threatIntelMode',
         'properties.additionalProperties.Network.DNS.EnableProxy': 'dnsProxy',
         'zones': { key: 'availabilityZones', transform: (v) => Array.isArray(v) ? v.join(',') : v }
-      }
+      },
+      dependencies: ['AzureFirewallSubnet']
     },
     nva: {
       icon: '🧱',
@@ -88,7 +89,8 @@ export const networkCategory = {
         'properties.vpnGatewayGeneration': 'generation',
         'properties.activeActive': 'activeActive',
         'properties.bgpSettings.asn': 'bgpAsn'
-      }
+      },
+      dependencies: ['GatewaySubnet']
     },
     ergw: {
       icon: '🚄',
@@ -102,7 +104,8 @@ export const networkCategory = {
       importMappings: {
         'sku.name': 'sku',
         'properties.gatewayType': 'gatewayType'
-      }
+      },
+      dependencies: ['GatewaySubnet']
     },
     bas: {
       icon: '🔒',
@@ -120,7 +123,8 @@ export const networkCategory = {
         'properties.enableShareableLink': 'shareableLink',
         'properties.enableIpConnect': 'ipConnect',
         'properties.enableTunneling': 'tunneling'
-      }
+      },
+      dependencies: ['AzureBastionSubnet']
     },
     afd: {
       icon: '⚡',
@@ -150,7 +154,7 @@ export const networkCategory = {
         'properties.privateLinkServiceConnections[0].properties.groupIds[0]': 'groupId',
         'properties.privateLinkServiceConnections[0].properties.privateLinkServiceId': 'targetResourceId'
       },
-      dependencies: []
+      dependencies: ['Target Resource', 'Private DNS Zone (recommended)']
     },
     dns: {
       icon: '🌐',
@@ -162,12 +166,13 @@ export const networkCategory = {
       azureTypes: ['microsoft.network/privatednszones'],
       rgLevel: true,
       dnsType: 'private',
-      config: { zone: 'privatelink.blob.core.windows.net', fullZoneName: 'privatelink.blob.core.windows.net', vnetLinks: '', autoRegistration: 'false' },
-      validation: { critical: ['zone'], warning: ['vnetLinks'] },
+      config: { zone: 'privatelink.blob.core.windows.net', fullZoneName: 'privatelink.blob.core.windows.net', records: [], vnetLinks: [], autoRegistration: 'false' },
+      validation: { critical: ['zone'], warning: ['records', 'vnetLinks', 'autoRegistration'] },
       importMappings: {
         'name': 'zone',
         'properties.registrationEnabled': 'autoRegistration'
-      }
+      },
+      dependencies: ['Linked VNets']
     },
     publicDns: {
       icon: '🌍',
@@ -249,7 +254,8 @@ export const networkCategory = {
         'sku.name': 'sku',
         'properties.idleTimeoutInMinutes': { key: 'idleTimeoutMinutes', transform: (v) => String(v || 4) },
         'zones': { key: 'zones', transform: (z) => (z || []).join(',') }
-      }
+      },
+      dependencies: ['Public IP Address (pip/external)']
     },
     asg: {
       icon: '🏷️',

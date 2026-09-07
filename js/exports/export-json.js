@@ -5,6 +5,39 @@ const JSON_EXPORT_VERSION = 2;
 const TRANSIENT_KEYS = ['dragging','dragStart','offsetStart','dragNodeId','dragGroup','selectedId','offset','scale','mouseStart','dragNodeStart'];
 const FUNCTION_PLAN_SKUS = { Consumption: 'Y1', ElasticPremium: 'EP1', Premium: 'EP1', Dedicated: 'P1v3' };
 
+function _resolveWafPolicyName(wafPolicyRef) {
+  if (!wafPolicyRef) return '';
+  const linked = (state.rgResources || []).find(r => r.id === wafPolicyRef && r.type === 'wafPolicy');
+  return linked?.name || wafPolicyRef;
+}
+
+function _resolveWafPolicyArmId(wafPolicyRef) {
+  if (!wafPolicyRef) return '';
+  if (String(wafPolicyRef).startsWith('/subscriptions/')) return wafPolicyRef;
+  const name = _resolveWafPolicyName(wafPolicyRef);
+  return `[resourceId('Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies', '${name}')]`;
+}
+
+function _normalizeNsgRules(rules) {
+  const list = Array.isArray(rules)
+    ? rules
+    : (typeof rules === 'string'
+      ? (() => { try { return JSON.parse(rules || '[]'); } catch (e) { return []; } })()
+      : []);
+  return (list || []).map(rule => ({
+    name: rule.name || 'rule',
+    priority: rule.priority || 100,
+    direction: rule.direction || 'Inbound',
+    access: rule.access || 'Allow',
+    protocol: rule.protocol || 'Tcp',
+    sourceAddressPrefix: rule.sourceAddressPrefix || rule.srcAddr || '*',
+    destinationAddressPrefix: rule.destinationAddressPrefix || rule.dstAddr || '*',
+    sourcePortRange: rule.sourcePortRange || rule.srcPort || '*',
+    destinationPortRange: rule.destinationPortRange || rule.dstPort || '80',
+    description: rule.description || ''
+  }));
+}
+
 
 export function exportJson(){
   const exportData = {};
@@ -433,7 +466,8 @@ function _generateArmResource(res, rg, vnet, sn) {
                 subnet: { id: `[resourceId('Microsoft.Network/virtualNetworks/subnets', '${vnet.name}', 'AzureFirewallSubnet')]` }
               }
             }]
-          }
+          },
+          tags: c.wafPolicy ? { wafPolicyRef: _resolveWafPolicyName(c.wafPolicy) } : undefined
         }
       ];
     }
@@ -499,6 +533,59 @@ function _generateArmResource(res, rg, vnet, sn) {
 
     case 'agw': {
       const pipName = `${res.name}-pip`;
+      const backendPools = (Array.isArray(c.backendPools) && c.backendPools.length > 0)
+        ? c.backendPools
+        : [{ name: 'defaultBackendPool', targets: '' }];
+      const agwProperties = {
+        sku: { name: c.sku || 'WAF_v2', tier: c.tier || c.sku || 'WAF_v2', capacity: parseInt(c.capacity) || 2 },
+        gatewayIPConfigurations: [{
+          name: 'appGatewayIpConfig',
+          properties: { subnet: { id: subnetId } }
+        }],
+        frontendIPConfigurations: [{
+          name: 'appGatewayFrontendIP',
+          properties: { publicIPAddress: { id: `[resourceId('Microsoft.Network/publicIPAddresses', '${pipName}')]` } }
+        }],
+        frontendPorts: [{ name: 'port_80', properties: { port: 80 } }],
+        backendAddressPools: backendPools.map(pool => ({
+          name: pool.name || 'defaultBackendPool',
+          properties: {
+            backendAddresses: String(pool.targets || '')
+              .split(',')
+              .map(target => target.trim())
+              .filter(Boolean)
+              .map(target => /^\d{1,3}(\.\d{1,3}){3}$/.test(target) ? { ipAddress: target } : { fqdn: target })
+          }
+        })),
+        backendHttpSettingsCollection: [{
+          name: 'defaultHttpSettings',
+          properties: { port: 80, protocol: 'Http', requestTimeout: 30 }
+        }],
+        httpListeners: [{
+          name: 'defaultListener',
+          properties: {
+            frontendIPConfiguration: { id: `[concat(resourceId('Microsoft.Network/applicationGateways', '${res.name}'), '/frontendIPConfigurations/appGatewayFrontendIP')]` },
+            frontendPort: { id: `[concat(resourceId('Microsoft.Network/applicationGateways', '${res.name}'), '/frontendPorts/port_80')]` },
+            protocol: 'Http'
+          }
+        }],
+        requestRoutingRules: [{
+          name: 'rule1',
+          properties: {
+            priority: 100,
+            ruleType: 'Basic',
+            httpListener: { id: `[concat(resourceId('Microsoft.Network/applicationGateways', '${res.name}'), '/httpListeners/defaultListener')]` },
+            backendAddressPool: { id: `[concat(resourceId('Microsoft.Network/applicationGateways', '${res.name}'), '/backendAddressPools/${backendPools[0].name || 'defaultBackendPool'}')]` },
+            backendHttpSettings: { id: `[concat(resourceId('Microsoft.Network/applicationGateways', '${res.name}'), '/backendHttpSettingsCollection/defaultHttpSettings')]` }
+          }
+        }]
+      };
+      if (String(c.sku || '').toUpperCase().includes('WAF')) {
+        agwProperties.webApplicationFirewallConfiguration = { enabled: true, firewallMode: c.wafMode || 'Prevention', ruleSetType: 'OWASP', ruleSetVersion: '3.2' };
+        if (c.wafPolicy) {
+          agwProperties.firewallPolicy = { id: _resolveWafPolicyArmId(c.wafPolicy) };
+        }
+      }
       return [
         {
           type: 'Microsoft.Network/publicIPAddresses',
@@ -517,41 +604,7 @@ function _generateArmResource(res, rg, vnet, sn) {
             `[resourceId('Microsoft.Network/publicIPAddresses', '${pipName}')]`,
             `[resourceId('Microsoft.Network/virtualNetworks', '${vnet.name}')]`
           ],
-          properties: {
-            sku: { name: c.sku || 'WAF_v2', tier: c.tier || c.sku || 'WAF_v2', capacity: parseInt(c.capacity) || 2 },
-            gatewayIPConfigurations: [{
-              name: 'appGatewayIpConfig',
-              properties: { subnet: { id: subnetId } }
-            }],
-            frontendIPConfigurations: [{
-              name: 'appGatewayFrontendIP',
-              properties: { publicIPAddress: { id: `[resourceId('Microsoft.Network/publicIPAddresses', '${pipName}')]` } }
-            }],
-            frontendPorts: [{ name: 'port_80', properties: { port: 80 } }],
-            backendAddressPools: [{ name: 'defaultBackendPool', properties: {} }],
-            backendHttpSettingsCollection: [{
-              name: 'defaultHttpSettings',
-              properties: { port: 80, protocol: 'Http', requestTimeout: 30 }
-            }],
-            httpListeners: [{
-              name: 'defaultListener',
-              properties: {
-                frontendIPConfiguration: { id: `[concat(resourceId('Microsoft.Network/applicationGateways', '${res.name}'), '/frontendIPConfigurations/appGatewayFrontendIP')]` },
-                frontendPort: { id: `[concat(resourceId('Microsoft.Network/applicationGateways', '${res.name}'), '/frontendPorts/port_80')]` },
-                protocol: 'Http'
-              }
-            }],
-            requestRoutingRules: [{
-              name: 'rule1',
-              properties: {
-                priority: 100,
-                ruleType: 'Basic',
-                httpListener: { id: `[concat(resourceId('Microsoft.Network/applicationGateways', '${res.name}'), '/httpListeners/defaultListener')]` },
-                backendAddressPool: { id: `[concat(resourceId('Microsoft.Network/applicationGateways', '${res.name}'), '/backendAddressPools/defaultBackendPool')]` },
-                backendHttpSettings: { id: `[concat(resourceId('Microsoft.Network/applicationGateways', '${res.name}'), '/backendHttpSettingsCollection/defaultHttpSettings')]` }
-              }
-            }]
-          }
+          properties: agwProperties
         }
       ];
     }
@@ -612,7 +665,8 @@ function _generateArmResource(res, rg, vnet, sn) {
               idleTimeoutInMinutes: 4
             }
           }]
-        }
+        },
+        tags: c.wafPolicy ? { wafPolicyRef: _resolveWafPolicyName(c.wafPolicy) } : undefined
       });
       return resources;
     }
@@ -746,12 +800,11 @@ function _generateArmResource(res, rg, vnet, sn) {
     }
 
     case 'nsg': {
-      let nsgRules = [];
-      try { nsgRules = JSON.parse(c.rules || '[]'); } catch (e) { nsgRules = []; }
+      let nsgRules = _normalizeNsgRules(c.rules);
       if (nsgRules.length === 0) {
         nsgRules = [
-          { name: 'Allow-HTTP', priority: '100', direction: 'Inbound', access: 'Allow', protocol: 'Tcp', srcPort: '*', dstPort: '80', srcAddr: '*', dstAddr: '*' },
-          { name: 'Allow-HTTPS', priority: '110', direction: 'Inbound', access: 'Allow', protocol: 'Tcp', srcPort: '*', dstPort: '443', srcAddr: '*', dstAddr: '*' }
+          { name: 'Allow-HTTP', priority: '100', direction: 'Inbound', access: 'Allow', protocol: 'Tcp', sourcePortRange: '*', destinationPortRange: '80', sourceAddressPrefix: '*', destinationAddressPrefix: '*' },
+          { name: 'Allow-HTTPS', priority: '110', direction: 'Inbound', access: 'Allow', protocol: 'Tcp', sourcePortRange: '*', destinationPortRange: '443', sourceAddressPrefix: '*', destinationAddressPrefix: '*' }
         ];
       }
       return {
@@ -767,10 +820,11 @@ function _generateArmResource(res, rg, vnet, sn) {
               direction: rule.direction || 'Inbound',
               access: rule.access || 'Allow',
               protocol: rule.protocol || 'Tcp',
-              sourceAddressPrefix: rule.srcAddr || '*',
-              destinationAddressPrefix: rule.dstAddr || '*',
-              sourcePortRange: rule.srcPort || '*',
-              destinationPortRange: rule.dstPort || '80'
+              sourceAddressPrefix: rule.sourceAddressPrefix || rule.srcAddr || '*',
+              destinationAddressPrefix: rule.destinationAddressPrefix || rule.dstAddr || '*',
+              sourcePortRange: rule.sourcePortRange || rule.srcPort || '*',
+              destinationPortRange: rule.destinationPortRange || rule.dstPort || '80',
+              description: rule.description || undefined
             }
           }))
         }
@@ -1202,7 +1256,8 @@ function _generateArmResource(res, rg, vnet, sn) {
             supportedProtocols: ['Http', 'Https'],
             patternsToMatch: ['/*'],
             forwardingProtocol: 'MatchRequest'
-          }
+          },
+          tags: c.wafPolicy ? { wafPolicyRef: _resolveWafPolicyName(c.wafPolicy) } : undefined
         }
       ];
     }
@@ -1287,6 +1342,43 @@ function _generateArmResource(res, rg, vnet, sn) {
 }
 
 function _generateArmRgResource(res, rg) {
+  if (res.type === 'wafPolicy') {
+    const c = res.config || {};
+    const customRules = (c.customRules || []).map(rule => ({
+      name: rule.name || 'custom-rule',
+      priority: parseInt(rule.priority) || 100,
+      ruleType: 'MatchRule',
+      action: rule.action || 'Block',
+      matchConditions: [{
+        matchVariables: [{ variableName: (rule.matchVariable || 'RequestHeaders:User-Agent').split(':')[0], selector: (rule.matchVariable || '').includes(':') ? (rule.matchVariable || '').split(':')[1] : undefined }],
+        operator: rule.operator || 'Contains',
+        matchValues: [rule.matchValue || '']
+      }]
+    }));
+    return {
+      type: 'Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies',
+      apiVersion: '2023-09-01',
+      name: res.name,
+      location: '[parameters(\'location\')]',
+      properties: {
+        policySettings: {
+          state: 'Enabled',
+          mode: c.mode || 'Prevention',
+          requestBodyCheck: (c.requestBodyCheck || 'true') === 'true',
+          maxRequestBodySizeInKb: parseInt(c.maxRequestBodySizeInKb) || 128,
+          fileUploadLimitInMb: parseInt(c.fileUploadLimitInMb) || 100
+        },
+        managedRules: {
+          managedRuleSets: [{
+            ruleSetType: c.ruleSetType || 'OWASP',
+            ruleSetVersion: c.ruleSetVersion || '3.2'
+          }]
+        },
+        customRules
+      }
+    };
+  }
+
   if (res.type === 'publicDns') {
     const resources = [{
       type: 'Microsoft.Network/dnsZones',
@@ -1296,33 +1388,63 @@ function _generateArmRgResource(res, rg) {
       properties: {}
     }];
     (res.config.records || []).forEach(rec => {
+      const ttl = parseInt(rec.ttl) || 3600;
+      const recordTarget = rec.target || rec.value;
       if (rec.type === 'A') {
         resources.push({
           type: 'Microsoft.Network/dnsZones/A',
           apiVersion: '2018-05-01',
           name: `${res.config.zone}/${rec.name}`,
-          properties: { TTL: parseInt(rec.ttl) || 3600, ARecords: [{ ipv4Address: rec.value }] }
+          properties: { TTL: ttl, ARecords: [{ ipv4Address: rec.value }] }
+        });
+      } else if (rec.type === 'AAAA') {
+        resources.push({
+          type: 'Microsoft.Network/dnsZones/AAAA',
+          apiVersion: '2018-05-01',
+          name: `${res.config.zone}/${rec.name}`,
+          properties: { TTL: ttl, AAAARecords: [{ ipv6Address: rec.value }] }
         });
       } else if (rec.type === 'CNAME') {
         resources.push({
           type: 'Microsoft.Network/dnsZones/CNAME',
           apiVersion: '2018-05-01',
           name: `${res.config.zone}/${rec.name}`,
-          properties: { TTL: parseInt(rec.ttl) || 3600, CNAMERecord: { cname: rec.value } }
+          properties: { TTL: ttl, CNAMERecord: { cname: recordTarget } }
         });
       } else if (rec.type === 'TXT') {
         resources.push({
           type: 'Microsoft.Network/dnsZones/TXT',
           apiVersion: '2018-05-01',
           name: `${res.config.zone}/${rec.name}`,
-          properties: { TTL: parseInt(rec.ttl) || 3600, TXTRecords: [{ value: [rec.value] }] }
+          properties: { TTL: ttl, TXTRecords: [{ value: [rec.value] }] }
         });
       } else if (rec.type === 'MX') {
         resources.push({
           type: 'Microsoft.Network/dnsZones/MX',
           apiVersion: '2018-05-01',
           name: `${res.config.zone}/${rec.name}`,
-          properties: { TTL: parseInt(rec.ttl) || 3600, MXRecords: [{ preference: 10, exchange: rec.value }] }
+          properties: { TTL: ttl, MXRecords: [{ preference: parseInt(rec.preference) || 10, exchange: rec.exchange || rec.value }] }
+        });
+      } else if (rec.type === 'NS') {
+        resources.push({
+          type: 'Microsoft.Network/dnsZones/NS',
+          apiVersion: '2018-05-01',
+          name: `${res.config.zone}/${rec.name}`,
+          properties: { TTL: ttl, NSRecords: [{ nsdname: recordTarget }] }
+        });
+      } else if (rec.type === 'PTR') {
+        resources.push({
+          type: 'Microsoft.Network/dnsZones/PTR',
+          apiVersion: '2018-05-01',
+          name: `${res.config.zone}/${rec.name}`,
+          properties: { TTL: ttl, PTRRecords: [{ ptrdname: recordTarget }] }
+        });
+      } else if (rec.type === 'SRV') {
+        resources.push({
+          type: 'Microsoft.Network/dnsZones/SRV',
+          apiVersion: '2018-05-01',
+          name: `${res.config.zone}/${rec.name}`,
+          properties: { TTL: ttl, SRVRecords: [{ priority: parseInt(rec.priority) || 10, weight: parseInt(rec.weight) || 10, port: parseInt(rec.port) || 443, target: rec.target || rec.value }] }
         });
       }
     });
@@ -1337,26 +1459,63 @@ function _generateArmRgResource(res, rg) {
       properties: {}
     }];
     (res.config.records || []).forEach(rec => {
+      const ttl = parseInt(rec.ttl) || 3600;
+      const recordTarget = rec.target || rec.value;
       if (rec.type === 'A') {
         resources.push({
           type: 'Microsoft.Network/privateDnsZones/A',
           apiVersion: '2020-06-01',
           name: `${zoneName}/${rec.name}`,
-          properties: { ttl: parseInt(rec.ttl) || 3600, aRecords: [{ ipv4Address: rec.value }] }
+          properties: { ttl, aRecords: [{ ipv4Address: rec.value }] }
+        });
+      } else if (rec.type === 'AAAA') {
+        resources.push({
+          type: 'Microsoft.Network/privateDnsZones/AAAA',
+          apiVersion: '2020-06-01',
+          name: `${zoneName}/${rec.name}`,
+          properties: { ttl, aaaaRecords: [{ ipv6Address: rec.value }] }
         });
       } else if (rec.type === 'CNAME') {
         resources.push({
           type: 'Microsoft.Network/privateDnsZones/CNAME',
           apiVersion: '2020-06-01',
           name: `${zoneName}/${rec.name}`,
-          properties: { ttl: parseInt(rec.ttl) || 3600, cnameRecord: { cname: rec.value } }
+          properties: { ttl, cnameRecord: { cname: recordTarget } }
         });
       } else if (rec.type === 'TXT') {
         resources.push({
           type: 'Microsoft.Network/privateDnsZones/TXT',
           apiVersion: '2020-06-01',
           name: `${zoneName}/${rec.name}`,
-          properties: { ttl: parseInt(rec.ttl) || 3600, txtRecords: [{ value: [rec.value] }] }
+          properties: { ttl, txtRecords: [{ value: [rec.value] }] }
+        });
+      } else if (rec.type === 'MX') {
+        resources.push({
+          type: 'Microsoft.Network/privateDnsZones/MX',
+          apiVersion: '2020-06-01',
+          name: `${zoneName}/${rec.name}`,
+          properties: { ttl, mxRecords: [{ preference: parseInt(rec.preference) || 10, exchange: rec.exchange || rec.value }] }
+        });
+      } else if (rec.type === 'NS') {
+        resources.push({
+          type: 'Microsoft.Network/privateDnsZones/NS',
+          apiVersion: '2020-06-01',
+          name: `${zoneName}/${rec.name}`,
+          properties: { ttl, nsRecords: [{ nsdname: recordTarget }] }
+        });
+      } else if (rec.type === 'PTR') {
+        resources.push({
+          type: 'Microsoft.Network/privateDnsZones/PTR',
+          apiVersion: '2020-06-01',
+          name: `${zoneName}/${rec.name}`,
+          properties: { ttl, ptrRecords: [{ ptrdname: recordTarget }] }
+        });
+      } else if (rec.type === 'SRV') {
+        resources.push({
+          type: 'Microsoft.Network/privateDnsZones/SRV',
+          apiVersion: '2020-06-01',
+          name: `${zoneName}/${rec.name}`,
+          properties: { ttl, srvRecords: [{ priority: parseInt(rec.priority) || 10, weight: parseInt(rec.weight) || 10, port: parseInt(rec.port) || 443, target: rec.target || rec.value }] }
         });
       }
     });

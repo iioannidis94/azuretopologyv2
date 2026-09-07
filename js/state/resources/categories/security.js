@@ -11,6 +11,10 @@ export const securityCategory = {
       pricingCalculatorSlug: 'key-vault',
       azureTypes: ['microsoft.keyvault/vaults'],
       config: { sku: 'Premium', softDeleteDays: '90', purgeProtection: 'true', enableRbacAuth: 'true', networkAcls: 'Allow', secrets: [], keys: [], certificates: [] },
+      fieldOptions: {
+        sku: { options: ['Standard', 'Premium'] },
+        networkAcls: { options: ['Allow', 'Deny'] }
+      },
       validation: { critical: ['sku'], warning: ['softDeleteDays', 'purgeProtection', 'secrets', 'keys', 'certificates'] },
       importMappings: {
         'properties.sku.name': 'sku',

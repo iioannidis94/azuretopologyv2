@@ -5,6 +5,33 @@ import { _iacSafe } from './export-utils.js';
 const _ASP_TIER_MAP = { F1:'Free', D1:'Shared', B1:'Basic', B2:'Basic', B3:'Basic', S1:'Standard', S2:'Standard', S3:'Standard', P1v2:'PremiumV2', P2v2:'PremiumV2', P3v2:'PremiumV2', P0v3:'PremiumV3', P1v3:'PremiumV3', P2v3:'PremiumV3', P3v3:'PremiumV3', P1mv3:'PremiumV3', P2mv3:'PremiumV3', P3mv3:'PremiumV3', P4mv3:'PremiumV3', P5mv3:'PremiumV3', Y1:'Dynamic' };
 const _ASP_SIZE_MAP = { F1:'Small', D1:'Small', B1:'Small', B2:'Medium', B3:'Large', S1:'Small', S2:'Medium', S3:'Large', P1v2:'Small', P2v2:'Medium', P3v2:'Large', P0v3:'Small', P1v3:'Small', P2v3:'Medium', P3v3:'Large', P1mv3:'Small', P2mv3:'Medium', P3mv3:'Large', P4mv3:'Large', P5mv3:'Large', Y1:'Small' };
 
+function _resolveWafPolicyName(ref) {
+  if (!ref) return '';
+  const linked = findResourceById(ref);
+  if (linked?.type === 'wafPolicy') return linked.name;
+  return ref;
+}
+
+function _normalizeNsgRules(rules) {
+  const list = Array.isArray(rules)
+    ? rules
+    : (typeof rules === 'string'
+      ? (() => { try { return JSON.parse(rules || '[]'); } catch (e) { return []; } })()
+      : []);
+  return (list || []).map(rule => ({
+    name: rule.name || 'rule',
+    priority: rule.priority || 100,
+    direction: rule.direction || 'Inbound',
+    access: rule.access || 'Allow',
+    protocol: rule.protocol || 'Tcp',
+    sourceAddressPrefix: rule.sourceAddressPrefix || rule.srcAddr || '*',
+    destinationAddressPrefix: rule.destinationAddressPrefix || rule.dstAddr || '*',
+    sourcePortRange: rule.sourcePortRange || rule.srcPort || '*',
+    destinationPortRange: rule.destinationPortRange || rule.dstPort || '80',
+    description: rule.description || ''
+  }));
+}
+
 function _pushRbacComments(lines, res) {
   (res.config?.rbacAssignments || []).forEach(assignment => {
     const linked = assignment.principalResourceId ? findResourceById(assignment.principalResourceId) : null;
@@ -123,6 +150,7 @@ function generatePowerShellResource(res, rg, varN, sn) {
       lines.push(`$fwPip = New-AzPublicIpAddress -Name "${res.name}-pip" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -AllocationMethod Static -Sku Standard -Zone @(${fwZones})`);
       lines.push(`$fwPolicy = New-AzFirewallPolicy -Name "${c.policyName || res.name + '-policy'}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -ThreatIntelMode "${c.threatIntelMode||'Alert'}" -DnsSetting @{ EnableProxy = $${c.dnsProxy||'true'} }`);
       lines.push(`New-AzFirewall -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -VirtualNetwork ${varN} -PublicIpAddress $fwPip -Sku "${c.sku||'Premium'}" -FirewallPolicyId $fwPolicy.Id -Zone @(${fwZones})`);
+      if (c.wafPolicy) lines.push(`# WAF Policy reference: ${_resolveWafPolicyName(c.wafPolicy)}`);
       break;
     }
     case 'nva': {
@@ -138,17 +166,25 @@ function generatePowerShellResource(res, rg, varN, sn) {
       break;
     }
     case 'agw': {
+      const backendPools = (Array.isArray(c.backendPools) && c.backendPools.length > 0) ? c.backendPools : [{ name: 'appGatewayBackendPool', targets: '' }];
       lines.push(`$agwPip = New-AzPublicIpAddress -Name "${res.name}-pip" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -AllocationMethod Static -Sku Standard`);
       lines.push(`$agwIpConfig = New-AzApplicationGatewayIPConfiguration -Name "appGatewayIpConfig" -Subnet (Get-AzVirtualNetworkSubnetConfig -Name "${sn.name}" -VirtualNetwork ${varN})`);
       lines.push(`$agwFrontendIp = New-AzApplicationGatewayFrontendIPConfig -Name "appGatewayFrontendIp" -PublicIPAddress $agwPip`);
       lines.push(`$agwFrontendPort = New-AzApplicationGatewayFrontendPort -Name "appGatewayFrontendPort" -Port 80`);
-      lines.push(`$agwBackendPool = New-AzApplicationGatewayBackendAddressPool -Name "appGatewayBackendPool"`);
+      lines.push(`$agwBackendPool = New-AzApplicationGatewayBackendAddressPool -Name "${backendPools[0].name || 'appGatewayBackendPool'}"`);
       lines.push(`$agwBackendSettings = New-AzApplicationGatewayBackendHttpSetting -Name "appGatewayBackendHttpSettings" -Port 80 -Protocol Http -RequestTimeout 30`);
       lines.push(`$agwListener = New-AzApplicationGatewayHttpListener -Name "appGatewayHttpListener" -Protocol Http -FrontendIPConfiguration $agwFrontendIp -FrontendPort $agwFrontendPort`);
       lines.push(`$agwRule = New-AzApplicationGatewayRequestRoutingRule -Name "rule1" -RuleType Basic -HttpListener $agwListener -BackendAddressPool $agwBackendPool -BackendHttpSettings $agwBackendSettings -Priority 100`);
       lines.push(`$agwSku = New-AzApplicationGatewaySku -Name "${c.sku||'WAF_v2'}" -Tier "${c.tier||c.sku||'WAF_v2'}" -Capacity ${c.capacity||2}`);
       lines.push(`$agwSslPolicy = New-AzApplicationGatewaySslPolicy -PolicyType Predefined -PolicyName "${c.sslPolicy||'AppGwSslPolicy20220101'}"`);
-      lines.push(`New-AzApplicationGateway -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Sku $agwSku -SslPolicy $agwSslPolicy -GatewayIPConfigurations $agwIpConfig -FrontendIPConfigurations $agwFrontendIp -FrontendPorts $agwFrontendPort -BackendAddressPools $agwBackendPool -BackendHttpSettingsCollection $agwBackendSettings -HttpListeners $agwListener -RequestRoutingRules $agwRule`);
+      let agwCreateCmd = `New-AzApplicationGateway -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Sku $agwSku -SslPolicy $agwSslPolicy -GatewayIPConfigurations $agwIpConfig -FrontendIPConfigurations $agwFrontendIp -FrontendPorts $agwFrontendPort -BackendAddressPools $agwBackendPool -BackendHttpSettingsCollection $agwBackendSettings -HttpListeners $agwListener -RequestRoutingRules $agwRule`;
+      if (String(c.sku || '').toUpperCase().includes('WAF')) {
+        lines.push(`$agwWafConfig = New-AzApplicationGatewayWebApplicationFirewallConfiguration -Enabled $true -FirewallMode "${c.wafMode || 'Prevention'}" -RuleSetType OWASP -RuleSetVersion "3.2"`);
+        agwCreateCmd += ` -WebApplicationFirewallConfiguration $agwWafConfig`;
+      }
+      lines.push(agwCreateCmd);
+      if (String(c.sku || '').toUpperCase().includes('WAF') && c.wafPolicy) lines.push(`# Link WAF Policy resource: ${_resolveWafPolicyName(c.wafPolicy)}`);
+      if (backendPools.length > 1) lines.push(`# Additional backend pools configured in design: ${backendPools.slice(1).map(p => p.name).join(', ')}`);
       break;
     }
     case 'lb': {
@@ -164,6 +200,7 @@ function generatePowerShellResource(res, rg, varN, sn) {
       lines.push(`$lbProbe = New-AzLoadBalancerProbeConfig -Name "${res.name}-probe" -Protocol ${probeparts[0]||'Tcp'} -Port ${probeparts[1]||80} -IntervalInSeconds 15 -ProbeCount 2`);
       lines.push(`$lbRule = New-AzLoadBalancerRuleConfig -Name "${res.name}-rule" -FrontendIpConfiguration $lbFrontendIp -BackendAddressPool $lbBackendPool -Probe $lbProbe -Protocol Tcp -FrontendPort 80 -BackendPort 80`);
       lines.push(`New-AzLoadBalancer -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Sku "${c.sku||'Standard'}" -FrontendIpConfiguration $lbFrontendIp -BackendAddressPool $lbBackendPool -Probe $lbProbe -LoadBalancingRule $lbRule`);
+      if (c.wafPolicy) lines.push(`# WAF Policy reference: ${_resolveWafPolicyName(c.wafPolicy)}`);
       break;
     }
     case 'gw': {
@@ -196,8 +233,9 @@ function generatePowerShellResource(res, rg, varN, sn) {
       lines.push(`$afdEndpoint = New-AzFrontDoorCdnEndpoint -EndpointName "${c.endpoints||res.name+'-endpoint'}" -ProfileName "${res.name}" -ResourceGroupName "${rg.name}" -Location "Global"`);
       lines.push(`$afdOriginGroup = New-AzFrontDoorCdnOriginGroup -OriginGroupName "${c.originGroups||'default-origin-group'}" -ProfileName "${res.name}" -ResourceGroupName "${rg.name}" -LoadBalancingSettingSampleSize 4 -LoadBalancingSettingSuccessfulSamplesRequired 3`);
       if (c.wafPolicy) {
-        lines.push(`# WAF Policy: ${c.wafPolicy}`);
-        lines.push(`$afdSecurityPolicy = New-AzFrontDoorCdnSecurityPolicy -ProfileName "${res.name}" -ResourceGroupName "${rg.name}" -Name "${c.wafPolicy}" -PolicyType "WebApplicationFirewall"`);
+        const policyName = _resolveWafPolicyName(c.wafPolicy);
+        lines.push(`# WAF Policy: ${policyName}`);
+        lines.push(`$afdSecurityPolicy = New-AzFrontDoorCdnSecurityPolicy -ProfileName "${res.name}" -ResourceGroupName "${rg.name}" -Name "${policyName}" -PolicyType "WebApplicationFirewall"`);
       }
       lines.push(`New-AzFrontDoorCdnRoute -RouteName "${c.routingRules||'default-route'}" -EndpointName "${c.endpoints||res.name+'-endpoint'}" -ProfileName "${res.name}" -ResourceGroupName "${rg.name}" -OriginGroupId $afdOriginGroup.Id -SupportedProtocol @("Http","Https") -PatternsToMatch @("/*")`);
       break;
@@ -220,17 +258,16 @@ function generatePowerShellResource(res, rg, varN, sn) {
       break;
     }
     case 'nsg': {
-      let nsgRules = [];
-      try { nsgRules = JSON.parse(c.rules || '[]'); } catch(e) { nsgRules = []; }
+      let nsgRules = _normalizeNsgRules(c.rules);
       if (nsgRules.length === 0) {
         nsgRules = [
-          {name:'Allow-HTTP',priority:'100',direction:'Inbound',access:'Allow',protocol:'Tcp',srcPort:'*',dstPort:'80',srcAddr:'*',dstAddr:'*'},
-          {name:'Allow-HTTPS',priority:'110',direction:'Inbound',access:'Allow',protocol:'Tcp',srcPort:'*',dstPort:'443',srcAddr:'*',dstAddr:'*'}
+          {name:'Allow-HTTP',priority:'100',direction:'Inbound',access:'Allow',protocol:'Tcp',sourcePortRange:'*',destinationPortRange:'80',sourceAddressPrefix:'*',destinationAddressPrefix:'*'},
+          {name:'Allow-HTTPS',priority:'110',direction:'Inbound',access:'Allow',protocol:'Tcp',sourcePortRange:'*',destinationPortRange:'443',sourceAddressPrefix:'*',destinationAddressPrefix:'*'}
         ];
       }
       lines.push(`$nsgRules = @()`);
       nsgRules.forEach(rule => {
-        lines.push(`$nsgRules += New-AzNetworkSecurityRuleConfig -Name "${rule.name}" -Protocol ${rule.protocol||'Tcp'} -Direction ${rule.direction||'Inbound'} -Priority ${rule.priority||100} -SourceAddressPrefix "${rule.srcAddr||'*'}" -SourcePortRange "${rule.srcPort||'*'}" -DestinationAddressPrefix "${rule.dstAddr||'*'}" -DestinationPortRange "${rule.dstPort||'80'}" -Access ${rule.access||'Allow'}`);
+        lines.push(`$nsgRules += New-AzNetworkSecurityRuleConfig -Name "${rule.name}" -Protocol ${rule.protocol||'Tcp'} -Direction ${rule.direction||'Inbound'} -Priority ${rule.priority||100} -SourceAddressPrefix "${rule.sourceAddressPrefix||rule.srcAddr||'*'}" -SourcePortRange "${rule.sourcePortRange||rule.srcPort||'*'}" -DestinationAddressPrefix "${rule.destinationAddressPrefix||rule.dstAddr||'*'}" -DestinationPortRange "${rule.destinationPortRange||rule.dstPort||'80'}" -Access ${rule.access||'Allow'}${rule.description ? ` -Description "${String(rule.description).replace(/"/g, '`"')}"` : ''}`);
       });
       lines.push(`New-AzNetworkSecurityGroup -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -SecurityRules $nsgRules`);
       break;
@@ -563,20 +600,35 @@ export function generatePowerShell(){
       // RG-level resources (DNS Zones)
       const rgResources = (state.rgResources||[]).filter(r => r.rgId === rg.id);
       rgResources.forEach(res => {
-        if(res.type === 'publicDns') {
+        if (res.type === 'wafPolicy') {
+          const c = res.config || {};
+          lines.push(`# -- WAF Policy: ${res.name} --`);
+          lines.push(`$wafManagedRuleSet = New-AzApplicationGatewayFirewallManagedRuleSet -RuleSetType "${c.ruleSetType || 'OWASP'}" -RuleSetVersion "${c.ruleSetVersion || '3.2'}"`);
+          lines.push(`$wafPolicySettings = New-AzApplicationGatewayFirewallPolicySetting -State Enabled -Mode "${c.mode || 'Prevention'}" -RequestBodyCheck ${((c.requestBodyCheck || 'true') === 'true') ? '$true' : '$false'} -MaxRequestBodySizeInKb ${c.maxRequestBodySizeInKb || 128} -FileUploadLimitInMb ${c.fileUploadLimitInMb || 100}`);
+          lines.push(`New-AzApplicationGatewayFirewallPolicy -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -PolicySetting $wafPolicySettings -ManagedRule $wafManagedRuleSet`);
+          (c.customRules || []).forEach(rule => {
+            lines.push(`# WAF Custom Rule: ${rule.name || 'rule'} ${rule.action || 'Block'} ${rule.matchVariable || 'RequestHeaders:User-Agent'} ${rule.operator || 'Contains'} ${rule.matchValue || ''}`);
+          });
+          lines.push('');
+        } else if(res.type === 'publicDns') {
           lines.push(`# -- Public DNS Zone: ${res.config.zone} --`);
           lines.push(`$zone = New-AzDnsZone -Name "${res.config.zone}" -ResourceGroupName "${rg.name}"\n`);
           (res.config.records||[]).forEach(rec => {
+            const recTarget = rec.target || rec.value;
             if(rec.type === 'A') {
               lines.push(`New-AzDnsRecordSet -Name "${rec.name}" -RecordType A -ZoneName "${res.config.zone}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -DnsRecords (New-AzDnsRecordConfig -IPv4Address "${rec.value}")`);
+            } else if(rec.type === 'AAAA') {
+              lines.push(`New-AzDnsRecordSet -Name "${rec.name}" -RecordType AAAA -ZoneName "${res.config.zone}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -DnsRecords (New-AzDnsRecordConfig -IPv6Address "${rec.value}")`);
             } else if(rec.type === 'CNAME') {
-              lines.push(`New-AzDnsRecordSet -Name "${rec.name}" -RecordType CNAME -ZoneName "${res.config.zone}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -DnsRecords (New-AzDnsRecordConfig -Cname "${rec.value}")`);
+              lines.push(`New-AzDnsRecordSet -Name "${rec.name}" -RecordType CNAME -ZoneName "${res.config.zone}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -DnsRecords (New-AzDnsRecordConfig -Cname "${recTarget}")`);
             } else if(rec.type === 'MX') {
-              lines.push(`New-AzDnsRecordSet -Name "${rec.name}" -RecordType MX -ZoneName "${res.config.zone}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -DnsRecords (New-AzDnsRecordConfig -Exchange "${rec.value}" -Preference 10)`);
+              lines.push(`New-AzDnsRecordSet -Name "${rec.name}" -RecordType MX -ZoneName "${res.config.zone}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -DnsRecords (New-AzDnsRecordConfig -Exchange "${rec.exchange||rec.value}" -Preference ${rec.preference||10})`);
             } else if(rec.type === 'TXT') {
               lines.push(`New-AzDnsRecordSet -Name "${rec.name}" -RecordType TXT -ZoneName "${res.config.zone}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -DnsRecords (New-AzDnsRecordConfig -Value "${rec.value}")`);
+            } else if (rec.type === 'SRV') {
+              lines.push(`New-AzDnsRecordSet -Name "${rec.name}" -RecordType SRV -ZoneName "${res.config.zone}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -DnsRecords (New-AzDnsRecordConfig -Priority ${rec.priority||10} -Weight ${rec.weight||10} -Port ${rec.port||443} -Target "${rec.target||rec.value}")`);
             } else {
-              lines.push(`# ${rec.type} Record: ${rec.name} -> ${rec.value}`);
+              lines.push(`# ${rec.type} Record: ${rec.name} -> ${recTarget}`);
             }
           });
           lines.push('');
@@ -585,10 +637,21 @@ export function generatePowerShell(){
           lines.push(`# -- Private DNS Zone: ${zoneName} --`);
           lines.push(`$privateDnsZone = New-AzPrivateDnsZone -Name "${zoneName}" -ResourceGroupName "${rg.name}"\n`);
           (res.config.records||[]).forEach(rec => {
+            const recTarget = rec.target || rec.value;
             if(rec.type === 'A') {
               lines.push(`New-AzPrivateDnsRecordSet -Name "${rec.name}" -RecordType A -ZoneName "${zoneName}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -PrivateDnsRecords (New-AzPrivateDnsRecordConfig -IPv4Address "${rec.value}")`);
+            } else if (rec.type === 'AAAA') {
+              lines.push(`New-AzPrivateDnsRecordSet -Name "${rec.name}" -RecordType AAAA -ZoneName "${zoneName}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -PrivateDnsRecords (New-AzPrivateDnsRecordConfig -IPv6Address "${rec.value}")`);
+            } else if (rec.type === 'CNAME') {
+              lines.push(`New-AzPrivateDnsRecordSet -Name "${rec.name}" -RecordType CNAME -ZoneName "${zoneName}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -PrivateDnsRecords (New-AzPrivateDnsRecordConfig -Cname "${recTarget}")`);
+            } else if (rec.type === 'TXT') {
+              lines.push(`New-AzPrivateDnsRecordSet -Name "${rec.name}" -RecordType TXT -ZoneName "${zoneName}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -PrivateDnsRecords (New-AzPrivateDnsRecordConfig -Value "${rec.value}")`);
+            } else if (rec.type === 'MX') {
+              lines.push(`New-AzPrivateDnsRecordSet -Name "${rec.name}" -RecordType MX -ZoneName "${zoneName}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -PrivateDnsRecords (New-AzPrivateDnsRecordConfig -Exchange "${rec.exchange||rec.value}" -Preference ${rec.preference||10})`);
+            } else if (rec.type === 'SRV') {
+              lines.push(`New-AzPrivateDnsRecordSet -Name "${rec.name}" -RecordType SRV -ZoneName "${zoneName}" -ResourceGroupName "${rg.name}" -Ttl ${rec.ttl||3600} -PrivateDnsRecords (New-AzPrivateDnsRecordConfig -Priority ${rec.priority||10} -Weight ${rec.weight||10} -Port ${rec.port||443} -Target "${rec.target||rec.value}")`);
             } else {
-              lines.push(`# ${rec.type} Record: ${rec.name} -> ${rec.value}`);
+              lines.push(`# ${rec.type} Record: ${rec.name} -> ${recTarget}`);
             }
           });
           (res.config.vnetLinks||[]).forEach(link => {

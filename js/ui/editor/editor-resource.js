@@ -35,6 +35,44 @@ function _renderRbacSection(obj) {
   return h;
 }
 
+function _getWafPolicyResources() {
+  return getAllDiagramResources().filter(r => r.type === 'wafPolicy');
+}
+
+function _renderWafPolicyPicker(obj, key = 'wafPolicy', label = 'WAF Policy') {
+  const wafPolicies = _getWafPolicyResources();
+  const selected = obj.config?.[key] || '';
+  let options = `<option value="">-- None --</option>`;
+  options += wafPolicies.map(policy => `<option value="${policy.id}"${selected === policy.id ? ' selected' : ''}>${esc(policy.name)}</option>`).join('');
+  if (selected && !wafPolicies.some(policy => policy.id === selected)) {
+    options += `<option value="${esc(selected)}" selected>${esc(selected)} (legacy)</option>`;
+  }
+  return `<div class="editor-row"><span class="editor-label">${label}</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','${key}',this.value)">${options}</select></div>`;
+}
+
+function _getNsgRules(cfg) {
+  if (Array.isArray(cfg.rules)) return cfg.rules;
+  if (typeof cfg.rules === 'string') {
+    try { return JSON.parse(cfg.rules || '[]'); } catch (e) { return []; }
+  }
+  return [];
+}
+
+function _normalizeNsgRule(rule = {}) {
+  return {
+    name: rule.name || '',
+    priority: String(rule.priority || '100'),
+    direction: rule.direction || 'Inbound',
+    access: rule.access || 'Allow',
+    protocol: rule.protocol || 'Tcp',
+    sourceAddressPrefix: rule.sourceAddressPrefix || rule.srcAddr || '*',
+    sourcePortRange: rule.sourcePortRange || rule.srcPort || '*',
+    destinationAddressPrefix: rule.destinationAddressPrefix || rule.dstAddr || '*',
+    destinationPortRange: rule.destinationPortRange || rule.dstPort || '*',
+    description: rule.description || ''
+  };
+}
+
 function _renderKeyVaultSection(obj) {
   const secrets = obj.config.secrets || [];
   const keys = obj.config.keys || [];
@@ -157,8 +195,34 @@ export function renderResourceSection(obj, { renderValidationBadge, renderValida
     Object.keys(cfg).filter(k => !allSectionKeys.includes(k)).forEach(k => {
       h += `<div class="editor-row"><span class="editor-label">${k}</span><input class="input-field" value="${esc(cfg[k])}" onchange="window._updateResConfig('${obj.id}','${k}',this.value)"></div>`;
     });
+  } else if (obj.type === 'agw') {
+    const cfg = obj.config || {};
+    const agwSku = cfg.sku || 'WAF_v2';
+    const isWafSku = agwSku.toUpperCase().includes('WAF');
+    h += `<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">⚙️ Gateway SKU</span></div>
+      <div class="editor-row"><span class="editor-label">SKU</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','sku',this.value);window._updateResConfig('${obj.id}','tier',this.value)">
+        ${['Standard_v2', 'WAF_v2'].map(sku => `<option value="${sku}"${agwSku === sku ? ' selected' : ''}>${sku}</option>`).join('')}
+      </select></div>
+      <div class="editor-row"><span class="editor-label">Capacity</span><input class="input-field" value="${esc(cfg.capacity || '2')}" onchange="window._updateResConfig('${obj.id}','capacity',this.value)"></div>
+      <div class="editor-row"><span class="editor-label">SSL Policy</span><input class="input-field" value="${esc(cfg.sslPolicy || 'AppGwSslPolicy20220101')}" onchange="window._updateResConfig('${obj.id}','sslPolicy',this.value)"></div>
+      <div class="editor-row"><span class="editor-label">HTTP Listeners</span><input class="input-field" value="${esc(cfg.httpListeners || 'HTTP:80')}" onchange="window._updateResConfig('${obj.id}','httpListeners',this.value)"></div>`;
+    if (isWafSku) {
+      h += `<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🛡️ WAF Controls</span></div>`;
+      h += `<div class="editor-row"><span class="editor-label">WAF Mode</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','wafMode',this.value)"><option value="Detection"${(cfg.wafMode || 'Prevention') === 'Detection' ? ' selected' : ''}>Detection</option><option value="Prevention"${(cfg.wafMode || 'Prevention') === 'Prevention' ? ' selected' : ''}>Prevention</option></select></div>`;
+      h += _renderWafPolicyPicker(obj, 'wafPolicy', 'WAF Policy Resource');
+    }
+    h += `<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🎯 Backend Pools</span></div>`;
+    (cfg.backendPools || []).forEach((pool, idx) => {
+      h += `<div class="editor-row" style="gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-radius:4px;padding:6px;margin-bottom:4px;">
+        <input class="input-field" style="flex:1;min-width:110px;" placeholder="Pool name" value="${esc(pool.name || '')}" onchange="window._updateAgwBackendPool('${obj.id}',${idx},'name',this.value)">
+        <input class="input-field" style="flex:2;min-width:150px;" placeholder="Targets (IPs/FQDN comma-separated)" value="${esc(pool.targets || '')}" onchange="window._updateAgwBackendPool('${obj.id}',${idx},'targets',this.value)">
+        <button class="icon-btn danger" onclick="window._deleteAgwBackendPool('${obj.id}',${idx})">🗑</button>
+      </div>`;
+    });
+    h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addAgwBackendPool('${obj.id}')">➕ Add Backend Pool</button>`;
+    h += _renderRbacSection(obj);
   } else if (obj.type === 'kv') {
-    h += renderConfigFields(obj.id, obj.config, k => !['secrets', 'keys', 'certificates', 'rbacAssignments'].includes(k));
+    h += renderConfigFields(obj, k => !['secrets', 'keys', 'certificates', 'rbacAssignments'].includes(k));
     h += _renderKeyVaultSection(obj);
     h += _renderRbacSection(obj);
   } else if (obj.type === 'udr') {
@@ -181,13 +245,43 @@ export function renderResourceSection(obj, { renderValidationBadge, renderValida
     });
     h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addRoute('${obj.id}')">➕ Add Route</button>`;
     h += _renderRbacSection(obj);
+  } else if (obj.type === 'nsg') {
+    const cfg = obj.config || {};
+    const rules = _getNsgRules(cfg).map(_normalizeNsgRule);
+    const protocolOptions = ['Any', 'Tcp', 'Udp', 'Icmp', 'Ah', 'Esp'];
+    const inboundRules = rules.map((r, idx) => ({ ...r, idx })).filter(r => (r.direction || 'Inbound') === 'Inbound');
+    const outboundRules = rules.map((r, idx) => ({ ...r, idx })).filter(r => (r.direction || 'Inbound') === 'Outbound');
+    const renderRuleBlock = (rule) => `<div class="editor-row" style="gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-radius:4px;padding:6px;margin-bottom:4px;">
+      <input class="input-field" style="flex:1;min-width:120px;" placeholder="Rule name" value="${esc(rule.name)}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'name',this.value)">
+      <input class="input-field" style="width:70px;" placeholder="Priority" value="${esc(rule.priority)}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'priority',this.value)">
+      <select class="input-field" style="width:80px;" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'access',this.value)"><option value="Allow"${rule.access === 'Allow' ? ' selected' : ''}>Allow</option><option value="Deny"${rule.access === 'Deny' ? ' selected' : ''}>Deny</option></select>
+      <select class="input-field" style="width:90px;" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'protocol',this.value)">${protocolOptions.map(p => `<option value="${p}"${rule.protocol === p ? ' selected' : ''}>${p}</option>`).join('')}</select>
+      <input class="input-field" style="flex:1;min-width:120px;" placeholder="Source" value="${esc(rule.sourceAddressPrefix)}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'sourceAddressPrefix',this.value)">
+      <input class="input-field" style="width:90px;" placeholder="Source port" value="${esc(rule.sourcePortRange)}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'sourcePortRange',this.value)">
+      <input class="input-field" style="flex:1;min-width:120px;" placeholder="Destination" value="${esc(rule.destinationAddressPrefix)}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'destinationAddressPrefix',this.value)">
+      <input class="input-field" style="width:90px;" placeholder="Dest port" value="${esc(rule.destinationPortRange)}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'destinationPortRange',this.value)">
+      <input class="input-field" style="flex:2;min-width:180px;" placeholder="Description" value="${esc(rule.description || '')}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'description',this.value)">
+      <button class="icon-btn danger" onclick="window._deleteNsgRule('${obj.id}',${rule.idx})">🗑</button>
+    </div>`;
+    h += `<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🛡️ Inbound security rules</span></div>`;
+    if (inboundRules.length === 0) h += `<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">No inbound rules defined.</div>`;
+    inboundRules.forEach(rule => { h += renderRuleBlock(rule); });
+    h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addNsgRule('${obj.id}','Inbound')">➕ Add Inbound Rule</button>`;
+    h += `<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🛡️ Outbound security rules</span></div>`;
+    if (outboundRules.length === 0) h += `<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">No outbound rules defined.</div>`;
+    outboundRules.forEach(rule => { h += renderRuleBlock(rule); });
+    h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addNsgRule('${obj.id}','Outbound')">➕ Add Outbound Rule</button>`;
+    h += _renderRbacSection(obj);
   } else if (obj.type !== 'pe') {
-    h += renderConfigFields(obj.id, obj.config, k => k !== 'rbacAssignments');
+    h += renderConfigFields(obj, k => !['rbacAssignments', 'wafPolicy'].includes(k));
+    if (['fw', 'lb', 'afd'].includes(obj.type)) {
+      h += _renderWafPolicyPicker(obj, 'wafPolicy');
+    }
     h += _renderRbacSection(obj);
   } else if (obj.type === 'pe') {
     // For PE, render remaining config fields (target, groupId, etc.) skipping PE-specific fields
     // Note: Special PE UI (target selection, DNS recommendations) already rendered above
-    h += renderConfigFields(obj.id, obj.config, k => !['targetResourceId', 'targetResourceName'].includes(k));
+    h += renderConfigFields(obj, k => !['targetResourceId', 'targetResourceName'].includes(k));
     h += _renderRbacSection(obj);
   }
   h += `<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="window._deleteResource('${obj.id}')">🗑 Delete Resource</button>`;

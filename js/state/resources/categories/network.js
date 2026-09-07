@@ -20,8 +20,12 @@ export const networkCategory = {
       cost: 900,
       pricingCalculatorSlug: 'azure-firewall',
       azureTypes: ['microsoft.network/azurefirewalls'],
-      config: { sku: 'Premium', threatIntelMode: 'Alert', dnsProxy: 'true', policyName: '', availabilityZones: '1,2,3' },
-      validation: { critical: ['sku'], warning: ['threatIntelMode', 'availabilityZones'] },
+      config: { sku: 'Premium', threatIntelMode: 'Alert', dnsProxy: 'true', policyName: '', wafPolicy: '', availabilityZones: '1,2,3' },
+      fieldOptions: {
+        sku: { options: ['Standard', 'Premium'] },
+        threatIntelMode: { options: ['Alert', 'Deny', 'Off'] }
+      },
+      validation: { critical: ['sku'], warning: ['threatIntelMode', 'availabilityZones', 'policyName'] },
       importMappings: {
         'sku.tier': 'sku',
         'properties.threatIntelMode': 'threatIntelMode',
@@ -48,13 +52,39 @@ export const networkCategory = {
       cost: 350,
       pricingCalculatorSlug: 'application-gateway',
       azureTypes: ['microsoft.network/applicationgateways'],
-      config: { sku: 'WAF_v2', capacity: '2', tier: 'WAF_v2', sslPolicy: 'AppGwSslPolicy20220101', httpListeners: 'HTTP:80' },
-      validation: { critical: ['sku', 'capacity'], warning: ['tier', 'sslPolicy'] },
+      config: {
+        sku: 'WAF_v2',
+        capacity: '2',
+        tier: 'WAF_v2',
+        sslPolicy: 'AppGwSslPolicy20220101',
+        httpListeners: 'HTTP:80',
+        wafMode: 'Prevention',
+        wafPolicy: '',
+        backendPools: [{ name: 'defaultBackendPool', targets: '10.0.2.4' }]
+      },
+      fieldOptions: {
+        sku: { options: ['Standard_v2', 'WAF_v2'] },
+        tier: { options: ['Standard_v2', 'WAF_v2'] },
+        wafMode: { options: ['Detection', 'Prevention'] }
+      },
+      validation: { critical: ['sku', 'capacity'], warning: ['tier', 'sslPolicy', 'wafPolicy'] },
       importMappings: {
         'sku.name': 'sku',
         'sku.tier': 'tier',
         'sku.capacity': 'capacity',
-        'properties.sslPolicy.policyName': 'sslPolicy'
+        'properties.sslPolicy.policyName': 'sslPolicy',
+        'properties.webApplicationFirewallConfiguration.firewallMode': 'wafMode',
+        'properties.firewallPolicy.id': 'wafPolicy',
+        'properties.backendAddressPools': {
+          key: 'backendPools',
+          transform: (pools) => (pools || []).map(pool => ({
+            name: pool.name || 'defaultBackendPool',
+            targets: (pool.properties?.backendAddresses || [])
+              .map(addr => addr.ipAddress || addr.fqdn)
+              .filter(Boolean)
+              .join(',')
+          }))
+        }
       }
     },
     lb: {
@@ -65,8 +95,13 @@ export const networkCategory = {
       cost: 25,
       pricingCalculatorSlug: 'load-balancer',
       azureTypes: ['microsoft.network/loadbalancers'],
-      config: { sku: 'Standard', type: 'Internal', frontendIp: 'Dynamic', healthProbe: 'TCP/80', lbRules: 'HTTP:80->80' },
-      validation: { critical: ['sku', 'type'], warning: ['healthProbe'] },
+      config: { sku: 'Standard', type: 'Internal', frontendIp: 'Dynamic', healthProbe: 'TCP/80', lbRules: 'HTTP:80->80', wafPolicy: '' },
+      fieldOptions: {
+        sku: { options: ['Basic', 'Standard'] },
+        type: { options: ['Internal', 'Public'] },
+        frontendIp: { options: ['Dynamic', 'Static'] }
+      },
+      validation: { critical: ['sku', 'type'], warning: ['healthProbe', 'wafPolicy'] },
       importMappings: {
         'sku.name': 'sku',
         'properties.frontendIPConfigurations[0].properties.privateIPAllocationMethod': 'frontendIp',
@@ -82,6 +117,11 @@ export const networkCategory = {
       pricingCalculatorSlug: 'vpn-gateway',
       azureTypes: ['microsoft.network/virtualnetworkgateways'],
       config: { sku: 'VpnGw2AZ', generation: 'Generation2', vpnType: 'RouteBased', activeActive: 'false', bgpAsn: '65515' },
+      fieldOptions: {
+        sku: { options: ['VpnGw1', 'VpnGw2', 'VpnGw3', 'VpnGw1AZ', 'VpnGw2AZ', 'VpnGw3AZ'] },
+        generation: { options: ['Generation1', 'Generation2'] },
+        vpnType: { options: ['RouteBased', 'PolicyBased'] }
+      },
       validation: { critical: ['sku', 'vpnType'], warning: ['generation', 'bgpAsn'] },
       importMappings: {
         'sku.name': 'sku',
@@ -100,6 +140,10 @@ export const networkCategory = {
       cost: 450,
       pricingCalculatorSlug: 'expressroute',
       config: { sku: 'ErGw2AZ', gatewayType: 'ExpressRoute', expressRouteCircuitId: '' },
+      fieldOptions: {
+        sku: { options: ['ErGw1AZ', 'ErGw2AZ', 'ErGw3AZ'] },
+        gatewayType: { options: ['ExpressRoute'] }
+      },
       validation: { critical: ['sku'], warning: ['expressRouteCircuitId'] },
       importMappings: {
         'sku.name': 'sku',
@@ -116,6 +160,9 @@ export const networkCategory = {
       pricingCalculatorSlug: 'azure-bastion',
       azureTypes: ['microsoft.network/bastionhosts'],
       config: { sku: 'Standard', scaleUnits: '2', shareableLink: 'false', ipConnect: 'true', tunneling: 'true' },
+      fieldOptions: {
+        sku: { options: ['Basic', 'Standard', 'Premium'] }
+      },
       validation: { critical: ['sku'], warning: ['scaleUnits'] },
       importMappings: {
         'sku.name': 'sku',
@@ -135,6 +182,9 @@ export const networkCategory = {
       pricingCalculatorSlug: 'front-door',
       azureTypes: ['microsoft.cdn/profiles'],
       config: { sku: 'Premium', endpoints: 'default-endpoint', originGroups: 'default-origin-group', wafPolicy: '', routingRules: 'default-route' },
+      fieldOptions: {
+        sku: { options: ['Standard', 'Premium'] }
+      },
       validation: { critical: ['sku'], warning: ['endpoints', 'originGroups'] },
       importMappings: {
         'sku.name': { key: 'sku', transform: (v) => v?.replace('_AzureFrontDoor', '') || 'Premium' }
@@ -149,6 +199,11 @@ export const networkCategory = {
       pricingCalculatorSlug: 'private-link',
       azureTypes: ['microsoft.network/privateendpoints'],
       config: { target: 'Storage', groupId: 'blob', privateDnsZoneId: '', connectionName: '', subResource: 'blob', targetResourceId: '', targetResourceName: '' },
+      fieldOptions: {
+        target: { options: ['Storage', 'Sql', 'KeyVault', 'Web', 'CosmosDB', 'Redis', 'EventHub', 'ServiceBus'] },
+        groupId: { options: ['blob', 'file', 'table', 'queue', 'sqlServer', 'vault', 'sites', 'MongoDB', 'redisCache'] },
+        subResource: { options: ['blob', 'file', 'table', 'queue', 'sqlServer', 'vault', 'sites', 'MongoDB', 'redisCache'] }
+      },
       validation: { critical: ['target', 'groupId'], warning: ['targetResourceId', 'privateDnsZoneId'] },
       importMappings: {
         'properties.privateLinkServiceConnections[0].properties.groupIds[0]': 'groupId',
@@ -190,6 +245,41 @@ export const networkCategory = {
         'name': 'zone'
       }
     },
+    wafPolicy: {
+      icon: '🧰',
+      img: 'Application-Gateways.svg',
+      color: '#FF8C00',
+      label: 'WAF Policy',
+      cost: 20,
+      pricingCalculatorSlug: 'web-application-firewall',
+      azureTypes: ['microsoft.network/applicationgatewaywebapplicationfirewallpolicies'],
+      rgLevel: true,
+      config: {
+        mode: 'Prevention',
+        ruleSetType: 'OWASP',
+        ruleSetVersion: '3.2',
+        requestBodyCheck: 'true',
+        maxRequestBodySizeInKb: '128',
+        fileUploadLimitInMb: '100',
+        customRules: [{
+          name: 'BlockBadBots',
+          priority: '100',
+          action: 'Block',
+          matchVariable: 'RequestHeaders:User-Agent',
+          operator: 'Contains',
+          matchValue: 'BadBot'
+        }]
+      },
+      fieldOptions: {
+        mode: { options: ['Detection', 'Prevention'] },
+        ruleSetType: { options: ['OWASP', 'Microsoft_BotManagerRuleSet'] },
+        ruleSetVersion: { options: ['2.2.9', '3.0', '3.1', '3.2'] }
+      },
+      validation: { critical: ['mode', 'ruleSetType', 'ruleSetVersion'], warning: ['customRules'] },
+      importMappings: {
+        'properties.policySettings.mode': 'mode'
+      }
+    },
     nsg: {
       icon: '📋',
       img: 'Network-Security-Groups.svg',
@@ -198,22 +288,28 @@ export const networkCategory = {
       cost: 0,
       pricingCalculatorSlug: 'network-security-groups',
       azureTypes: ['microsoft.network/networksecuritygroups'],
-      config: { rules: '[{"name":"Allow-HTTP","priority":"100","direction":"Inbound","access":"Allow","protocol":"Tcp","srcPort":"*","dstPort":"80","srcAddr":"*","dstAddr":"*"},{"name":"Allow-HTTPS","priority":"110","direction":"Inbound","access":"Allow","protocol":"Tcp","srcPort":"*","dstPort":"443","srcAddr":"*","dstAddr":"*"}]' },
+      config: {
+        rules: [
+          { name: 'Allow-HTTP', priority: '100', direction: 'Inbound', access: 'Allow', protocol: 'Tcp', sourcePortRange: '*', destinationPortRange: '80', sourceAddressPrefix: '*', destinationAddressPrefix: '*', description: 'Allow inbound HTTP' },
+          { name: 'Allow-HTTPS', priority: '110', direction: 'Inbound', access: 'Allow', protocol: 'Tcp', sourcePortRange: '*', destinationPortRange: '443', sourceAddressPrefix: '*', destinationAddressPrefix: '*', description: 'Allow inbound HTTPS' }
+        ]
+      },
       validation: { critical: [], warning: ['rules'] },
       importMappings: {
         'properties.securityRules': {
           key: 'rules',
-          transform: (rules) => JSON.stringify(rules?.map(r => ({
+          transform: (rules) => (rules || []).map(r => ({
             name: r.name,
             priority: String(r.properties?.priority || 100),
             direction: r.properties?.direction || 'Inbound',
             access: r.properties?.access || 'Allow',
             protocol: r.properties?.protocol || 'Tcp',
-            srcPort: r.properties?.sourcePortRange || '*',
-            dstPort: r.properties?.destinationPortRange || '*',
-            srcAddr: r.properties?.sourceAddressPrefix || '*',
-            dstAddr: r.properties?.destinationAddressPrefix || '*'
-          })) || [])
+            sourcePortRange: r.properties?.sourcePortRange || '*',
+            destinationPortRange: r.properties?.destinationPortRange || '*',
+            sourceAddressPrefix: r.properties?.sourceAddressPrefix || '*',
+            destinationAddressPrefix: r.properties?.destinationAddressPrefix || '*',
+            description: r.properties?.description || ''
+          }))
         }
       }
     },
@@ -249,6 +345,9 @@ export const networkCategory = {
       pricingCalculatorSlug: 'virtual-network-nat-gateways',
       azureTypes: ['microsoft.network/natgateways'],
       config: { sku: 'Standard', idleTimeoutMinutes: '4', zones: '1', publicIpName: '' },
+      fieldOptions: {
+        sku: { options: ['Standard'] }
+      },
       validation: { critical: ['sku'], warning: ['publicIpName', 'idleTimeoutMinutes'] },
       importMappings: {
         'sku.name': 'sku',
@@ -280,6 +379,11 @@ export const networkCategory = {
       pricingCalculatorSlug: 'ip-addresses',
       azureTypes: ['microsoft.network/publicipaddresses'],
       config: { sku: 'Standard', allocationMethod: 'Static', tier: 'Regional', zones: '1,2,3', ddosProtection: 'false', domainNameLabel: '' },
+      fieldOptions: {
+        sku: { options: ['Basic', 'Standard'] },
+        allocationMethod: { options: ['Static', 'Dynamic'] },
+        tier: { options: ['Regional', 'Global'] }
+      },
       validation: { critical: ['sku', 'allocationMethod'], warning: ['tier', 'domainNameLabel'] },
       importMappings: {
         'sku.name': 'sku',

@@ -50,6 +50,29 @@ function _renderWafPolicyPicker(obj, key = 'wafPolicy', label = 'WAF Policy') {
   return `<div class="editor-row"><span class="editor-label">${label}</span><select class="input-field" onchange="window._updateResConfig('${obj.id}','${key}',this.value)">${options}</select></div>`;
 }
 
+function _getNsgRules(cfg) {
+  if (Array.isArray(cfg.rules)) return cfg.rules;
+  if (typeof cfg.rules === 'string') {
+    try { return JSON.parse(cfg.rules || '[]'); } catch (e) { return []; }
+  }
+  return [];
+}
+
+function _normalizeNsgRule(rule = {}) {
+  return {
+    name: rule.name || '',
+    priority: String(rule.priority || '100'),
+    direction: rule.direction || 'Inbound',
+    access: rule.access || 'Allow',
+    protocol: rule.protocol || 'Tcp',
+    sourceAddressPrefix: rule.sourceAddressPrefix || rule.srcAddr || '*',
+    sourcePortRange: rule.sourcePortRange || rule.srcPort || '*',
+    destinationAddressPrefix: rule.destinationAddressPrefix || rule.dstAddr || '*',
+    destinationPortRange: rule.destinationPortRange || rule.dstPort || '*',
+    description: rule.description || ''
+  };
+}
+
 function _renderKeyVaultSection(obj) {
   const secrets = obj.config.secrets || [];
   const keys = obj.config.keys || [];
@@ -221,6 +244,33 @@ export function renderResourceSection(obj, { renderValidationBadge, renderValida
       </div>`;
     });
     h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addRoute('${obj.id}')">➕ Add Route</button>`;
+    h += _renderRbacSection(obj);
+  } else if (obj.type === 'nsg') {
+    const cfg = obj.config || {};
+    const rules = _getNsgRules(cfg).map(_normalizeNsgRule);
+    const protocolOptions = ['Any', 'Tcp', 'Udp', 'Icmp', 'Ah', 'Esp'];
+    const inboundRules = rules.map((r, idx) => ({ ...r, idx })).filter(r => (r.direction || 'Inbound') === 'Inbound');
+    const outboundRules = rules.map((r, idx) => ({ ...r, idx })).filter(r => (r.direction || 'Inbound') === 'Outbound');
+    const renderRuleBlock = (rule) => `<div class="editor-row" style="gap:4px;flex-wrap:wrap;border:1px solid var(--border);border-radius:4px;padding:6px;margin-bottom:4px;">
+      <input class="input-field" style="flex:1;min-width:120px;" placeholder="Rule name" value="${esc(rule.name)}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'name',this.value)">
+      <input class="input-field" style="width:70px;" placeholder="Priority" value="${esc(rule.priority)}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'priority',this.value)">
+      <select class="input-field" style="width:80px;" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'access',this.value)"><option value="Allow"${rule.access === 'Allow' ? ' selected' : ''}>Allow</option><option value="Deny"${rule.access === 'Deny' ? ' selected' : ''}>Deny</option></select>
+      <select class="input-field" style="width:90px;" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'protocol',this.value)">${protocolOptions.map(p => `<option value="${p}"${rule.protocol === p ? ' selected' : ''}>${p}</option>`).join('')}</select>
+      <input class="input-field" style="flex:1;min-width:120px;" placeholder="Source" value="${esc(rule.sourceAddressPrefix)}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'sourceAddressPrefix',this.value)">
+      <input class="input-field" style="width:90px;" placeholder="Source port" value="${esc(rule.sourcePortRange)}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'sourcePortRange',this.value)">
+      <input class="input-field" style="flex:1;min-width:120px;" placeholder="Destination" value="${esc(rule.destinationAddressPrefix)}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'destinationAddressPrefix',this.value)">
+      <input class="input-field" style="width:90px;" placeholder="Dest port" value="${esc(rule.destinationPortRange)}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'destinationPortRange',this.value)">
+      <input class="input-field" style="flex:2;min-width:180px;" placeholder="Description" value="${esc(rule.description || '')}" onchange="window._updateNsgRule('${obj.id}',${rule.idx},'description',this.value)">
+      <button class="icon-btn danger" onclick="window._deleteNsgRule('${obj.id}',${rule.idx})">🗑</button>
+    </div>`;
+    h += `<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🛡️ Inbound security rules</span></div>`;
+    if (inboundRules.length === 0) h += `<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">No inbound rules defined.</div>`;
+    inboundRules.forEach(rule => { h += renderRuleBlock(rule); });
+    h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addNsgRule('${obj.id}','Inbound')">➕ Add Inbound Rule</button>`;
+    h += `<div style="margin-top:10px;padding:4px 0;border-top:1px solid var(--border);"><span style="font-size:10px;font-weight:bold;color:var(--muted);font-family:JetBrains Mono;">🛡️ Outbound security rules</span></div>`;
+    if (outboundRules.length === 0) h += `<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">No outbound rules defined.</div>`;
+    outboundRules.forEach(rule => { h += renderRuleBlock(rule); });
+    h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addNsgRule('${obj.id}','Outbound')">➕ Add Outbound Rule</button>`;
     h += _renderRbacSection(obj);
   } else if (obj.type !== 'pe') {
     h += renderConfigFields(obj.id, obj.config, k => !['rbacAssignments', 'wafPolicy'].includes(k));

@@ -12,6 +12,26 @@ function _resolveWafPolicyName(ref) {
   return ref;
 }
 
+function _normalizeNsgRules(rules) {
+  const list = Array.isArray(rules)
+    ? rules
+    : (typeof rules === 'string'
+      ? (() => { try { return JSON.parse(rules || '[]'); } catch (e) { return []; } })()
+      : []);
+  return (list || []).map(rule => ({
+    name: rule.name || 'rule',
+    priority: rule.priority || 100,
+    direction: rule.direction || 'Inbound',
+    access: rule.access || 'Allow',
+    protocol: rule.protocol || 'Tcp',
+    sourceAddressPrefix: rule.sourceAddressPrefix || rule.srcAddr || '*',
+    destinationAddressPrefix: rule.destinationAddressPrefix || rule.dstAddr || '*',
+    sourcePortRange: rule.sourcePortRange || rule.srcPort || '*',
+    destinationPortRange: rule.destinationPortRange || rule.dstPort || '80',
+    description: rule.description || ''
+  }));
+}
+
 function _pushRbacComments(lines, res) {
   (res.config?.rbacAssignments || []).forEach(assignment => {
     const linked = assignment.principalResourceId ? findResourceById(assignment.principalResourceId) : null;
@@ -238,17 +258,16 @@ function generatePowerShellResource(res, rg, varN, sn) {
       break;
     }
     case 'nsg': {
-      let nsgRules = [];
-      try { nsgRules = JSON.parse(c.rules || '[]'); } catch(e) { nsgRules = []; }
+      let nsgRules = _normalizeNsgRules(c.rules);
       if (nsgRules.length === 0) {
         nsgRules = [
-          {name:'Allow-HTTP',priority:'100',direction:'Inbound',access:'Allow',protocol:'Tcp',srcPort:'*',dstPort:'80',srcAddr:'*',dstAddr:'*'},
-          {name:'Allow-HTTPS',priority:'110',direction:'Inbound',access:'Allow',protocol:'Tcp',srcPort:'*',dstPort:'443',srcAddr:'*',dstAddr:'*'}
+          {name:'Allow-HTTP',priority:'100',direction:'Inbound',access:'Allow',protocol:'Tcp',sourcePortRange:'*',destinationPortRange:'80',sourceAddressPrefix:'*',destinationAddressPrefix:'*'},
+          {name:'Allow-HTTPS',priority:'110',direction:'Inbound',access:'Allow',protocol:'Tcp',sourcePortRange:'*',destinationPortRange:'443',sourceAddressPrefix:'*',destinationAddressPrefix:'*'}
         ];
       }
       lines.push(`$nsgRules = @()`);
       nsgRules.forEach(rule => {
-        lines.push(`$nsgRules += New-AzNetworkSecurityRuleConfig -Name "${rule.name}" -Protocol ${rule.protocol||'Tcp'} -Direction ${rule.direction||'Inbound'} -Priority ${rule.priority||100} -SourceAddressPrefix "${rule.srcAddr||'*'}" -SourcePortRange "${rule.srcPort||'*'}" -DestinationAddressPrefix "${rule.dstAddr||'*'}" -DestinationPortRange "${rule.dstPort||'80'}" -Access ${rule.access||'Allow'}`);
+        lines.push(`$nsgRules += New-AzNetworkSecurityRuleConfig -Name "${rule.name}" -Protocol ${rule.protocol||'Tcp'} -Direction ${rule.direction||'Inbound'} -Priority ${rule.priority||100} -SourceAddressPrefix "${rule.sourceAddressPrefix||rule.srcAddr||'*'}" -SourcePortRange "${rule.sourcePortRange||rule.srcPort||'*'}" -DestinationAddressPrefix "${rule.destinationAddressPrefix||rule.dstAddr||'*'}" -DestinationPortRange "${rule.destinationPortRange||rule.dstPort||'80'}" -Access ${rule.access||'Allow'}${rule.description ? ` -Description "${String(rule.description).replace(/"/g, '`"')}"` : ''}`);
       });
       lines.push(`New-AzNetworkSecurityGroup -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -SecurityRules $nsgRules`);
       break;

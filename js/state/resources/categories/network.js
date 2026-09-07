@@ -249,22 +249,28 @@ export const networkCategory = {
       cost: 0,
       pricingCalculatorSlug: 'network-security-groups',
       azureTypes: ['microsoft.network/networksecuritygroups'],
-      config: { rules: '[{"name":"Allow-HTTP","priority":"100","direction":"Inbound","access":"Allow","protocol":"Tcp","srcPort":"*","dstPort":"80","srcAddr":"*","dstAddr":"*"},{"name":"Allow-HTTPS","priority":"110","direction":"Inbound","access":"Allow","protocol":"Tcp","srcPort":"*","dstPort":"443","srcAddr":"*","dstAddr":"*"}]' },
+      config: {
+        rules: [
+          { name: 'Allow-HTTP', priority: '100', direction: 'Inbound', access: 'Allow', protocol: 'Tcp', sourcePortRange: '*', destinationPortRange: '80', sourceAddressPrefix: '*', destinationAddressPrefix: '*', description: 'Allow inbound HTTP' },
+          { name: 'Allow-HTTPS', priority: '110', direction: 'Inbound', access: 'Allow', protocol: 'Tcp', sourcePortRange: '*', destinationPortRange: '443', sourceAddressPrefix: '*', destinationAddressPrefix: '*', description: 'Allow inbound HTTPS' }
+        ]
+      },
       validation: { critical: [], warning: ['rules'] },
       importMappings: {
         'properties.securityRules': {
           key: 'rules',
-          transform: (rules) => JSON.stringify(rules?.map(r => ({
+          transform: (rules) => (rules || []).map(r => ({
             name: r.name,
             priority: String(r.properties?.priority || 100),
             direction: r.properties?.direction || 'Inbound',
             access: r.properties?.access || 'Allow',
             protocol: r.properties?.protocol || 'Tcp',
-            srcPort: r.properties?.sourcePortRange || '*',
-            dstPort: r.properties?.destinationPortRange || '*',
-            srcAddr: r.properties?.sourceAddressPrefix || '*',
-            dstAddr: r.properties?.destinationAddressPrefix || '*'
-          })) || [])
+            sourcePortRange: r.properties?.sourcePortRange || '*',
+            destinationPortRange: r.properties?.destinationPortRange || '*',
+            sourceAddressPrefix: r.properties?.sourceAddressPrefix || '*',
+            destinationAddressPrefix: r.properties?.destinationAddressPrefix || '*',
+            description: r.properties?.description || ''
+          }))
         }
       }
     },

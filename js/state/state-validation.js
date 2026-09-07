@@ -248,6 +248,24 @@ function _applyDependencyValidation(resource, diagramState, result) {
         });
       }
       break;
+    case 'nsg': {
+      const nsgRules = Array.isArray(config.rules)
+        ? config.rules
+        : (typeof config.rules === 'string'
+          ? (() => { try { return JSON.parse(config.rules || '[]'); } catch (e) { return []; } })()
+          : []);
+      if (nsgRules.length === 0) {
+        _pushUnique(result.warnings, 'NSG has no security rules configured');
+      }
+      nsgRules.forEach((rule, idx) => {
+        if (!rule.name) _pushUnique(result.warnings, `NSG rule #${idx + 1} is missing name`);
+        if (!rule.priority) _pushUnique(result.warnings, `NSG rule #${idx + 1} is missing priority`);
+        const direction = rule.direction || 'Inbound';
+        if (!['Inbound', 'Outbound'].includes(direction)) _pushUnique(result.warnings, `NSG rule "${rule.name || idx + 1}" has invalid direction`);
+        if (!rule.access) _pushUnique(result.warnings, `NSG rule "${rule.name || idx + 1}" is missing access`);
+      });
+      break;
+    }
     case 'kv':
       if (Array.isArray(config.secrets)) {
         config.secrets.forEach((secret, idx) => {

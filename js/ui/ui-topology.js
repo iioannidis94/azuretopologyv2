@@ -310,6 +310,66 @@ export function updateRbacAssignment(resId, idx, key, val) {
   _updateConfigArrayItem(resId, 'rbacAssignments', idx, key, val);
 }
 
+function _getNsgRulesArray(resId) {
+  const r = findResourceById(resId);
+  if(!r || !r.config) return null;
+  if (!Array.isArray(r.config.rules) && typeof r.config.rules === 'string') {
+    try { r.config.rules = JSON.parse(r.config.rules || '[]'); } catch(e) { r.config.rules = []; }
+  } else if (!Array.isArray(r.config.rules)) {
+    r.config.rules = [];
+  }
+  r.config.rules = r.config.rules.map(rule => ({
+    ...rule,
+    sourcePortRange: rule.sourcePortRange || rule.srcPort || '*',
+    destinationPortRange: rule.destinationPortRange || rule.dstPort || '*',
+    sourceAddressPrefix: rule.sourceAddressPrefix || rule.srcAddr || '*',
+    destinationAddressPrefix: rule.destinationAddressPrefix || rule.dstAddr || '*',
+    direction: rule.direction || 'Inbound',
+    access: rule.access || 'Allow',
+    protocol: rule.protocol || 'Tcp'
+  }));
+  return r.config.rules;
+}
+
+export function addNsgRule(resId, direction = 'Inbound') {
+  const rules = _getNsgRulesArray(resId);
+  if(!rules) return;
+  const basePriority = direction === 'Inbound' ? 100 : 200;
+  rules.push({
+    name: `${direction === 'Inbound' ? 'Allow-In' : 'Allow-Out'}-${rules.length + 1}`,
+    priority: String(basePriority + (rules.filter(r => (r.direction || 'Inbound') === direction).length * 10)),
+    direction,
+    access: 'Allow',
+    protocol: 'Tcp',
+    sourcePortRange: '*',
+    destinationPortRange: direction === 'Inbound' ? '80' : '443',
+    sourceAddressPrefix: '*',
+    destinationAddressPrefix: '*',
+    description: ''
+  });
+  saveState(); renderEditor();
+}
+
+export function deleteNsgRule(resId, idx) {
+  const rules = _getNsgRulesArray(resId);
+  if(!rules || !rules[idx]) return;
+  rules.splice(idx, 1);
+  saveState(); renderEditor();
+}
+
+export function updateNsgRule(resId, idx, key, val) {
+  const rules = _getNsgRulesArray(resId);
+  if(!rules || !rules[idx]) return;
+  const rule = rules[idx];
+  rule[key] = val;
+  // Keep backward-compatible aliases used in old exporters/data
+  rule.srcPort = rule.sourcePortRange || rule.srcPort || '*';
+  rule.dstPort = rule.destinationPortRange || rule.dstPort || '*';
+  rule.srcAddr = rule.sourceAddressPrefix || rule.srcAddr || '*';
+  rule.dstAddr = rule.destinationAddressPrefix || rule.dstAddr || '*';
+  saveState(); renderEditor();
+}
+
 export function addAgwBackendPool(resId) {
   _addConfigArrayItem(resId, 'backendPools', { name: 'backendPool', targets: '' });
 }

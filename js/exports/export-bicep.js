@@ -16,6 +16,26 @@ function _resolveWafPolicyName(ref) {
   return ref;
 }
 
+function _normalizeNsgRules(rules) {
+  const list = Array.isArray(rules)
+    ? rules
+    : (typeof rules === 'string'
+      ? (() => { try { return JSON.parse(rules || '[]'); } catch (e) { return []; } })()
+      : []);
+  return (list || []).map(rule => ({
+    name: rule.name || 'rule',
+    priority: rule.priority || 100,
+    direction: rule.direction || 'Inbound',
+    access: rule.access || 'Allow',
+    protocol: rule.protocol || 'Tcp',
+    sourceAddressPrefix: rule.sourceAddressPrefix || rule.srcAddr || '*',
+    destinationAddressPrefix: rule.destinationAddressPrefix || rule.dstAddr || '*',
+    sourcePortRange: rule.sourcePortRange || rule.srcPort || '*',
+    destinationPortRange: rule.destinationPortRange || rule.dstPort || '80',
+    description: rule.description || ''
+  }));
+}
+
 function _pushRbacComments(lines, res) {
   (res.config?.rbacAssignments || []).forEach(assignment => {
     const linked = assignment.principalResourceId ? findResourceById(assignment.principalResourceId) : null;
@@ -361,12 +381,11 @@ function generateBicepResource(res, rg, vnet, sn) {
       break;
     }
     case 'nsg': {
-      let nsgRules = [];
-      try { nsgRules = JSON.parse(c.rules || '[]'); } catch(e) { nsgRules = []; }
+      let nsgRules = _normalizeNsgRules(c.rules);
       if (nsgRules.length === 0) {
         nsgRules = [
-          {name:'Allow-HTTP',priority:'100',direction:'Inbound',access:'Allow',protocol:'Tcp',srcPort:'*',dstPort:'80',srcAddr:'*',dstAddr:'*'},
-          {name:'Allow-HTTPS',priority:'110',direction:'Inbound',access:'Allow',protocol:'Tcp',srcPort:'*',dstPort:'443',srcAddr:'*',dstAddr:'*'}
+          {name:'Allow-HTTP',priority:'100',direction:'Inbound',access:'Allow',protocol:'Tcp',sourcePortRange:'*',destinationPortRange:'80',sourceAddressPrefix:'*',destinationAddressPrefix:'*'},
+          {name:'Allow-HTTPS',priority:'110',direction:'Inbound',access:'Allow',protocol:'Tcp',sourcePortRange:'*',destinationPortRange:'443',sourceAddressPrefix:'*',destinationAddressPrefix:'*'}
         ];
       }
       lines.push(`module ${safeName} 'br/public:avm/res/network/network-security-group:0.3.0' = {`);
@@ -376,7 +395,7 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`    name: '${res.name}'`);
       lines.push(`    securityRules: [`);
       nsgRules.forEach(rule => {
-        lines.push(`      { name: '${rule.name}', priority: ${rule.priority||100}, direction: '${rule.direction||'Inbound'}', access: '${rule.access||'Allow'}', protocol: '${rule.protocol||'Tcp'}', sourceAddressPrefix: '${rule.srcAddr||'*'}', destinationAddressPrefix: '${rule.dstAddr||'*'}', sourcePortRange: '${rule.srcPort||'*'}', destinationPortRange: '${rule.dstPort||'80'}' }`);
+        lines.push(`      { name: '${rule.name}', priority: ${rule.priority||100}, direction: '${rule.direction||'Inbound'}', access: '${rule.access||'Allow'}', protocol: '${rule.protocol||'Tcp'}', sourceAddressPrefix: '${rule.sourceAddressPrefix||rule.srcAddr||'*'}', destinationAddressPrefix: '${rule.destinationAddressPrefix||rule.dstAddr||'*'}', sourcePortRange: '${rule.sourcePortRange||rule.srcPort||'*'}', destinationPortRange: '${rule.destinationPortRange||rule.dstPort||'80'}'${rule.description ? `, description: '${rule.description.replace(/'/g, "''")}'` : ''} }`);
       });
       lines.push(`    ]`);
       lines.push(`  }`);

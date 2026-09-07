@@ -18,6 +18,26 @@ function _resolveWafPolicyArmId(wafPolicyRef) {
   return `[resourceId('Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies', '${name}')]`;
 }
 
+function _normalizeNsgRules(rules) {
+  const list = Array.isArray(rules)
+    ? rules
+    : (typeof rules === 'string'
+      ? (() => { try { return JSON.parse(rules || '[]'); } catch (e) { return []; } })()
+      : []);
+  return (list || []).map(rule => ({
+    name: rule.name || 'rule',
+    priority: rule.priority || 100,
+    direction: rule.direction || 'Inbound',
+    access: rule.access || 'Allow',
+    protocol: rule.protocol || 'Tcp',
+    sourceAddressPrefix: rule.sourceAddressPrefix || rule.srcAddr || '*',
+    destinationAddressPrefix: rule.destinationAddressPrefix || rule.dstAddr || '*',
+    sourcePortRange: rule.sourcePortRange || rule.srcPort || '*',
+    destinationPortRange: rule.destinationPortRange || rule.dstPort || '80',
+    description: rule.description || ''
+  }));
+}
+
 
 export function exportJson(){
   const exportData = {};
@@ -780,12 +800,11 @@ function _generateArmResource(res, rg, vnet, sn) {
     }
 
     case 'nsg': {
-      let nsgRules = [];
-      try { nsgRules = JSON.parse(c.rules || '[]'); } catch (e) { nsgRules = []; }
+      let nsgRules = _normalizeNsgRules(c.rules);
       if (nsgRules.length === 0) {
         nsgRules = [
-          { name: 'Allow-HTTP', priority: '100', direction: 'Inbound', access: 'Allow', protocol: 'Tcp', srcPort: '*', dstPort: '80', srcAddr: '*', dstAddr: '*' },
-          { name: 'Allow-HTTPS', priority: '110', direction: 'Inbound', access: 'Allow', protocol: 'Tcp', srcPort: '*', dstPort: '443', srcAddr: '*', dstAddr: '*' }
+          { name: 'Allow-HTTP', priority: '100', direction: 'Inbound', access: 'Allow', protocol: 'Tcp', sourcePortRange: '*', destinationPortRange: '80', sourceAddressPrefix: '*', destinationAddressPrefix: '*' },
+          { name: 'Allow-HTTPS', priority: '110', direction: 'Inbound', access: 'Allow', protocol: 'Tcp', sourcePortRange: '*', destinationPortRange: '443', sourceAddressPrefix: '*', destinationAddressPrefix: '*' }
         ];
       }
       return {
@@ -801,10 +820,11 @@ function _generateArmResource(res, rg, vnet, sn) {
               direction: rule.direction || 'Inbound',
               access: rule.access || 'Allow',
               protocol: rule.protocol || 'Tcp',
-              sourceAddressPrefix: rule.srcAddr || '*',
-              destinationAddressPrefix: rule.dstAddr || '*',
-              sourcePortRange: rule.srcPort || '*',
-              destinationPortRange: rule.dstPort || '80'
+              sourceAddressPrefix: rule.sourceAddressPrefix || rule.srcAddr || '*',
+              destinationAddressPrefix: rule.destinationAddressPrefix || rule.dstAddr || '*',
+              sourcePortRange: rule.sourcePortRange || rule.srcPort || '*',
+              destinationPortRange: rule.destinationPortRange || rule.dstPort || '80',
+              description: rule.description || undefined
             }
           }))
         }

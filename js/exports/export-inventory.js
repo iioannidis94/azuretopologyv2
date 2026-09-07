@@ -127,11 +127,12 @@ function _analyzeInventory(resources) {
     const subId = _extractSubFromId(rId) || r.subscriptionId || r.SubscriptionId || '';
     if (subId) subIds.add(subId);
 
+    const resolvedType = _resolveInventoryType(type, r);
     if (type === 'microsoft.network/virtualnetworks') {
       vnets.push(r);
     } else if (SKIP_TYPES.has(type)) {
       skipped++;
-    } else if (AZURE_TYPE_MAP[type]) {
+    } else if (resolvedType) {
       mapped++;
     } else {
       unsupported++;
@@ -281,15 +282,9 @@ export function confirmInventoryImport(){
     if (type === 'microsoft.network/virtualnetworks') return;
     if (SKIP_TYPES.has(type)) return;
 
-    const internalType = AZURE_TYPE_MAP[type];
+    const internalType = _resolveInventoryType(type, r);
     if (!internalType) return;
-
-    // Check if it's a Function App
-    let resolvedType = internalType;
-    if (type === 'microsoft.web/sites') {
-      const kind = (r.kind || r.Kind || '').toLowerCase();
-      if (kind.includes('functionapp')) resolvedType = 'fa';
-    }
+    const resolvedType = internalType;
 
     const rgName = _extractRgFromId(rId) || r.resourceGroup || r.ResourceGroupName || 'default-rg';
     const rgObj = rgMap.get(rgName);
@@ -625,6 +620,16 @@ function _buildConfig(resource, type) {
         config.os = props.virtualMachineProfile.osProfile.windowsConfiguration ? 'Windows Server 2022' : 'Ubuntu 22.04';
       }
       break;
+    case 'nva': {
+      const imageRef = props.storageProfile?.imageReference || {};
+      const plan = resource.plan || resource.Plan || {};
+      if (props.hardwareProfile?.vmSize) config.size = props.hardwareProfile.vmSize;
+      if (plan.publisher || imageRef.publisher) config.vendor = _titleCase(plan.publisher || imageRef.publisher || 'Fortinet');
+      if (plan.name || imageRef.sku) config.version = plan.name || imageRef.sku;
+      const planText = `${plan.product || ''} ${plan.name || ''} ${imageRef.offer || ''}`.toLowerCase();
+      config.licenseType = planText.includes('byol') ? 'BYOL' : 'PAYG';
+      break;
+    }
 
     case 'aks':
       // AKS-specific extraction
@@ -774,6 +779,11 @@ function _buildConfig(resource, type) {
           dstAddr: r.properties?.destinationAddressPrefix || '*'
         })));
       }
+      break;
+    case 'udr':
+    case 'natgw':
+    case 'asg':
+    case 'pip':
       break;
 
     case 'sql':
@@ -947,6 +957,41 @@ function _buildConfig(resource, type) {
   }
 
   return config;
+}
+
+function _resolveInventoryType(type, resource) {
+  if (!type) return null;
+  if (type === 'microsoft.web/sites') {
+    const kind = (resource.kind || resource.Kind || '').toLowerCase();
+    return kind.includes('functionapp') ? 'fa' : 'app';
+  }
+  if (type === 'microsoft.compute/virtualmachines' && _isNvaResource(resource)) {
+    return 'nva';
+  }
+  return AZURE_TYPE_MAP[type] || null;
+}
+
+function _isNvaResource(resource) {
+  const plan = resource.plan || resource.Plan || {};
+  const imageRef = resource.properties?.storageProfile?.imageReference || resource.Properties?.storageProfile?.imageReference || {};
+  const text = [
+    plan.publisher,
+    plan.product,
+    plan.name,
+    imageRef.publisher,
+    imageRef.offer,
+    imageRef.sku
+  ].filter(Boolean).join(' ').toLowerCase();
+  return text.includes('fortinet') || text.includes('fortigate');
+}
+
+function _titleCase(value) {
+  if (!value) return value;
+  return String(value)
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
 }
 
 /**

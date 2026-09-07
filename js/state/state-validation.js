@@ -9,6 +9,7 @@ import {
   RES_TYPES,
   mergeResourceConfigWithDefaults
 } from './resources/index.js';
+import { state as currentState } from './state-core.js';
 
 export { REQUIRED_FIELDS, IMPORT_MAPPINGS };
 
@@ -21,7 +22,7 @@ export { REQUIRED_FIELDS, IMPORT_MAPPINGS };
  * @param {Object} resource - Resource object with id, type, name, config
  * @returns {Object} - { status: 'complete'|'warnings'|'errors', errors: [], warnings: [] }
  */
-export function validateResource(resource) {
+export function validateResource(resource, options = {}) {
   const result = { status: 'complete', errors: [], warnings: [] };
   
   if (!resource || !resource.type) {
@@ -58,6 +59,8 @@ export function validateResource(resource) {
     }
   }
 
+  _applyDependencyValidation(resource, options.state || currentState, result);
+
   // Determine overall status
   if (result.errors.length > 0) {
     result.status = 'errors';
@@ -66,6 +69,133 @@ export function validateResource(resource) {
   }
 
   return result;
+}
+
+function _pushUnique(list, message) {
+  if (message && !list.includes(message)) list.push(message);
+}
+
+function _getAllResources(diagramState) {
+  const vnetResources = [diagramState?.hub, ...(diagramState?.spokes || [])]
+    .filter(Boolean)
+    .flatMap(vnet => (vnet.subnets || []).flatMap(subnet => subnet.resources || []));
+  return [...vnetResources, ...(diagramState?.rgResources || [])];
+}
+
+function _findPlacement(resource, diagramState) {
+  if (!resource?.id || !diagramState) return {};
+
+  for (const vnet of [diagramState.hub, ...(diagramState.spokes || [])].filter(Boolean)) {
+    for (const subnet of (vnet.subnets || [])) {
+      const found = (subnet.resources || []).find(r => r.id === resource.id);
+      if (found) return { vnet, subnet };
+    }
+  }
+
+  const rgResource = (diagramState.rgResources || []).find(r => r.id === resource.id);
+  if (rgResource) {
+    const resourceGroup = (diagramState.resourceGroups || []).find(rg => rg.id === rgResource.rgId);
+    return { resourceGroup, isRgLevel: true };
+  }
+
+  return {};
+}
+
+function _hasSubnet(vnet, subnetName) {
+  return (vnet?.subnets || []).some(sn => (sn.name || '').toLowerCase() === subnetName.toLowerCase());
+}
+
+function _findResourceById(diagramState, id) {
+  return _getAllResources(diagramState).find(r => r.id === id) || null;
+}
+
+function _findResourceByName(diagramState, name, allowedTypes = []) {
+  if (!name) return null;
+  const lowerName = name.toLowerCase();
+  return _getAllResources(diagramState).find(r => {
+    if ((r.name || '').toLowerCase() !== lowerName) return false;
+    return allowedTypes.length === 0 || allowedTypes.includes(r.type);
+  }) || null;
+}
+
+function _validateSubnetAssociation(subnet, assocKey, expectedType, label, diagramState, result) {
+  const ref = subnet?.[assocKey];
+  if (!ref) return;
+  const target = _findResourceById(diagramState, ref);
+  if (!target) {
+    _pushUnique(result.errors, `Subnet association "${label}" points to a missing resource: ${ref}`);
+    return;
+  }
+  if (target.type !== expectedType) {
+    _pushUnique(result.errors, `Subnet association "${label}" must reference a ${expectedType} resource`);
+  }
+}
+
+function _applyDependencyValidation(resource, diagramState, result) {
+  if (!diagramState || !resource?.type) return;
+
+  const placement = _findPlacement(resource, diagramState);
+  const config = resource.config || {};
+
+  if (placement.subnet) {
+    _validateSubnetAssociation(placement.subnet, 'nsgId', 'nsg', 'nsgId', diagramState, result);
+    _validateSubnetAssociation(placement.subnet, 'routeTableId', 'udr', 'routeTableId', diagramState, result);
+    _validateSubnetAssociation(placement.subnet, 'natGatewayId', 'natgw', 'natGatewayId', diagramState, result);
+  }
+
+  switch (resource.type) {
+    case 'fw':
+      if (placement.vnet && !_hasSubnet(placement.vnet, 'AzureFirewallSubnet')) {
+        _pushUnique(result.errors, 'Azure Firewall requires a subnet named AzureFirewallSubnet in the same VNet');
+      }
+      break;
+    case 'bas':
+      if (placement.vnet && !_hasSubnet(placement.vnet, 'AzureBastionSubnet')) {
+        _pushUnique(result.errors, 'Azure Bastion requires a subnet named AzureBastionSubnet in the same VNet');
+      }
+      break;
+    case 'gw':
+    case 'ergw':
+      if (placement.vnet && !_hasSubnet(placement.vnet, 'GatewaySubnet')) {
+        _pushUnique(result.errors, `${RES_TYPES[resource.type]?.label || resource.type} requires a subnet named GatewaySubnet in the same VNet`);
+      }
+      break;
+    case 'pe': {
+      if (!config.targetResourceId) {
+        _pushUnique(result.errors, 'Private Endpoint requires targetResourceId for export');
+      } else {
+        const targetResource = _findResourceById(diagramState, config.targetResourceId);
+        if (!targetResource && !config.targetResourceId.startsWith('/subscriptions/')) {
+          _pushUnique(result.warnings, `Private Endpoint targetResourceId does not match a resource in the diagram: ${config.targetResourceId}`);
+        }
+      }
+      break;
+    }
+    case 'fa':
+      if (config.storageAccountName && !_findResourceByName(diagramState, config.storageAccountName, ['sa', 'adls'])) {
+        _pushUnique(result.warnings, `Function App storageAccountName "${config.storageAccountName}" is external or missing from the diagram`);
+      }
+      break;
+    case 'natgw':
+      if (config.publicIpName && !_findResourceByName(diagramState, config.publicIpName, ['pip'])) {
+        _pushUnique(result.warnings, `NAT Gateway publicIpName "${config.publicIpName}" is external or missing from the diagram`);
+      }
+      break;
+    case 'dns':
+      if (Array.isArray(config.vnetLinks)) {
+        config.vnetLinks.forEach(link => {
+          const linkedVnet = [diagramState.hub, ...(diagramState.spokes || [])]
+            .filter(Boolean)
+            .find(vnet => vnet.id === link.vnetId);
+          if (!linkedVnet) {
+            _pushUnique(result.errors, `Private DNS Zone has a VNet link to a missing VNet: ${link.vnetName || link.vnetId}`);
+          }
+        });
+      }
+      break;
+    default:
+      break;
+  }
 }
 
 /**
@@ -85,7 +215,7 @@ export function validateAllResources(state) {
   // Helper to process resources
   const processResource = (resource, location) => {
     result.totalResources++;
-    const validation = validateResource(resource);
+    const validation = validateResource(resource, { state });
     result.details.push({
       resource: { ...resource, _location: location },
       validation
@@ -218,6 +348,16 @@ export function generateValidationSummary(validationResult) {
       .filter(d => d.validation.status === 'errors')
       .forEach(d => {
         lines.push(`#   - ${d.resource.name} (${d.resource.type}): ${d.validation.errors.join(', ')}`);
+      });
+  }
+
+  if (validationResult.warnings > 0) {
+    lines.push(`#`);
+    lines.push(`# ⚡ RESOURCES WITH WARNINGS (review before deployment):`);
+    validationResult.details
+      .filter(d => d.validation.warnings?.length > 0)
+      .forEach(d => {
+        lines.push(`#   - ${d.resource.name} (${d.resource.type}): ${d.validation.warnings.join(', ')}`);
       });
   }
   

@@ -81,6 +81,8 @@ Each resource type comes with:
 
 The resource catalog is now split under `js/state/resources/categories/` by Azure area (compute, networking, data, security, integration, AI, management), so future resource additions can keep config, import rules, and catalog metadata together.
 
+Export readiness is validated from the same catalog, including required config fields and key topology dependencies such as special Azure subnets, private endpoint targets, DNS links, and external resource references used by PowerShell, Bicep, and ARM exports.
+
 ### 3. Canvas interaction and productivity
 
 - **Drag & drop** movement of elements

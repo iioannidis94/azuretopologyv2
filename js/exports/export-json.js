@@ -3,6 +3,7 @@ import { closeModal, _iacSafe } from './export-utils.js';
 
 const JSON_EXPORT_VERSION = 2;
 const TRANSIENT_KEYS = ['dragging','dragStart','offsetStart','dragNodeId','dragGroup','selectedId','offset','scale','mouseStart','dragNodeStart'];
+const FUNCTION_PLAN_SKUS = { Consumption: 'Y1', ElasticPremium: 'EP1', Premium: 'EP1', Dedicated: 'P1v3' };
 
 
 export function exportJson(){
@@ -243,6 +244,55 @@ function _generateArmResource(res, rg, vnet, sn) {
       return resources;
     }
 
+    case 'vmss': {
+      const isWindows = (c.os || '').toLowerCase().includes('windows');
+      const zones = (c.zones || '').split(',').map(z => z.trim()).filter(Boolean);
+      return {
+        type: 'Microsoft.Compute/virtualMachineScaleSets',
+        apiVersion: '2023-09-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        sku: {
+          name: c.size || 'Standard_D2s_v3',
+          tier: 'Standard',
+          capacity: parseInt(c.instances) || 2
+        },
+        ...(zones.length ? { zones } : {}),
+        dependsOn: [`[resourceId('Microsoft.Network/virtualNetworks', '${vnet.name}')]`],
+        properties: {
+          upgradePolicy: { mode: c.upgradePolicy || 'Rolling' },
+          virtualMachineProfile: {
+            storageProfile: {
+              imageReference: isWindows
+                ? { publisher: 'MicrosoftWindowsServer', offer: 'WindowsServer', sku: '2022-datacenter-g2', version: 'latest' }
+                : { publisher: 'Canonical', offer: '0001-com-ubuntu-server-jammy', sku: '22_04-lts-gen2', version: 'latest' },
+              osDisk: {
+                createOption: 'FromImage',
+                managedDisk: { storageAccountType: c.osDiskType || 'Premium_LRS' }
+              }
+            },
+            osProfile: {
+              computerNamePrefix: res.name.substring(0, 9),
+              adminUsername: 'azureuser'
+            },
+            networkProfile: {
+              networkInterfaceConfigurations: [{
+                name: 'nic-config',
+                properties: {
+                  primary: true,
+                  enableAcceleratedNetworking: c.acceleratedNetworking === 'true',
+                  ipConfigurations: [{
+                    name: 'ipconfig1',
+                    properties: { subnet: { id: subnetId } }
+                  }]
+                }
+              }]
+            }
+          }
+        }
+      };
+    }
+
     case 'aks': {
       return {
         type: 'Microsoft.ContainerService/managedClusters',
@@ -267,6 +317,85 @@ function _generateArmResource(res, rg, vnet, sn) {
             dnsServiceIP: c.dnsServiceIp || '10.0.0.10'
           },
           sku: { name: 'Base', tier: c.tier || 'Standard' }
+        }
+      };
+    }
+
+    case 'fa': {
+      const storageAccountName = c.storageAccountName || '<REQUIRED:storageAccountName>';
+      const workerRuntime = (c.runtime || 'node').toLowerCase();
+      const serverFarmName = `${res.name}-plan`;
+      const fxVersion = (c.osType || 'Linux') === 'Linux'
+        ? `${workerRuntime}|${c.runtimeVersion || '20'}`
+        : `${workerRuntime}|${c.runtimeVersion || '20'}`;
+      return [
+        {
+          type: 'Microsoft.Web/serverfarms',
+          apiVersion: '2023-12-01',
+          name: serverFarmName,
+          location: '[parameters(\'location\')]',
+          kind: (c.osType || 'Linux').toLowerCase() === 'linux' ? 'linux' : undefined,
+          sku: { name: FUNCTION_PLAN_SKUS[c.plan] || 'Y1', tier: c.plan === 'Consumption' ? 'Dynamic' : 'ElasticPremium' },
+          properties: { reserved: (c.osType || 'Linux').toLowerCase() === 'linux' }
+        },
+        {
+          type: 'Microsoft.Web/sites',
+          apiVersion: '2023-12-01',
+          name: res.name,
+          location: '[parameters(\'location\')]',
+          kind: (c.osType || 'Linux').toLowerCase() === 'linux' ? 'functionapp,linux' : 'functionapp',
+          dependsOn: [`[resourceId('Microsoft.Web/serverfarms', '${serverFarmName}')]`],
+          properties: {
+            serverFarmId: `[resourceId('Microsoft.Web/serverfarms', '${serverFarmName}')]`,
+            httpsOnly: true,
+            siteConfig: {
+              alwaysOn: c.alwaysOn === 'true',
+              linuxFxVersion: (c.osType || 'Linux').toLowerCase() === 'linux' ? fxVersion : undefined,
+              appSettings: [
+                { name: 'FUNCTIONS_WORKER_RUNTIME', value: workerRuntime },
+                { name: 'FUNCTIONS_EXTENSION_VERSION', value: '~4' },
+                {
+                  name: 'AzureWebJobsStorage',
+                  value: `[concat('DefaultEndpointsProtocol=https;AccountName=', '${storageAccountName}', ';AccountKey=<REQUIRED:storageAccountKey>;EndpointSuffix=', environment().suffixes.storage)]`
+                }
+              ]
+            }
+          }
+        }
+      ];
+    }
+
+    case 'aca': {
+      const environmentId = c.environmentName
+        ? `[resourceId('Microsoft.App/managedEnvironments', '${c.environmentName}')]`
+        : '<REQUIRED:environmentName>';
+      return {
+        type: 'Microsoft.App/containerApps',
+        apiVersion: '2024-03-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        properties: {
+          managedEnvironmentId: environmentId,
+          configuration: {
+            ingress: {
+              external: (c.ingress || 'external') === 'external',
+              targetPort: parseInt(c.targetPort) || 80
+            }
+          },
+          template: {
+            containers: [{
+              name: res.name,
+              image: c.image || 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest',
+              resources: {
+                cpu: Number(c.cpu) || 0.5,
+                memory: c.memory || '1.0Gi'
+              }
+            }],
+            scale: {
+              minReplicas: parseInt(c.minReplicas) || 1,
+              maxReplicas: parseInt(c.replicas) || 10
+            }
+          }
         }
       };
     }
@@ -304,6 +433,65 @@ function _generateArmResource(res, rg, vnet, sn) {
                 subnet: { id: `[resourceId('Microsoft.Network/virtualNetworks/subnets', '${vnet.name}', 'AzureFirewallSubnet')]` }
               }
             }]
+          }
+        }
+      ];
+    }
+
+    case 'nva': {
+      const nicName = `${res.name}-nic`;
+      const vendor = (c.vendor || 'fortinet').toLowerCase();
+      const planName = vendor === 'fortinet' ? 'fortinet_fg-vm' : `${vendor}_nva`;
+      const product = vendor === 'fortinet' ? 'fortinet_fortigate-vm_v5' : `${vendor}_nva`;
+      return [
+        {
+          type: 'Microsoft.Network/networkInterfaces',
+          apiVersion: '2023-09-01',
+          name: nicName,
+          location: '[parameters(\'location\')]',
+          dependsOn: [`[resourceId('Microsoft.Network/virtualNetworks', '${vnet.name}')]`],
+          properties: {
+            ipConfigurations: [{
+              name: 'ipconfig1',
+              properties: {
+                privateIPAllocationMethod: 'Dynamic',
+                subnet: { id: subnetId }
+              }
+            }]
+          }
+        },
+        {
+          type: 'Microsoft.Compute/virtualMachines',
+          apiVersion: '2023-09-01',
+          name: res.name,
+          location: '[parameters(\'location\')]',
+          plan: {
+            publisher: vendor,
+            product,
+            name: planName
+          },
+          dependsOn: [`[resourceId('Microsoft.Network/networkInterfaces', '${nicName}')]`],
+          properties: {
+            hardwareProfile: { vmSize: c.size || 'Standard_F4s_v2' },
+            storageProfile: {
+              imageReference: {
+                publisher: vendor,
+                offer: product,
+                sku: c.version || 'latest',
+                version: 'latest'
+              },
+              osDisk: {
+                createOption: 'FromImage',
+                managedDisk: { storageAccountType: 'Premium_LRS' }
+              }
+            },
+            osProfile: {
+              computerName: res.name,
+              adminUsername: 'azureuser'
+            },
+            networkProfile: {
+              networkInterfaces: [{ id: `[resourceId('Microsoft.Network/networkInterfaces', '${nicName}')]` }]
+            }
           }
         }
       ];
@@ -507,6 +695,56 @@ function _generateArmResource(res, rg, vnet, sn) {
       ];
     }
 
+    case 'ergw': {
+      const pipName = `${res.name}-pip`;
+      const resources = [
+        {
+          type: 'Microsoft.Network/publicIPAddresses',
+          apiVersion: '2023-09-01',
+          name: pipName,
+          location: '[parameters(\'location\')]',
+          sku: { name: 'Standard' },
+          properties: { publicIPAllocationMethod: 'Static' }
+        },
+        {
+          type: 'Microsoft.Network/virtualNetworkGateways',
+          apiVersion: '2023-09-01',
+          name: res.name,
+          location: '[parameters(\'location\')]',
+          dependsOn: [
+            `[resourceId('Microsoft.Network/publicIPAddresses', '${pipName}')]`,
+            `[resourceId('Microsoft.Network/virtualNetworks', '${vnet.name}')]`
+          ],
+          properties: {
+            gatewayType: c.gatewayType || 'ExpressRoute',
+            sku: { name: c.sku || 'ErGw2AZ', tier: c.sku || 'ErGw2AZ' },
+            ipConfigurations: [{
+              name: 'default',
+              properties: {
+                publicIPAddress: { id: `[resourceId('Microsoft.Network/publicIPAddresses', '${pipName}')]` },
+                subnet: { id: `[resourceId('Microsoft.Network/virtualNetworks/subnets', '${vnet.name}', 'GatewaySubnet')]` }
+              }
+            }]
+          }
+        }
+      ];
+      if (c.expressRouteCircuitId) {
+        resources.push({
+          type: 'Microsoft.Network/connections',
+          apiVersion: '2023-09-01',
+          name: `${res.name}-connection`,
+          location: '[parameters(\'location\')]',
+          dependsOn: [`[resourceId('Microsoft.Network/virtualNetworkGateways', '${res.name}')]`],
+          properties: {
+            connectionType: 'ExpressRoute',
+            virtualNetworkGateway1: { id: `[resourceId('Microsoft.Network/virtualNetworkGateways', '${res.name}')]` },
+            peer: { id: c.expressRouteCircuitId }
+          }
+        });
+      }
+      return resources;
+    }
+
     case 'nsg': {
       let nsgRules = [];
       try { nsgRules = JSON.parse(c.rules || '[]'); } catch (e) { nsgRules = []; }
@@ -620,6 +858,42 @@ function _generateArmResource(res, rg, vnet, sn) {
       };
     }
 
+    case 'redis': {
+      const redisSku = (c.sku || 'Premium P1').split(' ');
+      const name = redisSku[0] || 'Premium';
+      const family = name === 'Premium' ? 'P' : (name === 'Basic' ? 'C' : 'C');
+      const zones = (c.zones || '').split(',').map(z => z.trim()).filter(Boolean);
+      return {
+        type: 'Microsoft.Cache/Redis',
+        apiVersion: '2024-03-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        ...(zones.length ? { zones } : {}),
+        properties: {
+          sku: { name, family, capacity: parseInt(c.capacity) || 1 },
+          enableNonSslPort: c.enableNonSslPort === 'true',
+          minimumTlsVersion: c.minTlsVersion || '1.2',
+          replicasPerPrimary: parseInt(c.replicasPerPrimary) || 1
+        }
+      };
+    }
+
+    case 'adls': {
+      return {
+        type: 'Microsoft.Storage/storageAccounts',
+        apiVersion: '2023-01-01',
+        name: res.name.replace(/[^a-z0-9]/g, '').substring(0, 24),
+        location: '[parameters(\'location\')]',
+        sku: { name: `${c.tier || 'Standard'}_${c.replication || 'LRS'}` },
+        kind: 'StorageV2',
+        properties: {
+          isHnsEnabled: c.hierarchicalNamespace !== 'false',
+          allowBlobPublicAccess: false,
+          supportsHttpsTrafficOnly: true
+        }
+      };
+    }
+
     case 'kv': {
       return {
         type: 'Microsoft.KeyVault/vaults',
@@ -635,6 +909,230 @@ function _generateArmResource(res, rg, vnet, sn) {
           accessPolicies: []
         }
       };
+    }
+
+    case 'app': {
+      const planName = c.appServicePlanName || `${res.name}-plan`;
+      const planSku = c.appServicePlanSku || c.sku || 'P1v3';
+      const runtime = (c.runtime || 'dotnet').toLowerCase();
+      const linuxFxVersion = `${runtime}|${c.runtimeVersion || '8.0'}`;
+      return [
+        {
+          type: 'Microsoft.Web/serverfarms',
+          apiVersion: '2023-12-01',
+          name: planName,
+          location: '[parameters(\'location\')]',
+          kind: 'linux',
+          sku: { name: planSku, tier: planSku.startsWith('P') ? 'PremiumV3' : 'Standard' },
+          properties: { reserved: true }
+        },
+        {
+          type: 'Microsoft.Web/sites',
+          apiVersion: '2023-12-01',
+          name: res.name,
+          location: '[parameters(\'location\')]',
+          kind: 'app,linux',
+          dependsOn: [`[resourceId('Microsoft.Web/serverfarms', '${planName}')]`],
+          identity: c.managedIdentity && c.managedIdentity !== 'None' ? { type: 'SystemAssigned' } : undefined,
+          properties: {
+            serverFarmId: `[resourceId('Microsoft.Web/serverfarms', '${planName}')]`,
+            httpsOnly: c.httpsOnly !== 'false',
+            siteConfig: {
+              alwaysOn: c.alwaysOn === 'true',
+              linuxFxVersion,
+              minTlsVersion: c.minTlsVersion || '1.2'
+            }
+          }
+        }
+      ];
+    }
+
+    case 'apim': {
+      return {
+        type: 'Microsoft.ApiManagement/service',
+        apiVersion: '2023-05-01-preview',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        sku: { name: c.tier || 'Developer', capacity: parseInt(c.capacity) || 1 },
+        properties: {
+          publisherName: c.publisherName || 'MyOrganization',
+          publisherEmail: c.publisherEmail || 'admin@example.com',
+          virtualNetworkType: c.vnetType || 'None'
+        }
+      };
+    }
+
+    case 'sb': {
+      return {
+        type: 'Microsoft.ServiceBus/namespaces',
+        apiVersion: '2024-01-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        sku: {
+          name: c.tier || 'Premium',
+          tier: c.tier || 'Premium',
+          capacity: parseInt(c.messagingUnits) || 1
+        },
+        properties: {
+          zoneRedundant: c.zoneRedundant === 'true'
+        }
+      };
+    }
+
+    case 'evh': {
+      return [
+        {
+          type: 'Microsoft.EventHub/namespaces',
+          apiVersion: '2024-01-01',
+          name: res.name,
+          location: '[parameters(\'location\')]',
+          sku: {
+            name: c.plan || 'Standard',
+            tier: c.plan || 'Standard',
+            capacity: parseInt(c.throughputUnits) || 1
+          },
+          properties: {}
+        },
+        {
+          type: 'Microsoft.EventHub/namespaces/eventhubs',
+          apiVersion: '2024-01-01',
+          name: `${res.name}/${res.name}-hub`,
+          dependsOn: [`[resourceId('Microsoft.EventHub/namespaces', '${res.name}')]`],
+          properties: {
+            partitionCount: parseInt(c.partitions) || 4,
+            messageRetentionInDays: parseInt(c.retentionDays) || 7,
+            captureDescription: { enabled: c.captureEnabled === 'true' }
+          }
+        }
+      ];
+    }
+
+    case 'logic': {
+      return {
+        type: 'Microsoft.Logic/workflows',
+        apiVersion: '2019-05-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        properties: {
+          state: c.state || 'Enabled',
+          definition: {
+            $schema: 'https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#',
+            contentVersion: '1.0.0.0',
+            parameters: {},
+            triggers: {},
+            actions: {},
+            outputs: {}
+          }
+        }
+      };
+    }
+
+    case 'foundry': {
+      return {
+        type: 'Microsoft.CognitiveServices/accounts',
+        apiVersion: '2024-04-01-preview',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        kind: c.kind || 'AIServices',
+        sku: { name: c.sku || 'S0' },
+        properties: {
+          customSubDomainName: c.customSubdomain || undefined,
+          networkAcls: c.networkRules && c.networkRules !== 'Allow' ? { defaultAction: 'Deny' } : undefined
+        }
+      };
+    }
+
+    case 'openai': {
+      return [
+        {
+          type: 'Microsoft.CognitiveServices/accounts',
+          apiVersion: '2024-04-01-preview',
+          name: res.name,
+          location: '[parameters(\'location\')]',
+          kind: 'OpenAI',
+          sku: { name: 'S0' },
+          properties: {
+            customSubDomainName: res.name
+          }
+        },
+        {
+          type: 'Microsoft.CognitiveServices/accounts/deployments',
+          apiVersion: '2024-04-01-preview',
+          name: `${res.name}/${c.deploymentName || c.model || 'gpt-4o'}`,
+          dependsOn: [`[resourceId('Microsoft.CognitiveServices/accounts', '${res.name}')]`],
+          sku: { name: 'Standard', capacity: parseInt(c.capacity) || 10 },
+          properties: {
+            model: {
+              format: 'OpenAI',
+              name: c.model || 'gpt-4o',
+              version: c.modelVersion || 'latest'
+            }
+          }
+        }
+      ];
+    }
+
+    case 'monitor': {
+      return {
+        type: 'Microsoft.OperationalInsights/workspaces',
+        apiVersion: '2023-09-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        properties: {
+          sku: { name: c.workspaceSku || 'PerGB2018' },
+          retentionInDays: parseInt(c.retentionDays) || 90,
+          workspaceCapping: c.dailyCapGB ? { dailyQuotaGb: Number(c.dailyCapGB) } : undefined
+        }
+      };
+    }
+
+    case 'afd': {
+      const endpointName = c.endpoints || `${res.name}-endpoint`;
+      const originGroupName = c.originGroups || 'default-origin-group';
+      const routeName = c.routingRules || 'default-route';
+      return [
+        {
+          type: 'Microsoft.Cdn/profiles',
+          apiVersion: '2024-02-01',
+          name: res.name,
+          location: 'global',
+          sku: { name: `${c.sku || 'Premium'}_AzureFrontDoor` },
+          properties: { originResponseTimeoutSeconds: 60 }
+        },
+        {
+          type: 'Microsoft.Cdn/profiles/afdEndpoints',
+          apiVersion: '2024-02-01',
+          name: `${res.name}/${endpointName}`,
+          dependsOn: [`[resourceId('Microsoft.Cdn/profiles', '${res.name}')]`],
+          location: 'global',
+          properties: { enabledState: 'Enabled' }
+        },
+        {
+          type: 'Microsoft.Cdn/profiles/originGroups',
+          apiVersion: '2024-02-01',
+          name: `${res.name}/${originGroupName}`,
+          dependsOn: [`[resourceId('Microsoft.Cdn/profiles', '${res.name}')]`],
+          properties: {
+            loadBalancingSettings: { sampleSize: 4, successfulSamplesRequired: 3 },
+            healthProbeSettings: { probePath: '/', probeRequestType: 'HEAD', probeProtocol: 'Https', probeIntervalInSeconds: 120 }
+          }
+        },
+        {
+          type: 'Microsoft.Cdn/profiles/afdEndpoints/routes',
+          apiVersion: '2024-02-01',
+          name: `${res.name}/${endpointName}/${routeName}`,
+          dependsOn: [
+            `[resourceId('Microsoft.Cdn/profiles/afdEndpoints', '${res.name}', '${endpointName}')]`,
+            `[resourceId('Microsoft.Cdn/profiles/originGroups', '${res.name}', '${originGroupName}')]`
+          ],
+          properties: {
+            originGroup: { id: `[resourceId('Microsoft.Cdn/profiles/originGroups', '${res.name}', '${originGroupName}')]` },
+            supportedProtocols: ['Http', 'Https'],
+            patternsToMatch: ['/*'],
+            forwardingProtocol: 'MatchRequest'
+          }
+        }
+      ];
     }
 
     case 'sql': {
@@ -1025,4 +1523,3 @@ export function previewPastedJson(){
   const raw = document.getElementById('json-paste-input').value.trim();
   if (raw) _previewJson(raw);
 }
-

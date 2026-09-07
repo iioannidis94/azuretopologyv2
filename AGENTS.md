@@ -79,6 +79,7 @@ Supporting docs: `README.md` (features/usage), `RoadMap.md` (phased roadmap),
   - `js/state/resources/categories/<category>.js`: add the resource definition, default config, validation rules, import mappings, pricing slug, and Azure type aliases in the matching category module.
   - `js/exports/export-bicep.js`, `js/exports/export-powershell.js`, `js/exports/export-json.js`: add the corresponding `case` blocks.
   - The properties panel (`js/ui/ui-editor.js`) auto-renders config fields via `renderConfigFields` unless a resource needs a custom editor under `js/ui/editor/`.
+- Keep export-readiness validation aligned with exporters: if a resource depends on special subnets, target resource IDs, external storage/accounts, or DNS/VNet link references, update `js/state/state-validation.js` so the warnings appear before export.
 - Keep modules focused/single-responsibility, matching the existing split under `canvas/`, `ui/`, and `exports/` (see "Phase 1–3 Complete" refactors described in `README.md`).
 - State mutations should go through the undo/redo-aware helpers in `js/state/state-core.js` rather than mutating state directly, to keep history consistent.
 - No external runtime dependencies should be added; the project is intentionally zero-dependency and CDN-only for icons/fonts.

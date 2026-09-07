@@ -1,53 +1,5 @@
-import { state, saveState, RES_TYPES, fullUpdate, extractConfigFromAzure, normalizeResourceConfig, createResourceMeta, validateResource } from '../state-management.js';
+import { state, saveState, RES_TYPES, fullUpdate, extractConfigFromAzure, normalizeResourceConfig, createResourceMeta, validateResource, AZURE_TYPE_MAP, SKIP_TYPES, cloneResourceDefaultConfig, mergeResourceConfigWithDefaults } from '../state-management.js';
 import { closeModal, _uid } from './export-utils.js';
-
-// AZURE RESOURCE INVENTORY IMPORT
-// ================================================================
-const AZURE_TYPE_MAP = {
-  'microsoft.compute/virtualmachines': 'vm',
-  'microsoft.compute/virtualmachinescalesets': 'vmss',
-  'microsoft.containerservice/managedclusters': 'aks',
-  'microsoft.web/sites': 'app', // could also be fa
-  'microsoft.app/containerapps': 'aca',
-  'microsoft.network/azurefirewalls': 'fw',
-  'microsoft.network/applicationgateways': 'agw',
-  'microsoft.network/loadbalancers': 'lb',
-  'microsoft.network/virtualnetworkgateways': 'gw',
-  'microsoft.network/bastionhosts': 'bas',
-  'microsoft.cdn/profiles': 'afd',
-  'microsoft.network/privateendpoints': 'pe',
-  'microsoft.network/privatednszones': 'dns',
-  'microsoft.network/dnszones': 'publicDns',
-  'microsoft.network/networksecuritygroups': 'nsg',
-  'microsoft.network/routetables': 'udr',
-  'microsoft.network/natgateways': 'natgw',
-  'microsoft.network/applicationsecuritygroups': 'asg',
-  'microsoft.network/publicipaddresses': 'pip',
-  'microsoft.sql/servers': 'sql',
-  'microsoft.sql/servers/databases': 'sql',
-  'microsoft.documentdb/databaseaccounts': 'cosmos',
-  'microsoft.storage/storageaccounts': 'sa',
-  'microsoft.cache/redis': 'redis',
-  'microsoft.keyvault/vaults': 'kv',
-  'microsoft.apimanagement/service': 'apim',
-  'microsoft.servicebus/namespaces': 'sb',
-  'microsoft.eventhub/namespaces': 'evh',
-  'microsoft.logic/workflows': 'logic',
-  'microsoft.cognitiveservices/accounts': 'openai',
-  'microsoft.operationalinsights/workspaces': 'monitor',
-};
-
-// Resource types we skip silently (infrastructure/internal resources)
-const SKIP_TYPES = new Set([
-  'microsoft.network/virtualnetworks',
-  'microsoft.network/virtualnetworks/subnets',
-  'microsoft.network/networkinterfaces',
-  'microsoft.resources/deployments',
-  'microsoft.network/networkwatchers',
-  'microsoft.compute/disks',
-  'microsoft.compute/snapshots',
-  'microsoft.compute/images',
-]);
 
 export function openAzureInventoryModal(){
   document.getElementById('azure-inventory-modal').classList.add('show');
@@ -546,7 +498,7 @@ export function confirmInventoryImport(){
         if (!rT) return res;
         return {
           ...res,
-          config: { ...rT.config, ...res.config }
+          config: mergeResourceConfigWithDefaults(res.type, res.config)
         };
       });
     });
@@ -557,7 +509,7 @@ export function confirmInventoryImport(){
       if (!rT) return res;
       return {
         ...res,
-        config: { ...rT.config, ...res.config }
+        config: mergeResourceConfigWithDefaults(res.type, res.config)
       };
     });
   }
@@ -628,13 +580,6 @@ function _buildMgHierarchy(mgData, subscriptions) {
  * Helper: Get a copy of the default config for a resource type.
  * Ensures all imported resources have the full default configuration structure.
  */
-function _getDefaultConfig(type) {
-  if (RES_TYPES[type] && RES_TYPES[type].config) {
-    return JSON.parse(JSON.stringify(RES_TYPES[type].config));
-  }
-  return {};
-}
-
 /**
  * Build config for imported resource by merging Azure properties with defaults.
  * This ensures imported resources have identical configuration structure to manually created ones.
@@ -642,7 +587,7 @@ function _getDefaultConfig(type) {
  */
 function _buildConfig(resource, type) {
   // Start with FULL default configuration
-  const config = _getDefaultConfig(type);
+  const config = cloneResourceDefaultConfig(type);
   const props = resource.properties || resource.Properties || {};
   const sku = resource.sku || resource.Sku || {};
 

@@ -79,6 +79,8 @@ Each resource type comes with:
 - category mapping
 - properties for UI editing
 
+The resource catalog is now split under `js/state/resources/categories/` by Azure area (compute, networking, data, security, integration, AI, management), so future resource additions can keep config, import rules, and catalog metadata together.
+
 ### 3. Canvas interaction and productivity
 
 - **Drag & drop** movement of elements

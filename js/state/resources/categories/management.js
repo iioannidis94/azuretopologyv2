@@ -11,6 +11,9 @@ export const managementCategory = {
       pricingCalculatorSlug: 'azure-monitor',
       azureTypes: ['microsoft.operationalinsights/workspaces'],
       config: { retentionDays: '90', workspaceSku: 'PerGB2018', dailyCapGB: '', solutions: '' },
+      fieldOptions: {
+        workspaceSku: { options: ['PerGB2018', 'CapacityReservation', 'Free', 'Standalone', 'PerNode'] }
+      },
       validation: { critical: ['workspaceSku'], warning: ['retentionDays'] },
       importMappings: {
         'properties.sku.name': 'workspaceSku',
@@ -27,6 +30,10 @@ export const managementCategory = {
       pricingCalculatorSlug: 'monitor',
       azureTypes: ['microsoft.insights/components'],
       config: { kind: 'web', applicationType: 'web', workspaceResourceId: '' },
+      fieldOptions: {
+        kind: { options: ['web', 'java', 'other'] },
+        applicationType: { options: ['web', 'other'] }
+      },
       validation: { critical: ['applicationType'], warning: ['workspaceResourceId'] },
       importMappings: {
         'kind': 'kind',

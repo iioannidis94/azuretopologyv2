@@ -222,7 +222,7 @@ export function renderResourceSection(obj, { renderValidationBadge, renderValida
     h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addAgwBackendPool('${obj.id}')">➕ Add Backend Pool</button>`;
     h += _renderRbacSection(obj);
   } else if (obj.type === 'kv') {
-    h += renderConfigFields(obj.id, obj.config, k => !['secrets', 'keys', 'certificates', 'rbacAssignments'].includes(k));
+    h += renderConfigFields(obj, k => !['secrets', 'keys', 'certificates', 'rbacAssignments'].includes(k));
     h += _renderKeyVaultSection(obj);
     h += _renderRbacSection(obj);
   } else if (obj.type === 'udr') {
@@ -273,7 +273,7 @@ export function renderResourceSection(obj, { renderValidationBadge, renderValida
     h += `<button style="width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--azure-blue);background:transparent;color:var(--azure-blue);font-family:JetBrains Mono;margin-top:4px;" onclick="window._addNsgRule('${obj.id}','Outbound')">➕ Add Outbound Rule</button>`;
     h += _renderRbacSection(obj);
   } else if (obj.type !== 'pe') {
-    h += renderConfigFields(obj.id, obj.config, k => !['rbacAssignments', 'wafPolicy'].includes(k));
+    h += renderConfigFields(obj, k => !['rbacAssignments', 'wafPolicy'].includes(k));
     if (['fw', 'lb', 'afd'].includes(obj.type)) {
       h += _renderWafPolicyPicker(obj, 'wafPolicy');
     }
@@ -281,7 +281,7 @@ export function renderResourceSection(obj, { renderValidationBadge, renderValida
   } else if (obj.type === 'pe') {
     // For PE, render remaining config fields (target, groupId, etc.) skipping PE-specific fields
     // Note: Special PE UI (target selection, DNS recommendations) already rendered above
-    h += renderConfigFields(obj.id, obj.config, k => !['targetResourceId', 'targetResourceName'].includes(k));
+    h += renderConfigFields(obj, k => !['targetResourceId', 'targetResourceName'].includes(k));
     h += _renderRbacSection(obj);
   }
   h += `<button style="width:100%;padding:8px;border-radius:4px;cursor:pointer;font-size:10px;border:1px dashed var(--danger);background:transparent;color:var(--danger);font-family:JetBrains Mono;margin-top:10px;transition:0.2s;" onmouseover="this.style.background='var(--danger)';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='var(--danger)'" onclick="window._deleteResource('${obj.id}')">🗑 Delete Resource</button>`;

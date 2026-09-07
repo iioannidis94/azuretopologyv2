@@ -10,6 +10,11 @@ export const aiCategory = {
       cost: 100,
       pricingCalculatorSlug: 'azure-ai-foundry',
       config: { sku: 'S0', kind: 'AIServices', customSubdomain: '', networkRules: 'Allow' },
+      fieldOptions: {
+        sku: { options: ['S0', 'S1'] },
+        kind: { options: ['AIServices', 'CognitiveServices'] },
+        networkRules: { options: ['Allow', 'Deny'] }
+      },
       validation: { critical: ['sku', 'kind'], warning: ['customSubdomain'] },
       importMappings: {
         'sku.name': 'sku',
@@ -27,6 +32,11 @@ export const aiCategory = {
       pricingCalculatorSlug: 'azure-openai',
       azureTypes: ['microsoft.cognitiveservices/accounts'],
       config: { model: 'gpt-4o', deploymentName: 'gpt-4o', capacity: '10', modelVersion: 'latest', contentFilter: 'Default' },
+      fieldOptions: {
+        model: { options: ['gpt-4o', 'gpt-4.1', 'gpt-4.1-mini', 'o4-mini', 'text-embedding-3-large'] },
+        modelVersion: { options: ['latest', '2024-08-06', '2024-11-20'] },
+        contentFilter: { options: ['Default', 'Strict', 'Relaxed'] }
+      },
       validation: { critical: ['model', 'deploymentName'], warning: ['capacity', 'modelVersion'] },
       importMappings: {
         'properties.deployments[0].properties.model.name': 'model',

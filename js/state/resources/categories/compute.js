@@ -32,8 +32,8 @@ export const computeCategory = {
       cost: 250,
       pricingCalculatorSlug: 'virtual-machine-scale-sets',
       azureTypes: ['microsoft.compute/virtualmachinescalesets'],
-      config: { size: 'Standard_D2s_v3', instances: '2', minInstances: '2', maxInstances: '10', upgradePolicy: 'Rolling', zones: '1,2,3', healthProbe: 'TCP/80', os: 'Ubuntu 22.04', acceleratedNetworking: 'true' },
-      validation: { critical: ['size', 'instances'], warning: ['minInstances', 'maxInstances', 'zones', 'acceleratedNetworking'] },
+      config: { size: 'Standard_D2s_v3', instances: '2', minInstances: '2', maxInstances: '10', upgradePolicy: 'Rolling', zones: '1,2,3', healthProbe: 'TCP/80', os: 'Ubuntu 22.04', osDiskType: 'Premium_LRS', acceleratedNetworking: 'true' },
+      validation: { critical: ['size', 'instances'], warning: ['minInstances', 'maxInstances', 'zones', 'osDiskType', 'acceleratedNetworking'] },
       importMappings: {
         'sku.name': 'size',
         'sku.capacity': 'instances',
@@ -41,6 +41,7 @@ export const computeCategory = {
         'zones': 'zones',
         'properties.virtualMachineProfile.osProfile.linuxConfiguration': { key: 'os', value: 'Ubuntu 22.04' },
         'properties.virtualMachineProfile.osProfile.windowsConfiguration': { key: 'os', value: 'Windows Server 2022' },
+        'properties.virtualMachineProfile.storageProfile.osDisk.managedDisk.storageAccountType': 'osDiskType',
         'properties.virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].enableAcceleratedNetworking': 'acceleratedNetworking'
       }
     },

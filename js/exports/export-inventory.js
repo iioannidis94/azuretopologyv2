@@ -1,53 +1,5 @@
-import { state, saveState, RES_TYPES, fullUpdate, extractConfigFromAzure, normalizeResourceConfig, createResourceMeta, validateResource } from '../state-management.js';
+import { state, saveState, RES_TYPES, fullUpdate, extractConfigFromAzure, normalizeResourceConfig, createResourceMeta, validateResource, AZURE_TYPE_MAP, SKIP_TYPES, cloneResourceDefaultConfig, mergeResourceConfigWithDefaults } from '../state-management.js';
 import { closeModal, _uid } from './export-utils.js';
-
-// AZURE RESOURCE INVENTORY IMPORT
-// ================================================================
-const AZURE_TYPE_MAP = {
-  'microsoft.compute/virtualmachines': 'vm',
-  'microsoft.compute/virtualmachinescalesets': 'vmss',
-  'microsoft.containerservice/managedclusters': 'aks',
-  'microsoft.web/sites': 'app', // could also be fa
-  'microsoft.app/containerapps': 'aca',
-  'microsoft.network/azurefirewalls': 'fw',
-  'microsoft.network/applicationgateways': 'agw',
-  'microsoft.network/loadbalancers': 'lb',
-  'microsoft.network/virtualnetworkgateways': 'gw',
-  'microsoft.network/bastionhosts': 'bas',
-  'microsoft.cdn/profiles': 'afd',
-  'microsoft.network/privateendpoints': 'pe',
-  'microsoft.network/privatednszones': 'dns',
-  'microsoft.network/dnszones': 'publicDns',
-  'microsoft.network/networksecuritygroups': 'nsg',
-  'microsoft.network/routetables': 'udr',
-  'microsoft.network/natgateways': 'natgw',
-  'microsoft.network/applicationsecuritygroups': 'asg',
-  'microsoft.network/publicipaddresses': 'pip',
-  'microsoft.sql/servers': 'sql',
-  'microsoft.sql/servers/databases': 'sql',
-  'microsoft.documentdb/databaseaccounts': 'cosmos',
-  'microsoft.storage/storageaccounts': 'sa',
-  'microsoft.cache/redis': 'redis',
-  'microsoft.keyvault/vaults': 'kv',
-  'microsoft.apimanagement/service': 'apim',
-  'microsoft.servicebus/namespaces': 'sb',
-  'microsoft.eventhub/namespaces': 'evh',
-  'microsoft.logic/workflows': 'logic',
-  'microsoft.cognitiveservices/accounts': 'openai',
-  'microsoft.operationalinsights/workspaces': 'monitor',
-};
-
-// Resource types we skip silently (infrastructure/internal resources)
-const SKIP_TYPES = new Set([
-  'microsoft.network/virtualnetworks',
-  'microsoft.network/virtualnetworks/subnets',
-  'microsoft.network/networkinterfaces',
-  'microsoft.resources/deployments',
-  'microsoft.network/networkwatchers',
-  'microsoft.compute/disks',
-  'microsoft.compute/snapshots',
-  'microsoft.compute/images',
-]);
 
 export function openAzureInventoryModal(){
   document.getElementById('azure-inventory-modal').classList.add('show');
@@ -175,11 +127,12 @@ function _analyzeInventory(resources) {
     const subId = _extractSubFromId(rId) || r.subscriptionId || r.SubscriptionId || '';
     if (subId) subIds.add(subId);
 
+    const resolvedType = _resolveInventoryType(type, r);
     if (type === 'microsoft.network/virtualnetworks') {
       vnets.push(r);
     } else if (SKIP_TYPES.has(type)) {
       skipped++;
-    } else if (AZURE_TYPE_MAP[type]) {
+    } else if (resolvedType) {
       mapped++;
     } else {
       unsupported++;
@@ -329,15 +282,9 @@ export function confirmInventoryImport(){
     if (type === 'microsoft.network/virtualnetworks') return;
     if (SKIP_TYPES.has(type)) return;
 
-    const internalType = AZURE_TYPE_MAP[type];
+    const internalType = _resolveInventoryType(type, r);
     if (!internalType) return;
-
-    // Check if it's a Function App
-    let resolvedType = internalType;
-    if (type === 'microsoft.web/sites') {
-      const kind = (r.kind || r.Kind || '').toLowerCase();
-      if (kind.includes('functionapp')) resolvedType = 'fa';
-    }
+    const resolvedType = internalType;
 
     const rgName = _extractRgFromId(rId) || r.resourceGroup || r.ResourceGroupName || 'default-rg';
     const rgObj = rgMap.get(rgName);
@@ -546,7 +493,7 @@ export function confirmInventoryImport(){
         if (!rT) return res;
         return {
           ...res,
-          config: { ...rT.config, ...res.config }
+          config: mergeResourceConfigWithDefaults(res.type, res.config)
         };
       });
     });
@@ -557,7 +504,7 @@ export function confirmInventoryImport(){
       if (!rT) return res;
       return {
         ...res,
-        config: { ...rT.config, ...res.config }
+        config: mergeResourceConfigWithDefaults(res.type, res.config)
       };
     });
   }
@@ -628,13 +575,6 @@ function _buildMgHierarchy(mgData, subscriptions) {
  * Helper: Get a copy of the default config for a resource type.
  * Ensures all imported resources have the full default configuration structure.
  */
-function _getDefaultConfig(type) {
-  if (RES_TYPES[type] && RES_TYPES[type].config) {
-    return JSON.parse(JSON.stringify(RES_TYPES[type].config));
-  }
-  return {};
-}
-
 /**
  * Build config for imported resource by merging Azure properties with defaults.
  * This ensures imported resources have identical configuration structure to manually created ones.
@@ -642,7 +582,7 @@ function _getDefaultConfig(type) {
  */
 function _buildConfig(resource, type) {
   // Start with FULL default configuration
-  const config = _getDefaultConfig(type);
+  const config = cloneResourceDefaultConfig(type);
   const props = resource.properties || resource.Properties || {};
   const sku = resource.sku || resource.Sku || {};
 
@@ -680,6 +620,16 @@ function _buildConfig(resource, type) {
         config.os = props.virtualMachineProfile.osProfile.windowsConfiguration ? 'Windows Server 2022' : 'Ubuntu 22.04';
       }
       break;
+    case 'nva': {
+      const imageRef = props.storageProfile?.imageReference || {};
+      const plan = resource.plan || resource.Plan || {};
+      if (props.hardwareProfile?.vmSize) config.size = props.hardwareProfile.vmSize;
+      if (plan.publisher || imageRef.publisher) config.vendor = _titleCase(plan.publisher || imageRef.publisher || 'Fortinet');
+      if (plan.name || imageRef.sku) config.version = plan.name || imageRef.sku;
+      const planText = `${plan.product || ''} ${plan.name || ''} ${imageRef.offer || ''}`.toLowerCase();
+      config.licenseType = planText.includes('byol') ? 'BYOL' : 'PAYG';
+      break;
+    }
 
     case 'aks':
       // AKS-specific extraction
@@ -829,6 +779,11 @@ function _buildConfig(resource, type) {
           dstAddr: r.properties?.destinationAddressPrefix || '*'
         })));
       }
+      break;
+    case 'udr':
+    case 'natgw':
+    case 'asg':
+    case 'pip':
       break;
 
     case 'sql':
@@ -1002,6 +957,41 @@ function _buildConfig(resource, type) {
   }
 
   return config;
+}
+
+function _resolveInventoryType(type, resource) {
+  if (!type) return null;
+  if (type === 'microsoft.web/sites') {
+    const kind = (resource.kind || resource.Kind || '').toLowerCase();
+    return kind.includes('functionapp') ? 'fa' : 'app';
+  }
+  if (type === 'microsoft.compute/virtualmachines' && _isNvaResource(resource)) {
+    return 'nva';
+  }
+  return AZURE_TYPE_MAP[type] || null;
+}
+
+function _isNvaResource(resource) {
+  const plan = resource.plan || resource.Plan || {};
+  const imageRef = resource.properties?.storageProfile?.imageReference || resource.Properties?.storageProfile?.imageReference || {};
+  const text = [
+    plan.publisher,
+    plan.product,
+    plan.name,
+    imageRef.publisher,
+    imageRef.offer,
+    imageRef.sku
+  ].filter(Boolean).join(' ').toLowerCase();
+  return text.includes('fortinet') || text.includes('fortigate');
+}
+
+function _titleCase(value) {
+  if (!value) return value;
+  return String(value)
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
 }
 
 /**

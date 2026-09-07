@@ -3,383 +3,15 @@
 // Provides validation for Azure resource deployability
 // ================================================================
 
-import { RES_TYPES } from './resource-types.js';
+import {
+  IMPORT_MAPPINGS,
+  REQUIRED_FIELDS,
+  RES_TYPES,
+  mergeResourceConfigWithDefaults
+} from './resources/index.js';
+import { state as currentState } from './state-core.js';
 
-// ================================================================
-// REQUIRED FIELDS FOR AZURE DEPLOYMENT
-// Fields marked as 'critical' will cause deployment failures
-// Fields marked as 'warning' should be reviewed but may work with defaults
-// ================================================================
-export const REQUIRED_FIELDS = {
-  vm: {
-    critical: ['size', 'os'],
-    warning: ['osDiskType', 'osDiskSizeGB']
-  },
-  vmss: {
-    critical: ['size', 'instances'],
-    warning: ['minInstances', 'maxInstances', 'zones']
-  },
-  aks: {
-    critical: ['nodes', 'version', 'nodeSize'],
-    warning: ['networkPlugin', 'podCidr', 'serviceCidr']
-  },
-  fa: {
-    critical: ['runtime', 'runtimeVersion', 'storageAccountName'],
-    warning: ['plan', 'osType']
-  },
-  aca: {
-    critical: ['image', 'environmentName'],
-    warning: ['cpu', 'memory', 'targetPort']
-  },
-  fw: {
-    critical: ['sku'],
-    warning: ['threatIntelMode', 'availabilityZones']
-  },
-  nva: {
-    critical: ['vendor', 'size'],
-    warning: ['mode', 'version', 'licenseType']
-  },
-  agw: {
-    critical: ['sku', 'capacity'],
-    warning: ['tier', 'sslPolicy']
-  },
-  lb: {
-    critical: ['sku', 'type'],
-    warning: ['healthProbe']
-  },
-  gw: {
-    critical: ['sku', 'vpnType'],
-    warning: ['generation', 'bgpAsn']
-  },
-  ergw: {
-    critical: ['sku'],
-    warning: ['expressRouteCircuitId']
-  },
-  bas: {
-    critical: ['sku'],
-    warning: ['scaleUnits']
-  },
-  afd: {
-    critical: ['sku'],
-    warning: ['endpoints', 'originGroups']
-  },
-  pe: {
-    critical: ['target', 'groupId'],
-    warning: ['targetResourceId', 'privateDnsZoneId']
-  },
-  dns: {
-    critical: ['zone'],
-    warning: ['vnetLinks']
-  },
-  publicDns: {
-    critical: ['zone'],
-    warning: []
-  },
-  nsg: {
-    critical: [],
-    warning: ['rules']
-  },
-  udr: {
-    critical: [],
-    warning: ['routes']
-  },
-  natgw: {
-    critical: ['sku'],
-    warning: ['publicIpName', 'idleTimeoutMinutes']
-  },
-  asg: {
-    critical: [],
-    warning: ['description']
-  },
-  pip: {
-    critical: ['sku', 'allocationMethod'],
-    warning: ['tier', 'domainNameLabel']
-  },
-  sql: {
-    critical: ['serverName', 'tier'],
-    warning: ['vcores', 'maxSizeGB', 'collation']
-  },
-  cosmos: {
-    critical: ['api'],
-    warning: ['consistencyLevel', 'maxRU']
-  },
-  sa: {
-    critical: ['replication', 'kind'],
-    warning: ['tier', 'accessTier']
-  },
-  redis: {
-    critical: ['sku'],
-    warning: ['capacity', 'zones']
-  },
-  adls: {
-    critical: ['tier', 'replication'],
-    warning: ['hierarchicalNamespace']
-  },
-  kv: {
-    critical: ['sku'],
-    warning: ['softDeleteDays', 'purgeProtection']
-  },
-  app: {
-    critical: ['appServicePlanSku', 'runtime'],
-    warning: ['appServicePlanName', 'runtimeVersion']
-  },
-  apim: {
-    critical: ['tier', 'publisherName', 'publisherEmail'],
-    warning: ['capacity']
-  },
-  sb: {
-    critical: ['tier'],
-    warning: ['messagingUnits', 'zoneRedundant']
-  },
-  evh: {
-    critical: ['plan'],
-    warning: ['throughputUnits', 'partitions']
-  },
-  logic: {
-    critical: ['plan'],
-    warning: ['triggerType', 'storageAccountName']
-  },
-  foundry: {
-    critical: ['sku', 'kind'],
-    warning: ['customSubdomain']
-  },
-  openai: {
-    critical: ['model', 'deploymentName'],
-    warning: ['capacity', 'modelVersion']
-  },
-  monitor: {
-    critical: ['workspaceSku'],
-    warning: ['retentionDays']
-  }
-};
-
-// ================================================================
-// AZURE PROPERTY → CONFIG MAPPINGS
-// Maps Azure API response properties to internal config keys
-// ================================================================
-export const IMPORT_MAPPINGS = {
-  vm: {
-    'properties.hardwareProfile.vmSize': 'size',
-    'properties.storageProfile.osDisk.diskSizeGB': 'osDiskSizeGB',
-    'properties.storageProfile.osDisk.managedDisk.storageAccountType': 'osDiskType',
-    'properties.storageProfile.dataDisks.length': 'dataDisks',
-    'properties.osProfile.linuxConfiguration': { key: 'os', value: 'Ubuntu 22.04' },
-    'properties.osProfile.windowsConfiguration': { key: 'os', value: 'Windows Server 2022' },
-    'zones[0]': 'availabilityZone',
-    'properties.networkProfile.networkInterfaceConfigurations[0].properties.enableAcceleratedNetworking': 'acceleratedNetworking',
-    'identity.type': 'managedIdentity'
-  },
-  vmss: {
-    'sku.name': 'size',
-    'sku.capacity': 'instances',
-    'properties.upgradePolicy.mode': 'upgradePolicy',
-    'zones': 'zones',
-    'properties.virtualMachineProfile.osProfile.linuxConfiguration': { key: 'os', value: 'Ubuntu 22.04' },
-    'properties.virtualMachineProfile.osProfile.windowsConfiguration': { key: 'os', value: 'Windows Server 2022' }
-  },
-  aks: {
-    'properties.kubernetesVersion': 'version',
-    'properties.agentPoolProfiles[0].count': 'nodes',
-    'properties.agentPoolProfiles[0].vmSize': 'nodeSize',
-    'properties.networkProfile.networkPlugin': 'networkPlugin',
-    'properties.networkProfile.podCidr': 'podCidr',
-    'properties.networkProfile.serviceCidr': 'serviceCidr',
-    'properties.networkProfile.dnsServiceIP': 'dnsServiceIp',
-    'properties.apiServerAccessProfile.enablePrivateCluster': 'privateCluster',
-    'sku.tier': 'tier'
-  },
-  fa: {
-    'properties.siteConfig.linuxFxVersion': 'runtime',
-    'properties.siteConfig.windowsFxVersion': 'runtime',
-    'kind': { transform: (v) => v?.includes('functionapp') ? 'fa' : 'app' },
-    'properties.siteConfig.alwaysOn': 'alwaysOn'
-  },
-  aca: {
-    'properties.template.containers[0].image': 'image',
-    'properties.template.containers[0].resources.cpu': 'cpu',
-    'properties.template.containers[0].resources.memory': 'memory',
-    'properties.template.scale.minReplicas': 'minReplicas',
-    'properties.template.scale.maxReplicas': 'replicas',
-    'properties.configuration.ingress.targetPort': 'targetPort',
-    'properties.configuration.ingress.external': { key: 'ingress', transform: (v) => v ? 'external' : 'internal' },
-    'properties.managedEnvironmentId': { key: 'environmentName', transform: (v) => v?.split('/').pop() || '' }
-  },
-  fw: {
-    'sku.tier': 'sku',
-    'properties.threatIntelMode': 'threatIntelMode',
-    'properties.additionalProperties.Network.DNS.EnableProxy': 'dnsProxy',
-    'zones': { key: 'availabilityZones', transform: (v) => Array.isArray(v) ? v.join(',') : v }
-  },
-  agw: {
-    'sku.name': 'sku',
-    'sku.tier': 'tier',
-    'sku.capacity': 'capacity',
-    'properties.sslPolicy.policyName': 'sslPolicy'
-  },
-  lb: {
-    'sku.name': 'sku',
-    'properties.frontendIPConfigurations[0].properties.privateIPAllocationMethod': 'frontendIp',
-    'properties.frontendIPConfigurations[0].properties.publicIPAddress': { key: 'type', value: 'Public' }
-  },
-  gw: {
-    'sku.name': 'sku',
-    'properties.vpnType': 'vpnType',
-    'properties.vpnGatewayGeneration': 'generation',
-    'properties.activeActive': 'activeActive',
-    'properties.bgpSettings.asn': 'bgpAsn'
-  },
-  ergw: {
-    'sku.name': 'sku',
-    'properties.gatewayType': 'gatewayType'
-  },
-  bas: {
-    'sku.name': 'sku',
-    'properties.scaleUnits': 'scaleUnits',
-    'properties.enableShareableLink': 'shareableLink',
-    'properties.enableIpConnect': 'ipConnect',
-    'properties.enableTunneling': 'tunneling'
-  },
-  afd: {
-    'sku.name': { key: 'sku', transform: (v) => v?.replace('_AzureFrontDoor', '') || 'Premium' }
-  },
-  pe: {
-    'properties.privateLinkServiceConnections[0].properties.groupIds[0]': 'groupId',
-    'properties.privateLinkServiceConnections[0].properties.privateLinkServiceId': 'targetResourceId'
-  },
-  dns: {
-    'name': 'zone',
-    'properties.registrationEnabled': 'autoRegistration'
-  },
-  publicDns: {
-    'name': 'zone'
-  },
-  nsg: {
-    'properties.securityRules': { key: 'rules', transform: (rules) => JSON.stringify(rules?.map(r => ({
-      name: r.name,
-      priority: String(r.properties?.priority || 100),
-      direction: r.properties?.direction || 'Inbound',
-      access: r.properties?.access || 'Allow',
-      protocol: r.properties?.protocol || 'Tcp',
-      srcPort: r.properties?.sourcePortRange || '*',
-      dstPort: r.properties?.destinationPortRange || '*',
-      srcAddr: r.properties?.sourceAddressPrefix || '*',
-      dstAddr: r.properties?.destinationAddressPrefix || '*'
-    })) || []) }
-  },
-  udr: {
-    'properties.disableBgpRoutePropagation': { key: 'disableBgpRoutePropagation', transform: (v) => v ? 'true' : 'false' },
-    'properties.routes': { key: 'routes', transform: (routes) => (routes || []).map(r => ({
-      name: r.name,
-      addressPrefix: r.properties?.addressPrefix || '',
-      nextHopType: r.properties?.nextHopType || 'VirtualAppliance',
-      nextHopIpAddress: r.properties?.nextHopIpAddress || ''
-    })) }
-  },
-  natgw: {
-    'sku.name': 'sku',
-    'properties.idleTimeoutInMinutes': { key: 'idleTimeoutMinutes', transform: (v) => String(v || 4) },
-    'zones': { key: 'zones', transform: (z) => (z || []).join(',') }
-  },
-  asg: {
-    'properties.description': 'description'
-  },
-  pip: {
-    'sku.name': 'sku',
-    'sku.tier': 'tier',
-    'properties.publicIPAllocationMethod': 'allocationMethod',
-    'zones': { key: 'zones', transform: (z) => (z || []).join(',') },
-    'properties.dnsSettings.domainNameLabel': 'domainNameLabel'
-  },
-  sql: {
-    'sku.tier': 'tier',
-    'sku.capacity': 'vcores',
-    'properties.maxSizeBytes': { key: 'maxSizeGB', transform: (v) => String(Math.round((v || 0) / 1073741824)) },
-    'properties.collation': 'collation',
-    'properties.zoneRedundant': 'zoneRedundant'
-  },
-  cosmos: {
-    'kind': { key: 'api', transform: (v) => v === 'MongoDB' ? 'MongoDB' : 'NoSQL' },
-    'properties.consistencyPolicy.defaultConsistencyLevel': 'consistencyLevel',
-    'properties.enableFreeTier': 'enableFreeTier',
-    'properties.capabilities': { key: 'serverless', transform: (v) => v?.some(c => c.name === 'EnableServerless') ? 'true' : 'false' }
-  },
-  sa: {
-    'sku.name': { key: 'replication', transform: (v) => v?.split('_')[1] || 'ZRS' },
-    'sku.tier': 'tier',
-    'kind': 'kind',
-    'properties.accessTier': 'accessTier',
-    'properties.supportsHttpsTrafficOnly': 'httpsOnly',
-    'properties.minimumTlsVersion': 'minTlsVersion'
-  },
-  redis: {
-    'sku.name': { key: 'sku', transform: (v, resource) => `${v || 'Premium'} ${resource?.sku?.family || 'P'}1` },
-    'sku.capacity': 'capacity',
-    'properties.enableNonSslPort': 'enableNonSslPort',
-    'properties.minimumTlsVersion': 'minTlsVersion',
-    'zones': { key: 'zones', transform: (v) => Array.isArray(v) ? v.join(',') : '' },
-    'properties.replicasPerPrimary': 'replicasPerPrimary'
-  },
-  adls: {
-    'sku.tier': 'tier',
-    'sku.name': { key: 'replication', transform: (v) => v?.split('_')[1] || 'LRS' },
-    'properties.isHnsEnabled': 'hierarchicalNamespace',
-    'properties.blobServiceProperties.deleteRetentionPolicy.enabled': 'enableSoftDelete'
-  },
-  kv: {
-    'properties.sku.name': 'sku',
-    'properties.softDeleteRetentionInDays': 'softDeleteDays',
-    'properties.enablePurgeProtection': 'purgeProtection',
-    'properties.enableRbacAuthorization': 'enableRbacAuth',
-    'properties.networkAcls.defaultAction': 'networkAcls'
-  },
-  app: {
-    'properties.serverFarmId': { key: 'appServicePlanName', transform: (v) => v?.split('/').pop() || '' },
-    'properties.siteConfig.linuxFxVersion': 'runtime',
-    'properties.siteConfig.windowsFxVersion': 'runtime',
-    'properties.siteConfig.alwaysOn': 'alwaysOn',
-    'properties.httpsOnly': 'httpsOnly',
-    'properties.siteConfig.minTlsVersion': 'minTlsVersion',
-    'identity.type': 'managedIdentity'
-  },
-  apim: {
-    'sku.name': 'tier',
-    'sku.capacity': 'capacity',
-    'properties.publisherName': 'publisherName',
-    'properties.publisherEmail': 'publisherEmail',
-    'properties.virtualNetworkType': 'vnetType'
-  },
-  sb: {
-    'sku.name': 'tier',
-    'sku.capacity': 'messagingUnits',
-    'properties.zoneRedundant': 'zoneRedundant'
-  },
-  evh: {
-    'sku.name': 'plan',
-    'sku.capacity': 'throughputUnits',
-    'properties.kafkaEnabled': 'kafkaEnabled'
-  },
-  logic: {
-    'sku.name': 'plan',
-    'properties.state': 'state'
-  },
-  foundry: {
-    'sku.name': 'sku',
-    'kind': 'kind',
-    'properties.customSubDomainName': 'customSubdomain',
-    'properties.networkAcls.defaultAction': 'networkRules'
-  },
-  openai: {
-    'properties.deployments[0].properties.model.name': 'model',
-    'properties.deployments[0].name': 'deploymentName',
-    'properties.deployments[0].sku.capacity': 'capacity',
-    'properties.deployments[0].properties.model.version': 'modelVersion'
-  },
-  monitor: {
-    'properties.sku.name': 'workspaceSku',
-    'properties.retentionInDays': 'retentionDays',
-    'properties.workspaceCapping.dailyQuotaGb': 'dailyCapGB'
-  }
-};
+export { REQUIRED_FIELDS, IMPORT_MAPPINGS };
 
 // ================================================================
 // VALIDATION FUNCTIONS
@@ -390,7 +22,7 @@ export const IMPORT_MAPPINGS = {
  * @param {Object} resource - Resource object with id, type, name, config
  * @returns {Object} - { status: 'complete'|'warnings'|'errors', errors: [], warnings: [] }
  */
-export function validateResource(resource) {
+export function validateResource(resource, options = {}) {
   const result = { status: 'complete', errors: [], warnings: [] };
   
   if (!resource || !resource.type) {
@@ -427,6 +59,8 @@ export function validateResource(resource) {
     }
   }
 
+  _applyDependencyValidation(resource, options.state || currentState, result);
+
   // Determine overall status
   if (result.errors.length > 0) {
     result.status = 'errors';
@@ -435,6 +69,133 @@ export function validateResource(resource) {
   }
 
   return result;
+}
+
+function _pushUnique(list, message) {
+  if (message && !list.includes(message)) list.push(message);
+}
+
+function _getAllResources(diagramState) {
+  const vnetResources = [diagramState?.hub, ...(diagramState?.spokes || [])]
+    .filter(Boolean)
+    .flatMap(vnet => (vnet.subnets || []).flatMap(subnet => subnet.resources || []));
+  return [...vnetResources, ...(diagramState?.rgResources || [])];
+}
+
+function _findPlacement(resource, diagramState) {
+  if (!resource?.id || !diagramState) return {};
+
+  for (const vnet of [diagramState.hub, ...(diagramState.spokes || [])].filter(Boolean)) {
+    for (const subnet of (vnet.subnets || [])) {
+      const found = (subnet.resources || []).find(r => r.id === resource.id);
+      if (found) return { vnet, subnet };
+    }
+  }
+
+  const rgResource = (diagramState.rgResources || []).find(r => r.id === resource.id);
+  if (rgResource) {
+    const resourceGroup = (diagramState.resourceGroups || []).find(rg => rg.id === rgResource.rgId);
+    return { resourceGroup, isRgLevel: true };
+  }
+
+  return {};
+}
+
+function _hasSubnet(vnet, subnetName) {
+  return (vnet?.subnets || []).some(sn => (sn.name || '').toLowerCase() === subnetName.toLowerCase());
+}
+
+function _findResourceById(diagramState, id) {
+  return _getAllResources(diagramState).find(r => r.id === id) || null;
+}
+
+function _findResourceByName(diagramState, name, allowedTypes = []) {
+  if (!name) return null;
+  const lowerName = name.toLowerCase();
+  return _getAllResources(diagramState).find(r => {
+    if ((r.name || '').toLowerCase() !== lowerName) return false;
+    return allowedTypes.length === 0 || allowedTypes.includes(r.type);
+  }) || null;
+}
+
+function _validateSubnetAssociation(subnet, assocKey, expectedType, label, diagramState, result) {
+  const ref = subnet?.[assocKey];
+  if (!ref) return;
+  const target = _findResourceById(diagramState, ref);
+  if (!target) {
+    _pushUnique(result.errors, `Subnet association "${label}" points to a missing resource: ${ref}`);
+    return;
+  }
+  if (target.type !== expectedType) {
+    _pushUnique(result.errors, `Subnet association "${label}" must reference a ${expectedType} resource`);
+  }
+}
+
+function _applyDependencyValidation(resource, diagramState, result) {
+  if (!diagramState || !resource?.type) return;
+
+  const placement = _findPlacement(resource, diagramState);
+  const config = resource.config || {};
+
+  if (placement.subnet) {
+    _validateSubnetAssociation(placement.subnet, 'nsgId', 'nsg', 'nsgId', diagramState, result);
+    _validateSubnetAssociation(placement.subnet, 'routeTableId', 'udr', 'routeTableId', diagramState, result);
+    _validateSubnetAssociation(placement.subnet, 'natGatewayId', 'natgw', 'natGatewayId', diagramState, result);
+  }
+
+  switch (resource.type) {
+    case 'fw':
+      if (placement.vnet && !_hasSubnet(placement.vnet, 'AzureFirewallSubnet')) {
+        _pushUnique(result.errors, 'Azure Firewall requires a subnet named AzureFirewallSubnet in the same VNet');
+      }
+      break;
+    case 'bas':
+      if (placement.vnet && !_hasSubnet(placement.vnet, 'AzureBastionSubnet')) {
+        _pushUnique(result.errors, 'Azure Bastion requires a subnet named AzureBastionSubnet in the same VNet');
+      }
+      break;
+    case 'gw':
+    case 'ergw':
+      if (placement.vnet && !_hasSubnet(placement.vnet, 'GatewaySubnet')) {
+        _pushUnique(result.errors, `${RES_TYPES[resource.type]?.label || resource.type} requires a subnet named GatewaySubnet in the same VNet`);
+      }
+      break;
+    case 'pe': {
+      if (!config.targetResourceId) {
+        _pushUnique(result.errors, 'Private Endpoint requires targetResourceId for export');
+      } else {
+        const targetResource = _findResourceById(diagramState, config.targetResourceId);
+        if (!targetResource && !config.targetResourceId.startsWith('/subscriptions/')) {
+          _pushUnique(result.warnings, `Private Endpoint targetResourceId does not match a resource in the diagram: ${config.targetResourceId}`);
+        }
+      }
+      break;
+    }
+    case 'fa':
+      if (config.storageAccountName && !_findResourceByName(diagramState, config.storageAccountName, ['sa', 'adls'])) {
+        _pushUnique(result.warnings, `Function App storageAccountName "${config.storageAccountName}" is external or missing from the diagram`);
+      }
+      break;
+    case 'natgw':
+      if (config.publicIpName && !_findResourceByName(diagramState, config.publicIpName, ['pip'])) {
+        _pushUnique(result.warnings, `NAT Gateway publicIpName "${config.publicIpName}" is external or missing from the diagram`);
+      }
+      break;
+    case 'dns':
+      if (Array.isArray(config.vnetLinks)) {
+        config.vnetLinks.forEach(link => {
+          const linkedVnet = [diagramState.hub, ...(diagramState.spokes || [])]
+            .filter(Boolean)
+            .find(vnet => vnet.id === link.vnetId);
+          if (!linkedVnet) {
+            _pushUnique(result.errors, `Private DNS Zone has a VNet link to a missing VNet: ${link.vnetName || link.vnetId}`);
+          }
+        });
+      }
+      break;
+    default:
+      break;
+  }
 }
 
 /**
@@ -454,7 +215,7 @@ export function validateAllResources(state) {
   // Helper to process resources
   const processResource = (resource, location) => {
     result.totalResources++;
-    const validation = validateResource(resource);
+    const validation = validateResource(resource, { state });
     result.details.push({
       resource: { ...resource, _location: location },
       validation
@@ -502,11 +263,7 @@ export function normalizeResourceConfig(resource) {
   const typeDef = RES_TYPES[resource.type];
   if (!typeDef || !typeDef.config) return resource;
 
-  const defaultConfig = JSON.parse(JSON.stringify(typeDef.config));
-  const existingConfig = resource.config || {};
-
-  // Merge: existing values override defaults
-  resource.config = { ...defaultConfig, ...existingConfig };
+  resource.config = mergeResourceConfigWithDefaults(resource.type, resource.config);
   
   return resource;
 }
@@ -591,6 +348,16 @@ export function generateValidationSummary(validationResult) {
       .filter(d => d.validation.status === 'errors')
       .forEach(d => {
         lines.push(`#   - ${d.resource.name} (${d.resource.type}): ${d.validation.errors.join(', ')}`);
+      });
+  }
+
+  if (validationResult.warnings > 0) {
+    lines.push(`#`);
+    lines.push(`# ⚡ RESOURCES WITH WARNINGS (review before deployment):`);
+    validationResult.details
+      .filter(d => d.validation.warnings?.length > 0)
+      .forEach(d => {
+        lines.push(`#   - ${d.resource.name} (${d.resource.type}): ${d.validation.warnings.join(', ')}`);
       });
   }
   

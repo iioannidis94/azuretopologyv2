@@ -1,5 +1,5 @@
 import { state, uid, fullUpdate } from './state-management.js';
-import { RES_TYPES } from './state-management.js';
+import { mergeResourceConfigWithDefaults } from './state-management.js';
 
 // ================================================================
 // TEMPLATE CONFIG HELPER - Ensures all template resources have full configs
@@ -9,10 +9,7 @@ import { RES_TYPES } from './state-management.js';
  * This ensures template resources have the same config structure as manually created ones.
  */
 function _mergeWithDefaults(type, partialConfig) {
-  if (RES_TYPES[type] && RES_TYPES[type].config) {
-    return { ...RES_TYPES[type].config, ...partialConfig };
-  }
-  return partialConfig || {};
+  return mergeResourceConfigWithDefaults(type, partialConfig);
 }
 
 // ================================================================

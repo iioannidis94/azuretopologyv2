@@ -10,6 +10,7 @@ import {
   mergeResourceConfigWithDefaults
 } from './resources/index.js';
 import { state as currentState } from './state-core.js';
+import { resolveVnetLink } from './state-helpers.js';
 
 export { REQUIRED_FIELDS, IMPORT_MAPPINGS };
 
@@ -317,9 +318,7 @@ function _applyDependencyValidation(resource, diagramState, result) {
       if (resource.type !== 'dns') break;
       if (Array.isArray(config.vnetLinks)) {
         config.vnetLinks.forEach(link => {
-          const linkedVnet = [diagramState.hub, ...(diagramState.spokes || [])]
-            .filter(Boolean)
-            .find(vnet => vnet.id === link.vnetId);
+          const linkedVnet = resolveVnetLink(link, diagramState);
           if (!linkedVnet) {
             _pushUnique(result.errors, `Private DNS Zone has a VNet link to a missing VNet: ${link.vnetName || link.vnetId}`);
           }

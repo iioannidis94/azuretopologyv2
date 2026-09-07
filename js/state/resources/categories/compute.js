@@ -32,15 +32,16 @@ export const computeCategory = {
       cost: 250,
       pricingCalculatorSlug: 'virtual-machine-scale-sets',
       azureTypes: ['microsoft.compute/virtualmachinescalesets'],
-      config: { size: 'Standard_D2s_v3', instances: '2', minInstances: '2', maxInstances: '10', upgradePolicy: 'Rolling', zones: '1,2,3', healthProbe: 'TCP/80', os: 'Ubuntu 22.04' },
-      validation: { critical: ['size', 'instances'], warning: ['minInstances', 'maxInstances', 'zones'] },
+      config: { size: 'Standard_D2s_v3', instances: '2', minInstances: '2', maxInstances: '10', upgradePolicy: 'Rolling', zones: '1,2,3', healthProbe: 'TCP/80', os: 'Ubuntu 22.04', acceleratedNetworking: 'true' },
+      validation: { critical: ['size', 'instances'], warning: ['minInstances', 'maxInstances', 'zones', 'acceleratedNetworking'] },
       importMappings: {
         'sku.name': 'size',
         'sku.capacity': 'instances',
         'properties.upgradePolicy.mode': 'upgradePolicy',
         'zones': 'zones',
         'properties.virtualMachineProfile.osProfile.linuxConfiguration': { key: 'os', value: 'Ubuntu 22.04' },
-        'properties.virtualMachineProfile.osProfile.windowsConfiguration': { key: 'os', value: 'Windows Server 2022' }
+        'properties.virtualMachineProfile.osProfile.windowsConfiguration': { key: 'os', value: 'Windows Server 2022' },
+        'properties.virtualMachineProfile.networkProfile.networkInterfaceConfigurations[0].enableAcceleratedNetworking': 'acceleratedNetworking'
       }
     },
     aks: {
@@ -51,12 +52,13 @@ export const computeCategory = {
       cost: 150,
       pricingCalculatorSlug: 'kubernetes-service',
       azureTypes: ['microsoft.containerservice/managedclusters'],
-      config: { nodes: '3', version: '1.29', nodeSize: 'Standard_D2s_v3', networkPlugin: 'azure', podCidr: '10.244.0.0/16', serviceCidr: '10.0.0.0/16', dnsServiceIp: '10.0.0.10', privateCluster: 'false', tier: 'Standard' },
-      validation: { critical: ['nodes', 'version', 'nodeSize'], warning: ['networkPlugin', 'podCidr', 'serviceCidr'] },
+      config: { nodes: '3', version: '1.29', nodeSize: 'Standard_D2s_v3', networkPlugin: 'azure', podCidr: '10.244.0.0/16', serviceCidr: '10.0.0.0/16', dnsServiceIp: '10.0.0.10', privateCluster: 'false', tier: 'Standard', availabilityZones: '1,2,3' },
+      validation: { critical: ['nodes', 'version', 'nodeSize'], warning: ['networkPlugin', 'podCidr', 'serviceCidr', 'availabilityZones'] },
       importMappings: {
         'properties.kubernetesVersion': 'version',
         'properties.agentPoolProfiles[0].count': 'nodes',
         'properties.agentPoolProfiles[0].vmSize': 'nodeSize',
+        'properties.agentPoolProfiles[0].availabilityZones': { key: 'availabilityZones', transform: (v) => Array.isArray(v) ? v.join(',') : (v || '') },
         'properties.networkProfile.networkPlugin': 'networkPlugin',
         'properties.networkProfile.podCidr': 'podCidr',
         'properties.networkProfile.serviceCidr': 'serviceCidr',
@@ -80,7 +82,7 @@ export const computeCategory = {
         'kind': { transform: (v) => v?.includes('functionapp') ? 'fa' : 'app' },
         'properties.siteConfig.alwaysOn': 'alwaysOn'
       },
-      dependencies: []
+      dependencies: ['Storage Account (sa/adls)']
     },
     aca: {
       icon: '📦',
@@ -101,7 +103,8 @@ export const computeCategory = {
         'properties.configuration.ingress.targetPort': 'targetPort',
         'properties.configuration.ingress.external': { key: 'ingress', transform: (v) => v ? 'external' : 'internal' },
         'properties.managedEnvironmentId': { key: 'environmentName', transform: (v) => v?.split('/').pop() || '' }
-      }
+      },
+      dependencies: ['Container Apps Environment']
     }
   }
 };

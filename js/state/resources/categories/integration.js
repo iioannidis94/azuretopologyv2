@@ -64,8 +64,8 @@ export const integrationCategory = {
       cost: 30,
       pricingCalculatorSlug: 'event-hubs',
       azureTypes: ['microsoft.eventhub/namespaces'],
-      config: { plan: 'Standard', throughputUnits: '1', partitions: '4', retentionDays: '7', captureEnabled: 'false' },
-      validation: { critical: ['plan'], warning: ['throughputUnits', 'partitions'] },
+      config: { plan: 'Standard', throughputUnits: '1', partitions: '4', retentionDays: '7', captureEnabled: 'false', kafkaEnabled: 'false' },
+      validation: { critical: ['plan'], warning: ['throughputUnits', 'partitions', 'kafkaEnabled'] },
       importMappings: {
         'sku.name': 'plan',
         'sku.capacity': 'throughputUnits',
@@ -85,7 +85,8 @@ export const integrationCategory = {
       importMappings: {
         'sku.name': 'plan',
         'properties.state': 'state'
-      }
+      },
+      dependencies: ['Storage Account (optional/external)']
     }
   }
 };

@@ -321,9 +321,10 @@ function generatePowerShellResource(res, rg, varN, sn) {
       break;
     }
     case 'evh': {
-      let evhCmd = `New-AzEventHubNamespace -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -SkuName "${c.tier||'Standard'}" -SkuCapacity ${c.throughputUnits||1}`;
+      let evhCmd = `New-AzEventHubNamespace -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -SkuName "${c.plan||c.tier||'Standard'}" -SkuCapacity ${c.throughputUnits||1}`;
       lines.push(evhCmd);
       lines.push(`New-AzEventHub -Name "${res.name}-hub" -NamespaceName "${res.name}" -ResourceGroupName "${rg.name}" -PartitionCount ${c.partitions||4} -MessageRetentionInDays ${c.retentionDays||7}${c.captureEnabled==='true' ? ' -CaptureEnabled' : ''}`);
+      if (c.kafkaEnabled === 'true') lines.push(`# Kafka enabled for namespace ${res.name}`);
       break;
     }
     case 'logic': {

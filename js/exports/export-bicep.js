@@ -561,8 +561,9 @@ function generateBicepResource(res, rg, vnet, sn) {
       lines.push(`  scope: ${rgRef}`);
       lines.push(`  params: {`);
       lines.push(`    name: '${res.name}'`);
-      lines.push(`    sku: { name: '${c.tier||'Standard'}', tier: '${c.tier||'Standard'}', capacity: ${c.throughputUnits||1} }`);
+      lines.push(`    sku: { name: '${c.plan||c.tier||'Standard'}', tier: '${c.plan||c.tier||'Standard'}', capacity: ${c.throughputUnits||1} }`);
       lines.push(`    eventhubs: [{ name: '${res.name}-hub', partitionCount: ${c.partitions||4}, messageRetentionInDays: ${c.retentionDays||7}${c.captureEnabled==='true' ? ', captureDescription: { enabled: true }' : ''} }]`);
+      if (c.kafkaEnabled === 'true') lines.push(`    // Kafka enabled`);
       lines.push(`  }`);
       lines.push(`}\n`);
       break;

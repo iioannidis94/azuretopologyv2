@@ -297,7 +297,7 @@ function generatePowerShellResource(res, rg, varN, sn) {
     }
     case 'app': {
       const aspName = c.appServicePlanName || `${res.name}-plan`;
-      const aspSku = c.appServicePlanSku || c.sku || 'P1v3';
+      const aspSku = c.appServicePlanSku || 'P1v3';
       const aspTier = _ASP_TIER_MAP[aspSku] || 'PremiumV3';
       const aspWorkerSize = _ASP_SIZE_MAP[aspSku] || 'Small';
       lines.push(`New-AzAppServicePlan -Name "${aspName}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Tier "${aspTier}" -WorkerSize "${aspWorkerSize}"`);
@@ -321,10 +321,23 @@ function generatePowerShellResource(res, rg, varN, sn) {
       break;
     }
     case 'evh': {
-      let evhCmd = `New-AzEventHubNamespace -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -SkuName "${c.plan||c.tier||'Standard'}" -SkuCapacity ${c.throughputUnits||1}`;
+      let evhCmd = `New-AzEventHubNamespace -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -SkuName "${c.plan||'Standard'}" -SkuCapacity ${c.throughputUnits||1}`;
       lines.push(evhCmd);
       lines.push(`New-AzEventHub -Name "${res.name}-hub" -NamespaceName "${res.name}" -ResourceGroupName "${rg.name}" -PartitionCount ${c.partitions||4} -MessageRetentionInDays ${c.retentionDays||7}${c.captureEnabled==='true' ? ' -CaptureEnabled' : ''}`);
       if (c.kafkaEnabled === 'true') lines.push(`# Kafka enabled for namespace ${res.name}`);
+      break;
+    }
+    case 'appcfg': {
+      lines.push(`New-AzAppConfigurationStore -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Sku "${c.sku||'Standard'}"`);
+      if (c.publicNetworkAccess && c.publicNetworkAccess !== 'Enabled') lines.push(`# Public network access: ${c.publicNetworkAccess}`);
+      if (c.disableLocalAuth === 'true') lines.push(`# Disable local auth: true`);
+      break;
+    }
+    case 'egt': {
+      lines.push(`New-AzEventGridTopic -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}"`);
+      if (c.sku && c.sku !== 'Basic') lines.push(`# Requested SKU: ${c.sku}`);
+      if (c.inputSchema && c.inputSchema !== 'EventGridSchema') lines.push(`# Input schema: ${c.inputSchema}`);
+      if (c.publicNetworkAccess && c.publicNetworkAccess !== 'Enabled') lines.push(`# Public network access: ${c.publicNetworkAccess}`);
       break;
     }
     case 'logic': {
@@ -349,6 +362,24 @@ function generatePowerShellResource(res, rg, varN, sn) {
     case 'monitor': {
       lines.push(`New-AzOperationalInsightsWorkspace -ResourceGroupName "${rg.name}" -Name "${res.name}" -Location "${rg.location}" -Sku "${c.workspaceSku||'PerGB2018'}" -RetentionInDays ${c.retentionDays||90}${c.dailyCapGB ? ` -DailyQuotaGb ${c.dailyCapGB}` : ''}`);
       if(c.solutions) lines.push(`# Solutions: ${c.solutions}`);
+      break;
+    }
+    case 'appi': {
+      let appiCmd = `New-AzApplicationInsights -ResourceGroupName "${rg.name}" -Name "${res.name}" -Location "${rg.location}" -Kind "${c.kind||'web'}" -ApplicationType "${c.applicationType||'web'}"`;
+      if (c.workspaceResourceId) appiCmd += ` -WorkspaceResourceId "${c.workspaceResourceId}"`;
+      lines.push(appiCmd);
+      break;
+    }
+    case 'acr': {
+      let acrCmd = `New-AzContainerRegistry -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Sku "${c.sku||'Premium'}"`;
+      if (c.adminUserEnabled === 'true') acrCmd += ' -EnableAdminUser';
+      lines.push(acrCmd);
+      if (c.publicNetworkAccess && c.publicNetworkAccess !== 'Enabled') lines.push(`# Public network access: ${c.publicNetworkAccess}`);
+      break;
+    }
+    case 'search': {
+      lines.push(`New-AzSearchService -Name "${res.name}" -ResourceGroupName "${rg.name}" -Location "${rg.location}" -Sku "${c.sku||'standard'}" -ReplicaCount ${c.replicaCount||1} -PartitionCount ${c.partitionCount||1}`);
+      if (c.publicNetworkAccess && c.publicNetworkAccess !== 'enabled') lines.push(`# Public network access: ${c.publicNetworkAccess}`);
       break;
     }
     default: {

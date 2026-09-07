@@ -913,7 +913,7 @@ function _generateArmResource(res, rg, vnet, sn) {
 
     case 'app': {
       const planName = c.appServicePlanName || `${res.name}-plan`;
-      const planSku = c.appServicePlanSku || c.sku || 'P1v3';
+      const planSku = c.appServicePlanSku || 'P1v3';
       const runtime = (c.runtime || 'dotnet').toLowerCase();
       const linuxFxVersion = `${runtime}|${c.runtimeVersion || '8.0'}`;
       return [
@@ -1007,6 +1007,34 @@ function _generateArmResource(res, rg, vnet, sn) {
       ];
     }
 
+    case 'appcfg': {
+      return {
+        type: 'Microsoft.AppConfiguration/configurationStores',
+        apiVersion: '2024-05-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        sku: { name: c.sku || 'Standard' },
+        properties: {
+          publicNetworkAccess: c.publicNetworkAccess || 'Enabled',
+          disableLocalAuth: c.disableLocalAuth === 'true'
+        }
+      };
+    }
+
+    case 'egt': {
+      return {
+        type: 'Microsoft.EventGrid/topics',
+        apiVersion: '2023-12-15-preview',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        sku: { name: c.sku || 'Basic' },
+        properties: {
+          inputSchema: c.inputSchema || 'EventGridSchema',
+          publicNetworkAccess: c.publicNetworkAccess || 'Enabled'
+        }
+      };
+    }
+
     case 'logic': {
       return {
         type: 'Microsoft.Logic/workflows',
@@ -1082,6 +1110,49 @@ function _generateArmResource(res, rg, vnet, sn) {
           sku: { name: c.workspaceSku || 'PerGB2018' },
           retentionInDays: parseInt(c.retentionDays) || 90,
           workspaceCapping: c.dailyCapGB ? { dailyQuotaGb: Number(c.dailyCapGB) } : undefined
+        }
+      };
+    }
+
+    case 'appi': {
+      return {
+        type: 'Microsoft.Insights/components',
+        apiVersion: '2020-02-02',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        kind: c.kind || 'web',
+        properties: {
+          Application_Type: c.applicationType || 'web',
+          WorkspaceResourceId: c.workspaceResourceId || undefined
+        }
+      };
+    }
+
+    case 'acr': {
+      return {
+        type: 'Microsoft.ContainerRegistry/registries',
+        apiVersion: '2023-07-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        sku: { name: c.sku || 'Premium' },
+        properties: {
+          adminUserEnabled: c.adminUserEnabled === 'true',
+          publicNetworkAccess: c.publicNetworkAccess || 'Enabled'
+        }
+      };
+    }
+
+    case 'search': {
+      return {
+        type: 'Microsoft.Search/searchServices',
+        apiVersion: '2023-11-01',
+        name: res.name,
+        location: '[parameters(\'location\')]',
+        sku: { name: c.sku || 'standard' },
+        properties: {
+          replicaCount: parseInt(c.replicaCount) || 1,
+          partitionCount: parseInt(c.partitionCount) || 1,
+          publicNetworkAccess: c.publicNetworkAccess || 'enabled'
         }
       };
     }

@@ -63,13 +63,13 @@ This means you aren't just drawing boxes, but a structure that follows the true 
 
 Resources are organized into categories:
 
-- **Compute**: Virtual Machine, VM Scale Set, AKS, Function App, Container Apps
+- **Compute**: Virtual Machine, VM Scale Set, AKS, Function App, Container Apps, Container Registry
 - **Networking**: Azure Firewall, FortiGate NVA, App Gateway, Load Balancer, VPN Gateway, ExpressRoute Gateway, Azure Bastion, Front Door, Private Endpoint, Private DNS Zone, Public DNS Zone, NSG
-- **Data & Storage**: Azure SQL, Cosmos DB, Storage Account, Azure Cache for Redis, Data Lake
+- **Data & Storage**: Azure SQL, Cosmos DB, Storage Account, Azure Cache for Redis, Data Lake, AI Search
 - **Security**: Key Vault
-- **Integration**: App Service, API Management, Service Bus, Event Hub, Logic App
+- **Integration**: App Service, API Management, Service Bus, Event Hub, Logic App, App Configuration, Event Grid Topic
 - **AI & Analytics**: AI Foundry, Azure OpenAI
-- **Management**: Azure Monitor
+- **Management**: Azure Monitor, Application Insights
 
 Each resource type comes with:
 
@@ -443,7 +443,7 @@ The project is useful when you want to:
 - ✅ Fully functional visual builder with drag-drop and canvas controls
 - ✅ Complete Azure hierarchy (Subscriptions → RGs → VNets → Subnets → Resources)
 - ✅ Hub & Spoke and hybrid topology modeling
-- ✅ 35+ Azure resource types with icons and pricing
+- ✅ 40+ Azure resource types with icons and pricing
 - ✅ Live cost estimator with pricing calculator links
 - ✅ Security posture analysis panel
 - ✅ Properties editor for all elements

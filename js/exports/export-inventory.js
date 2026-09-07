@@ -685,6 +685,11 @@ function _buildConfig(resource, type) {
         config.environmentName = props.managedEnvironmentId.split('/').pop() || '';
       }
       break;
+    case 'acr':
+      if (sku.name && !config.sku) config.sku = sku.name;
+      if (props.adminUserEnabled !== undefined) config.adminUserEnabled = String(props.adminUserEnabled);
+      if (props.publicNetworkAccess) config.publicNetworkAccess = props.publicNetworkAccess;
+      break;
 
     case 'fw':
       // Azure Firewall specific
@@ -892,6 +897,18 @@ function _buildConfig(resource, type) {
       if (sku.capacity) config.throughputUnits = String(sku.capacity);
       break;
 
+    case 'appcfg':
+      if (sku.name && !config.sku) config.sku = sku.name;
+      if (props.publicNetworkAccess) config.publicNetworkAccess = props.publicNetworkAccess;
+      if (props.disableLocalAuth !== undefined) config.disableLocalAuth = String(props.disableLocalAuth);
+      break;
+
+    case 'egt':
+      if (sku.name && !config.sku) config.sku = sku.name;
+      if (props.inputSchema) config.inputSchema = props.inputSchema;
+      if (props.publicNetworkAccess) config.publicNetworkAccess = props.publicNetworkAccess;
+      break;
+
     case 'logic':
       // Logic App specific
       if (sku?.name) config.plan = sku.name;
@@ -922,6 +939,21 @@ function _buildConfig(resource, type) {
       if (props.sku?.name) config.workspaceSku = props.sku.name;
       if (props.retentionInDays) config.retentionDays = String(props.retentionInDays);
       if (props.workspaceCapping?.dailyQuotaGb) config.dailyCapGB = String(props.workspaceCapping.dailyQuotaGb);
+      break;
+
+    case 'appi':
+      if (resource.kind) config.kind = resource.kind;
+      if (props.Application_Type) config.applicationType = props.Application_Type;
+      if (props.applicationType) config.applicationType = props.applicationType;
+      if (props.WorkspaceResourceId) config.workspaceResourceId = props.WorkspaceResourceId;
+      if (props.workspaceResourceId) config.workspaceResourceId = props.workspaceResourceId;
+      break;
+
+    case 'search':
+      if (sku.name && !config.sku) config.sku = String(sku.name).toLowerCase();
+      if (props.replicaCount !== undefined) config.replicaCount = String(props.replicaCount);
+      if (props.partitionCount !== undefined) config.partitionCount = String(props.partitionCount);
+      if (props.publicNetworkAccess) config.publicNetworkAccess = String(props.publicNetworkAccess).toLowerCase();
       break;
 
     case 'dns':
